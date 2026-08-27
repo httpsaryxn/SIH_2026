@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/models/user_role.dart';
+import '../../core/services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -51,20 +53,23 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
-      Future.delayed(const Duration(milliseconds: 900), () {
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoading = true);
+    try {
+      if (_isLogin) {
+        await AuthService.signIn(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
         if (!mounted) return;
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.primary,
             behavior: SnackBarBehavior.floating,
             content: Text(
-              _isLogin
-                  ? 'Logged in successfully as ${_currentRole.title}!'
-                  : 'Account created successfully for ${_currentRole.title}!',
+              'Logged in successfully as ${_currentRole.title}!',
               style: GoogleFonts.plusJakartaSans(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -72,24 +77,86 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         );
-      });
+      } else {
+        await AuthService.signUp(
+          email: _emailController.text,
+          password: _passwordController.text,
+          fullName: _nameController.text,
+          role: _currentRole,
+          organizationName: _orgController.text.isNotEmpty ? _orgController.text : null,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Account created! Please check your email for confirmation if required.',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            e.message,
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'Authentication error: $e',
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _handleGoogleLogin() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.onSurface,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-          'Google authentication initiated for ${_currentRole.title}',
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
+  Future<void> _handleGoogleLogin() async {
+    try {
+      await AuthService.signInWithGoogle(targetRole: _currentRole);
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          content: Text(e.message),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          content: Text('Google Sign-In failed: $e'),
+        ),
+      );
+    }
   }
 
   @override
