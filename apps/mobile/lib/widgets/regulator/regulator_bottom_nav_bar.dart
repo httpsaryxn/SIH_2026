@@ -48,12 +48,13 @@ class RegulatorBottomNavBar extends StatelessWidget {
         break;
     }
 
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
       ),
+      (route) => false,
     );
   }
 

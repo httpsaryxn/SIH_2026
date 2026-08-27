@@ -97,7 +97,7 @@ class _RegulatorAuditIntakeScreenState
       _processingStep = 0;
     });
 
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             RegulatorViolationReviewScreen(violationId: newViolation.id),
