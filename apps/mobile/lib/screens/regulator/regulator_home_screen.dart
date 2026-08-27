@@ -1,0 +1,400 @@
+import 'package:flutter/material.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_spacing.dart';
+import '../../core/constants/app_typography.dart';
+import '../../core/models/regulator_violation.dart';
+import '../../core/models/regulator_complaint.dart';
+import '../../core/services/regulator_data_service.dart';
+import '../../widgets/regulator/regulator_top_app_bar.dart';
+import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
+import '../../widgets/regulator/regulator_metric_card.dart';
+import '../../widgets/regulator/regulator_status_badge.dart';
+import 'regulator_violation_review_screen.dart';
+import 'regulator_complaint_inbox_screen.dart';
+
+class RegulatorHomeScreen extends StatefulWidget {
+  const RegulatorHomeScreen({super.key});
+
+  @override
+  State<RegulatorHomeScreen> createState() => _RegulatorHomeScreenState();
+}
+
+class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
+  final RegulatorNavTab _currentTab = RegulatorNavTab.home;
+  String _selectedFilter = 'All Active';
+  bool _isLoading = true;
+
+  List<RegulatorViolation> _violations = [];
+  List<RegulatorComplaint> _complaints = [];
+
+  final List<String> _filters = [
+    'All Active',
+    'High Confidence',
+    'Requires Audit',
+    'Completed',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+    final violations = await RegulatorDataService.getFlaggedViolations();
+    final complaints = await RegulatorDataService.getComplaints();
+
+    if (mounted) {
+      setState(() {
+        _violations = violations;
+        _complaints = complaints;
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<RegulatorViolation> get _filteredViolations {
+    switch (_selectedFilter) {
+      case 'High Confidence':
+        return _violations.where((v) => v.confidenceScore >= 92).toList();
+      case 'Requires Audit':
+        return _violations.where((v) => v.severity == 'High').toList();
+      case 'Completed':
+        return _violations
+            .where((v) =>
+                v.status == 'confirmed' || v.status == 'false_positive')
+            .toList();
+      case 'All Active':
+      default:
+        return _violations;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: const RegulatorTopAppBar(),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
+          : ClipRect(
+              child: ScrollConfiguration(
+                behavior: const ScrollBehavior().copyWith(overscroll: false),
+                child: RefreshIndicator(
+                  onRefresh: _loadDashboardData,
+                  color: AppColors.primary,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics(),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.gutter,
+                      vertical: AppSpacing.md,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Welcome Section
+                        _buildWelcomeSection(),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Quick Filter Chips
+                        _buildFilterChips(),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Dynamic Metric Cards Grid
+                        _buildMetricGrid(),
+                        const SizedBox(height: AppSpacing.xl),
+
+                        // Priority Queue Header & List
+                        _buildPriorityQueue(),
+                        const SizedBox(height: AppSpacing.xxl),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+      bottomNavigationBar: RegulatorBottomNavBar(
+        currentTab: _currentTab,
+        onTabSelected: (tab) =>
+            RegulatorBottomNavBar.navigateToTab(context, _currentTab, tab),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Morning, Officer.',
+          style: AppTypography.headlineLgMobile.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Here is your operational overview for today.',
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _filters.length,
+        separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final isSelected = filter == _selectedFilter;
+
+          return InkWell(
+            onTap: () => setState(() => _selectedFilter = filter),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primaryContainer
+                    : AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              ),
+              child: Center(
+                child: Text(
+                  filter,
+                  style: AppTypography.labelMd.copyWith(
+                    color: isSelected
+                        ? AppColors.onPrimaryContainer
+                        : AppColors.onSurface,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMetricGrid() {
+    final scannedCount = 1200 + _violations.length * 4;
+    final activeViolationsCount =
+        _violations.where((v) => v.status == 'pending').length;
+    final complaintsCount = _complaints
+        .where((c) => c.status == 'Submitted' || c.status == 'Under Review')
+        .length;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: RegulatorMetricCard(
+                title: 'Items Scanned',
+                value: scannedCount.toString(),
+                icon: Icons.qr_code_scanner_rounded,
+                iconColor: AppColors.tertiary,
+                deltaText: '+12%',
+                deltaColor: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: RegulatorMetricCard(
+                title: 'Active Violations',
+                value: activeViolationsCount.toString(),
+                icon: Icons.warning_amber_rounded,
+                iconColor: AppColors.error,
+                deltaText: '-3%',
+                deltaColor: AppColors.error,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        RegulatorMetricCard(
+          title: 'New Complaints',
+          value: complaintsCount.toString(),
+          icon: Icons.feedback_outlined,
+          isFullWidth: true,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const RegulatorComplaintInboxScreen(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriorityQueue() {
+    final list = _filteredViolations;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              'Priority Queue',
+              style: AppTypography.headlineSm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
+            ),
+            TextButton(
+              onPressed: () => setState(() => _selectedFilter = 'All Active'),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'View All (${_violations.length})',
+                style: AppTypography.labelMd.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (list.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              border: Border.all(color: AppColors.surfaceVariant),
+            ),
+            child: Text(
+              'No flagged violations matching selected filter.',
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: list.length,
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final item = list[index];
+              return _buildQueueItem(item);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildQueueItem(RegulatorViolation item) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RegulatorViolationReviewScreen(violationId: item.id),
+          ),
+        ).then((_) => _loadDashboardData());
+      },
+      borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+          border: Border.all(color: AppColors.surfaceVariant),
+          boxShadow: AppSpacing.cardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.productName,
+                        style: AppTypography.labelMd.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Store: ${item.storeLocation}',
+                        style: AppTypography.bodySm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                RegulatorStatusBadge.gavelConfidence(item.confidenceScore),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              height: 1,
+              color: AppColors.surfaceContainerHigh,
+              width: double.infinity,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                RegulatorStatusBadge.fromStatus(item.violationType),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    item.violationSummary,
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppColors.outline,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

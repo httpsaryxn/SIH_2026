@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EnforceMetrology - Scan / Audit Intake</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with custom config -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e6e8ea",
+                        "on-secondary-container": "#5c647a",
+                        "primary": "#006e2f",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "outline-variant": "#bccbb9",
+                        "on-primary-container": "#004b1e",
+                        "on-tertiary-container": "#003d88",
+                        "tertiary-container": "#82abff",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "tertiary": "#005ac2",
+                        "surface": "#f7f9fb",
+                        "inverse-primary": "#4ae176",
+                        "tertiary-fixed": "#d8e2ff",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed": "#002109",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#dae2fd",
+                        "on-surface": "#191c1e",
+                        "surface-variant": "#e0e3e5",
+                        "primary-container": "#22c55e",
+                        "surface-dim": "#d8dadc",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-surface-variant": "#3d4a3d",
+                        "on-background": "#191c1e",
+                        "on-secondary-fixed": "#131b2e",
+                        "secondary": "#565e74",
+                        "secondary-fixed": "#dae2fd",
+                        "primary-fixed-dim": "#4ae176",
+                        "inverse-surface": "#2d3133",
+                        "on-tertiary-fixed": "#001a42",
+                        "surface-bright": "#f7f9fb",
+                        "outline": "#6d7b6c",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f2f4f6",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "surface-tint": "#006e2f",
+                        "surface-container": "#eceef0",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f7f9fb",
+                        "on-error-container": "#93000a",
+                        "primary-fixed": "#6bff8f",
+                        "on-primary-fixed-variant": "#005321"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xxl": "48px",
+                        "margin-mobile": "20px",
+                        "xl": "32px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "gutter": "16px",
+                        "margin-desktop": "40px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "body-sm": ["Plus Jakarta Sans"],
+                        "label-md": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface h-full flex flex-col font-body-md text-on-surface md:hidden">
+<!-- TopAppBar from JSON -->
+<header class="flex justify-between items-center px-margin-mobile h-16 w-full z-50 bg-surface dark:bg-surface-dim shadow-sm dark:shadow-none docked full-width top-0">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
+<img alt="Officer Profile" class="object-cover w-full h-full" data-alt="A professional headshot of a female food safety inspector wearing a crisp white collared shirt. She has a subtle smile and a confident demeanor. The lighting is bright and even, casting soft shadows, typical of a modern corporate portrait. The background is a clean, out-of-focus light gray. The overall aesthetic is fresh, trustworthy, and aligned with a modern corporate brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBROZJiBImpFa1aUkbku-XrV2x2gzOVjpF4Aac2_9gokOrWr6vKoSHcgyEzj6PSstVSiN0yDwpy4No0q-IiIrFBpXrOtrhV4VO0hHBHqazBeKFJGIASPD3DXiKoHOY3gwUrgYANMx83qixtLbeQfuxvlXU58t50-SZ53S0sWuKGiY1OXxpn_L8LbV12LEEWnKQegAa9KwJdwlRjtQxqlOi1HVyVchOM_lQKV2cOuIiQ3b722ME8aMV3gQ"/>
+</div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary tracking-tight">EnforceMetrology</h1>
+</div>
+<button aria-label="Notifications" class="w-10 h-10 flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-variant dark:hover:bg-surface-variant/20 transition-colors duration-200 rounded-full">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 overflow-y-auto pb-xxl px-margin-mobile pt-sm flex flex-col gap-lg bg-surface">
+<!-- Header / Context -->
+<section class="flex flex-col gap-xs pt-sm">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Audit Intake</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Capture or upload food labels for automated compliance checking.</p>
+</section>
+<!-- Intake Tabs (Bento-style segmentation) -->
+<section class="bg-surface-container-lowest rounded-xl p-sm shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-surface-variant flex gap-sm">
+<button class="flex-1 bg-primary text-on-primary font-label-md text-label-md py-md rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                Photo Capture
+            </button>
+<button class="flex-1 bg-surface-container text-on-surface font-label-md text-label-md py-md rounded-lg flex items-center justify-center gap-2 hover:bg-surface-variant transition-all duration-200">
+<span class="material-symbols-outlined text-[18px]">upload_file</span>
+                Batch Upload
+            </button>
+</section>
+<!-- Camera/Upload Preview Area -->
+<section class="relative w-full aspect-[3/4] bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant shadow-sm flex flex-col items-center justify-center">
+<!-- Placeholder for live camera feed or uploaded image -->
+<div class="absolute inset-0 bg-cover bg-center w-full h-full opacity-60" data-alt="A close-up, high-resolution photograph of a standard nutritional facts label on the back of a commercial food package. The text is crisp and legible against a white background. The lighting is bright and even, simulating a document scanner or a very clear smartphone photo. The overall aesthetic is clinical, organized, and focused on data clarity, typical of a modern compliance application." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuACZ8U45eL0GBf9asv-Ukv_zQkGEqQ6NQ7-IdityRKVSYfdMPHR2EcPn3bQxtIvXFYFWjZE-MmsMMz9QvFSCDBxGz6SS-qnNUAPITJtmm1yLY1BoyN96IU5dW-ithHe1mXQ2nD2lTE2zeunpq5N-9joGCPEMFKBhJkSqGiOCRgE_qVnw7Fjgoe-wTVjZBBTsSmVnJuz9n4KGsqPAxm8BZyy45iUMzSb6BqkOYwCG381qXJ7hztpcA7FqA')"></div>
+<!-- Camera overlay guides -->
+<div class="absolute inset-4 border-2 border-primary/50 rounded-lg pointer-events-none">
+<div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary"></div>
+<div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary"></div>
+<div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary"></div>
+<div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary"></div>
+</div>
+<!-- Floating Action (Capture) -->
+<div class="absolute bottom-6 flex justify-center w-full z-10">
+<button class="w-16 h-16 bg-primary rounded-full flex items-center justify-center shadow-lg border-4 border-white active:scale-95 transition-transform">
+<div class="w-6 h-6 bg-white rounded-full"></div>
+</button>
+</div>
+</section>
+<!-- Vertical Progress Stepper (Processing Status) -->
+<section class="bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-surface-variant flex flex-col gap-4">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2">Processing Pipeline</h3>
+<div class="flex flex-col gap-0 relative">
+<!-- Line connecting steps -->
+<div class="absolute left-4 top-4 bottom-4 w-0.5 bg-surface-container-highest z-0"></div>
+<!-- Step 1: Preprocessing (Completed) -->
+<div class="flex items-start gap-4 relative z-10 pb-md">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-white text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex flex-col pt-1">
+<span class="font-label-md text-label-md text-on-surface">Preprocessing</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Image enhanced &amp; cropped</span>
+</div>
+</div>
+<!-- Step 2: Text Detection (Completed) -->
+<div class="flex items-start gap-4 relative z-10 pb-md">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-white text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex flex-col pt-1">
+<span class="font-label-md text-label-md text-on-surface">Text Detection</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Blocks identified</span>
+</div>
+</div>
+<!-- Step 3: OCR (Active) -->
+<div class="flex items-start gap-4 relative z-10 pb-md">
+<div class="w-8 h-8 rounded-full bg-tertiary-container border-2 border-tertiary flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-tertiary text-[16px] animate-spin">sync</span>
+</div>
+<div class="flex flex-col pt-1">
+<span class="font-label-md text-label-md text-on-surface font-bold text-tertiary">OCR Extraction</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Reading nutritional data...</span>
+</div>
+</div>
+<!-- Step 4: Rule Validation (Pending) -->
+<div class="flex items-start gap-4 relative z-10">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant text-[16px]">rule</span>
+</div>
+<div class="flex flex-col pt-1 opacity-60">
+<span class="font-label-md text-label-md text-on-surface">Rule Validation</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Awaiting OCR completion</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Spacer for bottom nav -->
+<div class="h-20"></div>
+</main>
+<!-- BottomNavBar from JSON (Audit is active) -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 py-3 pb-safe bg-surface dark:bg-surface-container-lowest shadow-lg dark:shadow-none rounded-t-xl docked full-width">
+<!-- Home (Inactive) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-4 py-1 hover:bg-secondary-container/50 dark:hover:bg-secondary-container/10 scale-95 active:scale-90 transition-transform duration-150 rounded-lg">
+<span class="material-symbols-outlined mb-1 text-[24px]">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</button>
+<!-- Audit (Active) -->
+<button class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary text-on-primary-container dark:text-on-primary rounded-full px-4 py-1 hover:bg-secondary-container/50 dark:hover:bg-secondary-container/10 scale-95 active:scale-90 transition-transform duration-150">
+<span class="material-symbols-outlined mb-1 text-[24px]" style="font-variation-settings: 'FILL' 1;">assignment_turned_in</span>
+<span class="font-label-sm text-label-sm font-bold">Audit</span>
+</button>
+<!-- Violations (Inactive) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-4 py-1 hover:bg-secondary-container/50 dark:hover:bg-secondary-container/10 scale-95 active:scale-90 transition-transform duration-150 rounded-lg">
+<span class="material-symbols-outlined mb-1 text-[24px]">gavel</span>
+<span class="font-label-sm text-label-sm">Violations</span>
+</button>
+<!-- Inbox (Inactive) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-4 py-1 hover:bg-secondary-container/50 dark:hover:bg-secondary-container/10 scale-95 active:scale-90 transition-transform duration-150 rounded-lg">
+<span class="material-symbols-outlined mb-1 text-[24px]">inbox</span>
+<span class="font-label-sm text-label-sm">Inbox</span>
+</button>
+</nav>
+</body></html>
