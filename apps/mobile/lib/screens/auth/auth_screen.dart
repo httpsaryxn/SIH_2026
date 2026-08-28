@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/models/user_role.dart';
@@ -24,6 +26,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   late bool _isLogin;
   late UserRole _currentRole;
+  StreamSubscription<AuthState>? _authSubscription;
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -41,10 +44,18 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     _isLogin = widget.initialIsLogin;
     _currentRole = widget.selectedRole;
+
+    // Listen for auth state changes (e.g. Google OAuth redirect or session restoration)
+    _authSubscription = AuthService.authStateChanges.listen((data) {
+      if (data.event == AuthChangeEvent.signedIn && mounted && !_isLoading) {
+        _navigateAfterSuccessfulAuth();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _nameController.dispose();
     _emailController.dispose();
     _orgController.dispose();
@@ -53,8 +64,17 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _navigateToRoleHome() {
-    RoleRouter.navigateToHome(context, _currentRole);
+  Future<void> _navigateAfterSuccessfulAuth([UserRole? fallbackRole]) async {
+    UserRole targetRole = fallbackRole ?? _currentRole;
+    try {
+      final profile = await AuthService.fetchUserProfile();
+      if (profile != null && profile['role'] != null) {
+        targetRole = AuthService.roleFromDb(profile['role'] as String?);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    RoleRouter.navigateToHome(context, targetRole);
   }
 
   Future<void> _submit() async {
@@ -63,14 +83,36 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
     try {
       if (_isLogin) {
+        UserRole targetRole = _currentRole;
         try {
           await AuthService.signIn(
             email: _emailController.text,
             password: _passwordController.text,
           );
+          final profile = await AuthService.fetchUserProfile();
+          if (profile != null && profile['role'] != null) {
+            targetRole = AuthService.roleFromDb(profile['role'] as String?);
+          }
+        } on AuthException catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                e.message,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+          return;
         } catch (_) {
-          // Graceful fallback to mock login for offline / standalone testing
+          // Graceful fallback for offline demo
         }
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -78,7 +120,7 @@ class _AuthScreenState extends State<AuthScreen> {
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
             content: Text(
-              'Logged in successfully as ${_currentRole.title}!',
+              'Logged in successfully as ${targetRole.title}!',
               style: GoogleFonts.plusJakartaSans(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -86,19 +128,54 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         );
-        _navigateToRoleHome();
+        await _navigateAfterSuccessfulAuth(targetRole);
       } else {
         try {
-          await AuthService.signUp(
+          final res = await AuthService.signUp(
             email: _emailController.text,
             password: _passwordController.text,
             fullName: _nameController.text,
             role: _currentRole,
             organizationName: _orgController.text.isNotEmpty ? _orgController.text : null,
           );
+          if (res.session == null && res.user != null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.primary,
+                behavior: SnackBarBehavior.floating,
+                content: Text(
+                  'Account created! Please check your email for confirmation.',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            );
+            setState(() => _isLogin = true);
+            return;
+          }
+        } on AuthException catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                e.message,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+          return;
         } catch (_) {
-          // Graceful fallback to mock signup for offline / standalone testing
+          // Graceful fallback for offline demo
         }
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -114,11 +191,8 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         );
-        _navigateToRoleHome();
+        await _navigateAfterSuccessfulAuth();
       }
-    } catch (_) {
-      if (!mounted) return;
-      _navigateToRoleHome();
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -128,9 +202,6 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await AuthService.signInWithGoogle(targetRole: _currentRole);
     } catch (_) {}
-    if (mounted) {
-      _navigateToRoleHome();
-    }
   }
 
   @override
@@ -584,7 +655,6 @@ class _AuthScreenState extends State<AuthScreen> {
 class _GoogleLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // Paints a clean Google 'G' icon
     final w = size.width;
     final h = size.height;
 
@@ -596,7 +666,6 @@ class _GoogleLogoPainter extends CustomPainter {
     final center = Offset(w / 2, h / 2);
     final radius = w / 2;
 
-    // Draw stylized multi-colored segments
     final pathBlue = Path()
       ..moveTo(center.dx, center.dy)
       ..lineTo(w, center.dy)
@@ -622,11 +691,9 @@ class _GoogleLogoPainter extends CustomPainter {
       ..close();
     canvas.drawPath(pathGreen, greenPaint);
 
-    // Inner cutout to make it 'G' shape
     final whitePaint = Paint()..color = AppColors.surfaceContainerLowest;
     canvas.drawCircle(center, radius * 0.55, whitePaint);
 
-    // Blue horizontal bar
     final barRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(center.dx, center.dy - radius * 0.22, radius * 0.95, radius * 0.44),
       const Radius.circular(2),
