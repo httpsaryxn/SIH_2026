@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
+import '../../screens/regulator/regulator_profile_screen.dart';
 
 /// RegulatorTopAppBar provides a FIXED, non-scrolling, rock-solid top app bar
 /// used across all Regulator screens. It never distorts, collapses, or stretches
@@ -56,22 +57,31 @@ class RegulatorTopAppBar extends StatelessWidget implements PreferredSizeWidget 
                 onPressed: onBack ?? () => Navigator.of(context).maybePop(),
               )
             : Center(
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primaryContainer.withValues(alpha: 0.2),
-                    border: Border.all(color: AppColors.outlineVariant, width: 1),
-                  ),
-                  child: ClipOval(
-                    child: Image.network(
-                      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, stack) => const Icon(
-                        Icons.person_rounded,
-                        size: 20,
-                        color: AppColors.primary,
+                child: Tooltip(
+                  message: 'Officer Profile',
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RegulatorProfileScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primaryContainer.withValues(alpha: 0.2),
+                        border: Border.all(color: AppColors.outlineVariant, width: 1),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.person_rounded,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ),

@@ -6,12 +6,14 @@ import '../../screens/regulator/regulator_home_screen.dart';
 import '../../screens/regulator/regulator_audit_intake_screen.dart';
 import '../../screens/regulator/regulator_company_tracking_screen.dart';
 import '../../screens/regulator/regulator_complaint_inbox_screen.dart';
+import '../../screens/regulator/regulator_profile_screen.dart';
 
 enum RegulatorNavTab {
   home,
   audit,
   violations,
   inbox,
+  profile,
 }
 
 class RegulatorBottomNavBar extends StatelessWidget {
@@ -24,7 +26,7 @@ class RegulatorBottomNavBar extends StatelessWidget {
     this.onTabSelected,
   });
 
-  /// Standard tab navigation handler that cleanly switches between the 4 main regulator screens.
+  /// Standard tab navigation handler that cleanly switches between the main regulator screens.
   static void navigateToTab(
     BuildContext context,
     RegulatorNavTab currentTab,
@@ -45,6 +47,9 @@ class RegulatorBottomNavBar extends StatelessWidget {
         break;
       case RegulatorNavTab.inbox:
         targetScreen = const RegulatorComplaintInboxScreen();
+        break;
+      case RegulatorNavTab.profile:
+        targetScreen = const RegulatorProfileScreen();
         break;
     }
 
@@ -81,7 +86,7 @@ class RegulatorBottomNavBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
             vertical: 6,
           ),
           child: Row(
@@ -110,6 +115,12 @@ class RegulatorBottomNavBar extends StatelessWidget {
                 tab: RegulatorNavTab.inbox,
                 icon: Icons.inbox_rounded,
                 label: 'Inbox',
+              ),
+              _buildNavItem(
+                context: context,
+                tab: RegulatorNavTab.profile,
+                icon: Icons.person_rounded,
+                label: 'Profile',
               ),
             ],
           ),
@@ -143,7 +154,7 @@ class RegulatorBottomNavBar extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: EdgeInsets.symmetric(
-                horizontal: isActive ? AppSpacing.md : AppSpacing.xs,
+                horizontal: isActive ? AppSpacing.sm : 2,
                 vertical: 4,
               ),
               decoration: BoxDecoration(

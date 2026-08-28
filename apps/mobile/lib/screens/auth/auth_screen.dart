@@ -4,8 +4,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/models/user_role.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/role_router.dart';
 import '../../widgets/custom_button.dart';
-import '../regulator/regulator_home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   final UserRole selectedRole;
@@ -54,12 +54,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _navigateToRoleHome() {
-    if (_currentRole == UserRole.regulator) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const RegulatorHomeScreen()),
-        (route) => false,
-      );
-    }
+    RoleRouter.navigateToHome(context, _currentRole);
   }
 
   Future<void> _submit() async {
