@@ -72,14 +72,20 @@ class ConsumerComplaintModel {
   }
 
   String get displayStatus {
-    switch (status) {
+    final s = status.toLowerCase();
+    switch (s) {
+      case 'under review':
       case 'under_review':
         return 'Under Review';
       case 'verified':
         return 'Verified';
+      case 'forwarded':
+      case 'forwarded to company':
       case 'forwarded_to_company':
         return 'Forwarded to Company';
+      case 'action required':
       case 'action_required':
+      case 'corrective action':
         return 'Action Required';
       case 'resolved':
         return 'Resolved';
@@ -92,15 +98,21 @@ class ConsumerComplaintModel {
   }
 
   int get currentStepIndex {
-    switch (status) {
+    final s = status.toLowerCase();
+    switch (s) {
       case 'submitted':
         return 0;
+      case 'under review':
       case 'under_review':
         return 1;
       case 'verified':
+      case 'forwarded':
+      case 'forwarded to company':
       case 'forwarded_to_company':
         return 2;
+      case 'action required':
       case 'action_required':
+      case 'corrective action':
         return 3;
       case 'resolved':
       case 'rejected':

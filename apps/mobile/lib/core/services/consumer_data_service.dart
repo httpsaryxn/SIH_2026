@@ -322,11 +322,10 @@ class ConsumerDataService {
     final uid = _userId;
 
     try {
-      var query = _client.from('consumer_complaints').select();
-      if (uid != null) {
-        query = query.eq('consumer_id', uid);
-      }
-      final data = await query.order('created_at', ascending: false);
+      final query = _client.from('consumer_complaints').select();
+      final data = uid != null
+          ? await query.or('consumer_id.eq.$uid,consumer_id.is.null').order('created_at', ascending: false)
+          : await query.order('created_at', ascending: false);
 
       return (data as List).map((e) => ConsumerComplaintModel.fromJson(e)).toList();
     } catch (e) {
@@ -342,7 +341,7 @@ class ConsumerDataService {
     required String description,
     String? storeLocation,
     String? evidenceImageUrl,
-    String initialStatus = 'submitted',
+    String initialStatus = 'Submitted',
     String? customCode,
     DateTime? customDate,
   }) async {
