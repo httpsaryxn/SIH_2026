@@ -353,7 +353,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                 flex: 3,
                 child: ScanHeroCard(
                   onScanPressed: _openScannerModal,
-                  onUploadPressed: () => _openScannerModal(startWithUpload: true),
                 ),
               ),
               const SizedBox(width: AppSpacing.gutter),
@@ -368,7 +367,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         else ...[
           ScanHeroCard(
             onScanPressed: _openScannerModal,
-            onUploadPressed: () => _openScannerModal(startWithUpload: true),
           ),
           const SizedBox(height: AppSpacing.md),
           QuickFeatureStrip(

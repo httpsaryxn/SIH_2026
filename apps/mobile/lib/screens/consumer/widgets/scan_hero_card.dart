@@ -5,12 +5,10 @@ import '../../../core/constants/app_spacing.dart';
 
 class ScanHeroCard extends StatelessWidget {
   final VoidCallback onScanPressed;
-  final VoidCallback onUploadPressed;
 
   const ScanHeroCard({
     super.key,
     required this.onScanPressed,
-    required this.onUploadPressed,
   });
 
   @override
@@ -201,53 +199,25 @@ class ScanHeroCard extends StatelessWidget {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        // Primary CTA: Scan Label
-        ElevatedButton.icon(
-          onPressed: onScanPressed,
-          icon: const Icon(Icons.photo_camera_rounded, size: 20),
-          label: Text(
-            'Scan Label',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.onPrimary,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
-            shape: const RoundedRectangleBorder(
-              borderRadius: AppSpacing.roundedDefault,
-            ),
-            elevation: 2,
-          ),
+    return ElevatedButton.icon(
+      onPressed: onScanPressed,
+      icon: const Icon(Icons.photo_camera_rounded, size: 20),
+      label: Text(
+        'Scan Label',
+        style: GoogleFonts.plusJakartaSans(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
         ),
-
-        // Secondary CTA: Upload Image
-        OutlinedButton.icon(
-          onPressed: onUploadPressed,
-          icon: const Icon(Icons.upload_file_rounded, size: 18, color: AppColors.onSurface),
-          label: Text(
-            'Upload Image',
-            style: GoogleFonts.plusJakartaSans(
-              color: AppColors.onSurface,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: AppColors.outlineVariant, width: 1.2),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            shape: const RoundedRectangleBorder(
-              borderRadius: AppSpacing.roundedDefault,
-            ),
-          ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppSpacing.roundedDefault,
         ),
-      ],
+        elevation: 2,
+      ),
     );
   }
 

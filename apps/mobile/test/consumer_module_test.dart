@@ -81,16 +81,14 @@ void main() {
   });
 
   group('Consumer Widgets Rendering Tests', () {
-    testWidgets('ScanHeroCard renders title, description, and action buttons', (tester) async {
+    testWidgets('ScanHeroCard renders title, description, and primary Scan Label button', (tester) async {
       bool scanClicked = false;
-      bool uploadClicked = false;
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ScanHeroCard(
               onScanPressed: () => scanClicked = true,
-              onUploadPressed: () => uploadClicked = true,
             ),
           ),
         ),
@@ -98,13 +96,9 @@ void main() {
 
       expect(find.text('Scan a Product Label'), findsOneWidget);
       expect(find.text('Scan Label'), findsOneWidget);
-      expect(find.text('Upload Image'), findsOneWidget);
 
       await tester.tap(find.text('Scan Label'));
       expect(scanClicked, true);
-
-      await tester.tap(find.text('Upload Image'));
-      expect(uploadClicked, true);
     });
 
     testWidgets('QuickFeatureStrip renders Ingredients, Nutrition, and Label Check', (tester) async {

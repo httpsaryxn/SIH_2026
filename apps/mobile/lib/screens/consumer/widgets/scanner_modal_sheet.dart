@@ -96,36 +96,42 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
       _processingStatus = 'Capturing label image...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    setState(() => _processingStatus = 'Running OCR: Extracting ingredients & nutrition...');
+    try {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      setState(() => _processingStatus = 'Running OCR: Extracting ingredients & nutrition...');
 
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _processingStatus = 'Verifying Legal Metrology Packaging Rules (2011)...');
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      setState(() => _processingStatus = 'Verifying Legal Metrology Packaging Rules (2011)...');
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    setState(() => _processingStatus = 'Saving new product to database...');
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      setState(() => _processingStatus = 'Saving new product to database...');
 
-    final parsedMrp = double.tryParse(_mrpController.text.replaceAll('₹', '').trim()) ?? 45.0;
+      final parsedMrp = double.tryParse(_mrpController.text.replaceAll('₹', '').trim()) ?? 45.0;
 
-    // Create and save to Supabase
-    final newScan = await ConsumerDataService.createNewProductAndScan(
-      productName: _productNameController.text.trim(),
-      brand: _brandController.text.isNotEmpty ? _brandController.text.trim() : null,
-      category: _selectedCategory,
-      netQuantity: _netQtyController.text.trim(),
-      mrp: parsedMrp,
-      imageUrl: _capturedImage != null && _imageBytes != null
-          ? null // In cloud apps, uploaded to storage
-          : null,
-    );
+      // Create and save to Supabase
+      final newScan = await ConsumerDataService.createNewProductAndScan(
+        productName: _productNameController.text.trim(),
+        brand: _brandController.text.isNotEmpty ? _brandController.text.trim() : null,
+        category: _selectedCategory,
+        netQuantity: _netQtyController.text.trim(),
+        mrp: parsedMrp,
+        imageUrl: _capturedImage != null && _imageBytes != null
+            ? null
+            : null,
+      );
 
-    if (mounted) {
-      Navigator.of(context).pop();
-      if (newScan != null) {
-        widget.onScanCompleted(newScan);
+      if (mounted) {
+        Navigator.of(context).pop();
+        if (newScan != null) {
+          widget.onScanCompleted(newScan);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
       }
     }
   }
