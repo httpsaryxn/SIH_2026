@@ -23,6 +23,8 @@ class _RegulatorAuditIntakeScreenState
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage;
   final TextEditingController _urlController = TextEditingController();
+  final TextEditingController _productNameController = TextEditingController();
+  final TextEditingController _companyNameController = TextEditingController();
 
   // Processing state: 0 = Idle, 1 = Preprocessing, 2 = Text Detection, 3 = OCR, 4 = Validation, 5 = Done
   int _processingStep = 0;
@@ -31,6 +33,8 @@ class _RegulatorAuditIntakeScreenState
   @override
   void dispose() {
     _urlController.dispose();
+    _productNameController.dispose();
+    _companyNameController.dispose();
     super.dispose();
   }
 
@@ -50,7 +54,9 @@ class _RegulatorAuditIntakeScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image capture note: Using simulated sample.')),
+          const SnackBar(
+            content: Text('Image capture note: Using simulated sample.'),
+          ),
         );
       }
     }
@@ -82,27 +88,36 @@ class _RegulatorAuditIntakeScreenState
     if (!mounted) return;
     setState(() => _processingStep = 5);
 
-    // Create newly audited mock violation
-    final newViolation = await RegulatorDataService.createAuditViolation(
-      productName: _selectedTabIndex == 1 && _urlController.text.isNotEmpty
-          ? 'E-Commerce Scraped Sample (${_urlController.text.split('/').last})'
-          : 'Packaged Quinoa Flakes Scan',
-      companyName: 'Nature Organics India Pvt Ltd',
-      imagePath: _selectedImage?.path,
-    );
+    try {
+      final newViolation = await RegulatorDataService.createAuditViolation(
+        productName: _productNameController.text,
+        companyName: _companyNameController.text,
+        imagePath: _selectedImage?.path,
+        imageUrl: _selectedTabIndex == 1 ? _urlController.text.trim() : null,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      _isProcessing = false;
-      _processingStep = 0;
-    });
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+        _processingStep = 0;
+      });
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            RegulatorViolationReviewScreen(violationId: newViolation.id),
-      ),
-    );
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              RegulatorViolationReviewScreen(violationId: newViolation.id),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+        _processingStep = 0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Audit could not be saved: $error')),
+      );
+    }
   }
 
   @override
@@ -143,6 +158,9 @@ class _RegulatorAuditIntakeScreenState
                 _buildIntakeTabs(),
                 const SizedBox(height: AppSpacing.lg),
 
+                _buildAuditIdentityFields(),
+                const SizedBox(height: AppSpacing.lg),
+
                 // Viewfinder / Upload Section
                 if (_selectedTabIndex == 0)
                   _buildCameraViewfinder()
@@ -161,8 +179,11 @@ class _RegulatorAuditIntakeScreenState
       ),
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.audit,
-        onTabSelected: (tab) =>
-            RegulatorBottomNavBar.navigateToTab(context, RegulatorNavTab.audit, tab),
+        onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
+          context,
+          RegulatorNavTab.audit,
+          tab,
+        ),
       ),
     );
   }
@@ -276,15 +297,15 @@ class _RegulatorAuditIntakeScreenState
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
               child: _selectedImage != null
-                  ? Image.file(
-                      File(_selectedImage!.path),
-                      fit: BoxFit.cover,
-                    )
-                  : Image.network(
-                      'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80',
-                      fit: BoxFit.cover,
-                      color: Colors.black.withValues(alpha: 0.2),
-                      colorBlendMode: BlendMode.darken,
+                  ? Image.file(File(_selectedImage!.path), fit: BoxFit.cover)
+                  : Container(
+                      color: AppColors.surfaceContainerHigh,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.photo_camera_outlined,
+                        size: 56,
+                        color: AppColors.outline,
+                      ),
                     ),
             ),
           ),
@@ -303,8 +324,14 @@ class _RegulatorAuditIntakeScreenState
                       height: 24,
                       decoration: const BoxDecoration(
                         border: Border(
-                          top: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          left: BorderSide(color: AppColors.primaryFixed, width: 3),
+                          top: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
+                          left: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
@@ -317,8 +344,14 @@ class _RegulatorAuditIntakeScreenState
                       height: 24,
                       decoration: const BoxDecoration(
                         border: Border(
-                          top: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          right: BorderSide(color: AppColors.primaryFixed, width: 3),
+                          top: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
+                          right: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
@@ -331,8 +364,14 @@ class _RegulatorAuditIntakeScreenState
                       height: 24,
                       decoration: const BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          left: BorderSide(color: AppColors.primaryFixed, width: 3),
+                          bottom: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
+                          left: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
@@ -345,8 +384,14 @@ class _RegulatorAuditIntakeScreenState
                       height: 24,
                       decoration: const BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          right: BorderSide(color: AppColors.primaryFixed, width: 3),
+                          bottom: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
+                          right: BorderSide(
+                            color: AppColors.primaryFixed,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
@@ -364,15 +409,24 @@ class _RegulatorAuditIntakeScreenState
               onTap: () => _pickImage(ImageSource.gallery),
               borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest.withValues(alpha: 0.85),
+                  color: AppColors.surfaceContainerLowest.withValues(
+                    alpha: 0.85,
+                  ),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.photo_library_rounded, size: 16, color: AppColors.onSurface),
+                    const Icon(
+                      Icons.photo_library_rounded,
+                      size: 16,
+                      color: AppColors.onSurface,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Choose Photo',
@@ -396,7 +450,9 @@ class _RegulatorAuditIntakeScreenState
                 width: 68,
                 height: 68,
                 decoration: BoxDecoration(
-                  color: _isProcessing ? AppColors.outlineVariant : AppColors.primary,
+                  color: _isProcessing
+                      ? AppColors.outlineVariant
+                      : AppColors.primary,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 4),
                   boxShadow: const [
@@ -427,6 +483,38 @@ class _RegulatorAuditIntakeScreenState
                         ),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditIdentityFields() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.surfaceVariant),
+      ),
+      child: Column(
+        children: [
+          TextField(
+            controller: _productNameController,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Product name',
+              hintText: 'Enter the label product name',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _companyNameController,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Registered company name',
+              hintText: 'Must match the company compliance record',
             ),
           ),
         ],
@@ -465,7 +553,10 @@ class _RegulatorAuditIntakeScreenState
             controller: _urlController,
             decoration: InputDecoration(
               hintText: 'https://www.blinkit.com/prn/organic-quinoa...',
-              prefixIcon: const Icon(Icons.link_rounded, color: AppColors.primary),
+              prefixIcon: const Icon(
+                Icons.link_rounded,
+                color: AppColors.primary,
+              ),
               filled: true,
               fillColor: AppColors.inputBackground,
               border: OutlineInputBorder(
@@ -478,7 +569,10 @@ class _RegulatorAuditIntakeScreenState
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 2,
+                ),
               ),
             ),
           ),
@@ -497,7 +591,11 @@ class _RegulatorAuditIntakeScreenState
                       ),
                     )
                   : const Icon(Icons.travel_explore_rounded),
-              label: Text(_isProcessing ? 'Analyzing Listing...' : 'Scrape & Verify Compliance'),
+              label: Text(
+                _isProcessing
+                    ? 'Analyzing Listing...'
+                    : 'Scrape & Verify Compliance',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
@@ -629,7 +727,11 @@ class _RegulatorAuditIntakeScreenState
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.outlineVariant),
         ),
-        child: const Icon(Icons.rule_rounded, size: 16, color: AppColors.outline),
+        child: const Icon(
+          Icons.rule_rounded,
+          size: 16,
+          color: AppColors.outline,
+        ),
       );
       titleColor = AppColors.onSurfaceVariant.withValues(alpha: 0.6);
     }
@@ -659,14 +761,19 @@ class _RegulatorAuditIntakeScreenState
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md, top: 4),
+              padding: EdgeInsets.only(
+                bottom: isLast ? 0 : AppSpacing.md,
+                top: 4,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: AppTypography.labelMd.copyWith(
-                      fontWeight: state == 1 ? FontWeight.w700 : FontWeight.w600,
+                      fontWeight: state == 1
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                       color: titleColor,
                     ),
                   ),
