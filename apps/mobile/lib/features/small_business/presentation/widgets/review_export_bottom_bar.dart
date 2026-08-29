@@ -1,0 +1,168 @@
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
+
+class ReviewExportBottomBar extends StatelessWidget {
+  const ReviewExportBottomBar({
+    super.key,
+    this.onBack,
+    this.onShare,
+    this.onExport,
+    this.isExporting = false,
+  });
+
+  final VoidCallback? onBack;
+  final VoidCallback? onShare;
+  final VoidCallback? onExport;
+  final bool isExporting;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            border: Border(
+              top: BorderSide(
+                color: AppColors.outlineVariant.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
+              child: Row(
+                children: [
+                  // Back Button
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.onSurface,
+                        side: const BorderSide(
+                          color: AppColors.outlineVariant,
+                          width: 1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                      child: const Icon(Icons.arrow_back_rounded, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Share Button
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: onShare,
+                      icon: const Icon(Icons.share_outlined, size: 16),
+                      label: const Text(
+                        'Share',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: AppColors.onSurface,
+                        side: const BorderSide(
+                          color: Color(0xFFCBD5E1),
+                          width: 1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Primary Export Button
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: isExporting ? null : onExport,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brandDeepGreen,
+                          foregroundColor: Colors.white,
+                          elevation: 3,
+                          shadowColor: AppColors.brandDeepGreen.withValues(
+                            alpha: 0.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        child: isExporting
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Preparing Label...',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.download_rounded, size: 18),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Download Label',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

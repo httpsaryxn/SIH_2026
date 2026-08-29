@@ -7,6 +7,7 @@ import '../widgets/consumer_care_card.dart';
 import '../widgets/manufacturer_details_card.dart';
 import '../widgets/manufacturer_progress_bar.dart';
 import '../widgets/nutrition_bottom_bar.dart';
+import 'product_claims_screen.dart';
 
 class ManufacturerDetailsScreen extends StatefulWidget {
   const ManufacturerDetailsScreen({super.key});
@@ -72,22 +73,23 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Step 4 complete. Packaging and certification review is ready!',
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ProductClaimsScreen(
+          brandName: 'Desi Harvest',
+          productName: 'Authentic Mango Pickle',
+          productCategory: 'Pickles & Condiments',
+          netQuantity: '250 g',
+          mrp: '₹ 149.00',
         ),
-        backgroundColor: AppColors.brandDeepGreen,
-        duration: Duration(seconds: 2),
       ),
     );
   }
 
   void _onSkip() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Skipped business details setup.'),
-        duration: Duration(seconds: 1),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const ProductClaimsScreen(),
       ),
     );
   }
