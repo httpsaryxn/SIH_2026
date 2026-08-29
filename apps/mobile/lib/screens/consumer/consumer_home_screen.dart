@@ -82,12 +82,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     }
   }
 
-  void _openScannerModal() {
+  void _openScannerModal({bool startWithUpload = false}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ScannerModalSheet(
+        startWithUpload: startWithUpload,
         onScanCompleted: (newScan) {
           setState(() {
             _recentScans.insert(0, newScan);
@@ -352,7 +353,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                 flex: 3,
                 child: ScanHeroCard(
                   onScanPressed: _openScannerModal,
-                  onUploadPressed: _openScannerModal,
+                  onUploadPressed: () => _openScannerModal(startWithUpload: true),
                 ),
               ),
               const SizedBox(width: AppSpacing.gutter),
@@ -367,7 +368,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         else ...[
           ScanHeroCard(
             onScanPressed: _openScannerModal,
-            onUploadPressed: _openScannerModal,
+            onUploadPressed: () => _openScannerModal(startWithUpload: true),
           ),
           const SizedBox(height: AppSpacing.md),
           QuickFeatureStrip(

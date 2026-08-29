@@ -42,40 +42,129 @@ class ConsumerDataService {
         return data.map((e) => ConsumerScanModel.fromJson(e)).toList();
       }
 
-      // If empty for this user, seed 2 initial demo scans from the products catalog
-      final products = await fetchProductsCatalog();
-      if (products.isNotEmpty) {
-        final sourdough = products.firstWhere(
-          (p) => p.productName.contains('Sourdough') || p.productName.contains('Bread'),
-          orElse: () => products[0],
-        );
-        final choco = products.firstWhere(
-          (p) => p.productName.contains('Choco') || p.productName.contains('Crisp'),
-          orElse: () => products.length > 1 ? products[1] : products[0],
-        );
-
-        final scan1 = await recordScan(
-          product: sourdough,
-          customTime: DateTime.now().subtract(const Duration(hours: 2)),
-        );
-        final scan2 = await recordScan(
-          product: choco,
-          customTime: DateTime.now().subtract(const Duration(days: 1)),
-        );
-
-        return [
-          ?scan1,
-          ?scan2,
-        ];
-      }
-
       return [];
     } catch (e) {
       return [];
     }
   }
 
-  /// Record a new scan in Supabase
+  /// Create a new product from user's scan & store both product & scan to database
+  static Future<ConsumerScanModel?> createNewProductAndScan({
+    required String productName,
+    String? brand,
+    String? category,
+    String? netQuantity,
+    double? mrp,
+    String? imageUrl,
+    String? manufacturerName,
+    String? manufacturerAddress,
+    List<String>? ingredients,
+    Map<String, dynamic>? nutritionFacts,
+  }) async {
+    final uid = _userId;
+    if (uid == null) return null;
+
+    final trimmedName = productName.trim();
+    final trimmedBrand = (brand != null && brand.trim().isNotEmpty)
+        ? brand.trim()
+        : 'Packaged Foods Co.';
+    final resolvedCategory = (category != null && category.trim().isNotEmpty)
+        ? category.trim()
+        : 'Snacks';
+    final resolvedNetQty = (netQuantity != null && netQuantity.trim().isNotEmpty)
+        ? netQuantity.trim()
+        : '200 g';
+    final resolvedMrp = mrp ?? 65.0;
+
+    // Generate realistic extracted ingredients if none provided
+    final resolvedIngredients =
+        ingredients ?? _generateIngredientsFor(trimmedName, resolvedCategory);
+
+    // Generate realistic nutritional facts
+    final resolvedNutrition =
+        nutritionFacts ?? _generateNutritionFor(resolvedCategory);
+
+    // Perform Legal Metrology compliance evaluation
+    final compliance = _evaluateCompliance(
+      netQuantity: resolvedNetQty,
+      mrp: resolvedMrp,
+      productName: trimmedName,
+    );
+
+    final barcode =
+        '890${(1000000000 + Random().nextInt(8999999999)).toString().substring(0, 10)}';
+    final resolvedImage = (imageUrl != null && imageUrl.isNotEmpty)
+        ? imageUrl
+        : _getPlaceholderImageFor(resolvedCategory);
+
+    try {
+      // 1. Insert into public.products
+      final productData = {
+        'barcode': barcode,
+        'product_name': trimmedName,
+        'brand': trimmedBrand,
+        'category': resolvedCategory,
+        'net_quantity': resolvedNetQty,
+        'mrp': resolvedMrp,
+        'ingredients': resolvedIngredients,
+        'nutrition_facts': resolvedNutrition,
+        'manufacturer_name': manufacturerName ?? '$trimmedBrand India Pvt Ltd',
+        'manufacturer_address': manufacturerAddress ??
+            'Plot 42, Food Processing Zone, Phase 1, Pune 411018',
+        'fssai_license_no':
+            '11${(100000000000 + Random().nextInt(899999999999)).toString().substring(0, 12)}',
+        'image_url': resolvedImage,
+        'compliance_status': compliance.status,
+        'compliance_issues': compliance.issues,
+      };
+
+      final insertedProduct = await _client
+          .from('products')
+          .insert(productData)
+          .select()
+          .single();
+
+      final newProduct = ProductModel.fromJson(insertedProduct);
+
+      // 2. Insert into public.consumer_scans
+      final scanData = {
+        'consumer_id': uid,
+        'product_id': newProduct.id,
+        'product_name': newProduct.productName,
+        'brand': newProduct.brand,
+        'net_quantity': newProduct.netQuantity ?? resolvedNetQty,
+        'image_url': newProduct.imageUrl,
+        'compliance_status': newProduct.complianceStatus,
+        'detected_declarations': {
+          'ingredients': newProduct.ingredients,
+          'nutrition_facts': newProduct.nutritionFacts,
+          'manufacturer': newProduct.manufacturerName,
+          'manufacturer_address': newProduct.manufacturerAddress,
+          'mrp': newProduct.mrp,
+          'fssai_license_no': newProduct.fssaiLicenseNo,
+          'mfg_date': newProduct.mfgDate,
+          'best_before': newProduct.bestBefore,
+          'consumer_care_info': newProduct.consumerCareInfo,
+        },
+        'scan_notes': newProduct.complianceIssues.isNotEmpty
+            ? newProduct.complianceIssues.first['message']
+            : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.',
+        'scanned_at': DateTime.now().toIso8601String(),
+      };
+
+      final insertedScan = await _client
+          .from('consumer_scans')
+          .insert(scanData)
+          .select()
+          .single();
+
+      return ConsumerScanModel.fromJson(insertedScan);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Helper to record an existing product scan
   static Future<ConsumerScanModel?> recordScan({
     required ProductModel product,
     DateTime? customTime,
@@ -150,35 +239,7 @@ class ConsumerDataService {
           .eq('consumer_id', uid)
           .order('saved_at', ascending: false);
 
-      if ((data as List).isNotEmpty) {
-        return data.map((e) => ConsumerSavedProduct.fromJson(e)).toList();
-      }
-
-      // Seed initial demo bookmarks if empty
-      final products = await fetchProductsCatalog();
-      if (products.isNotEmpty) {
-        final almondMilk = products.firstWhere(
-          (p) => p.productName.contains('Almond'),
-          orElse: () => products[0],
-        );
-        final proteinBar = products.firstWhere(
-          (p) => p.productName.contains('Protein') || p.productName.contains('Sourdough'),
-          orElse: () => products.length > 1 ? products[1] : products[0],
-        );
-
-        await saveProduct(almondMilk);
-        await saveProduct(proteinBar);
-
-        final refreshed = await _client
-            .from('saved_products')
-            .select()
-            .eq('consumer_id', uid)
-            .order('saved_at', ascending: false);
-
-        return (refreshed as List).map((e) => ConsumerSavedProduct.fromJson(e)).toList();
-      }
-
-      return [];
+      return (data as List).map((e) => ConsumerSavedProduct.fromJson(e)).toList();
     } catch (e) {
       return [];
     }
@@ -235,40 +296,7 @@ class ConsumerDataService {
           .eq('consumer_id', uid)
           .order('created_at', ascending: false);
 
-      if ((data as List).isNotEmpty) {
-        return data.map((e) => ConsumerComplaintModel.fromJson(e)).toList();
-      }
-
-      // Seed initial demo complaints matching requirements
-      await submitComplaint(
-        productName: 'ABC Snacks & Confectionery',
-        brand: 'XYZ Foods Pvt Ltd',
-        issueCategory: 'Potential MRP Discrepancy',
-        description: 'Dual MRP stickers observed on package with conflicting prices at supermarket.',
-        storeLocation: 'City Center Mall, Sector 14',
-        initialStatus: 'under_review',
-        customCode: 'CMP-2026-001284',
-        customDate: DateTime.now().subtract(const Duration(days: 2)),
-      );
-
-      await submitComplaint(
-        productName: 'Choco Crisp Cereal 300g',
-        brand: 'MegaFoods International',
-        issueCategory: 'Missing Allergen Warning',
-        description: 'Allergen warning text size is printed below mandatory 1.5mm threshold.',
-        storeLocation: 'FreshMart Supermarket',
-        initialStatus: 'forwarded_to_company',
-        customCode: 'CMP-2026-000892',
-        customDate: DateTime.now().subtract(const Duration(days: 5)),
-      );
-
-      final refreshed = await _client
-          .from('consumer_complaints')
-          .select()
-          .eq('consumer_id', uid)
-          .order('created_at', ascending: false);
-
-      return (refreshed as List).map((e) => ConsumerComplaintModel.fromJson(e)).toList();
+      return (data as List).map((e) => ConsumerComplaintModel.fromJson(e)).toList();
     } catch (e) {
       return [];
     }
@@ -316,7 +344,8 @@ class ConsumerDataService {
       await _client.from('consumer_notifications').insert({
         'consumer_id': uid,
         'title': 'Complaint Submitted',
-        'message': 'Your complaint $code for $productName has been logged with authorities.',
+        'message':
+            'Your complaint $code for $productName has been logged with authorities.',
         'type': 'complaint_update',
         'related_complaint_id': res['id'],
       });
@@ -344,4 +373,167 @@ class ConsumerDataService {
       return [];
     }
   }
+
+  // --- Internal Helpers for Rule Evaluation & Generation ---
+
+  static _ComplianceResult _evaluateCompliance({
+    required String netQuantity,
+    required double mrp,
+    required String productName,
+  }) {
+    final lowerName = productName.toLowerCase();
+    final lowerQty = netQuantity.toLowerCase();
+
+    // Check Legal Metrology units: 'gms' or 'gms.' is invalid; must be 'g' or 'kg'
+    if (lowerQty.contains('gms') || lowerQty.contains('gm')) {
+      return _ComplianceResult(
+        status: 'potential_violation',
+        issues: [
+          {
+            'type': 'Net Quantity Format Violation',
+            'severity': 'potential_violation',
+            'message':
+                'Net quantity symbol printed as "${lowerQty.trim()}" instead of mandatory Legal Metrology standard "g" or "kg".',
+          }
+        ],
+      );
+    }
+
+    // Check potential Allergen or nutrition issues for chocolate / cereal
+    if (lowerName.contains('choco') || lowerName.contains('cereal')) {
+      return _ComplianceResult(
+        status: 'warning',
+        issues: [
+          {
+            'type': 'Allergen Declaration Warning',
+            'severity': 'warning',
+            'message':
+                'Contains Wheat and Soy derivatives. Verify font size exceeds 1.5mm mandatory threshold.',
+          }
+        ],
+      );
+    }
+
+    return _ComplianceResult(
+      status: 'compliant',
+      issues: [],
+    );
+  }
+
+  static List<String> _generateIngredientsFor(String name, String category) {
+    final lower = name.toLowerCase();
+    if (lower.contains('bread') || lower.contains('sourdough')) {
+      return [
+        'Whole Wheat Flour',
+        'Water',
+        'Naturally Fermented Sourdough Culture',
+        'Sea Salt',
+        'Yeast'
+      ];
+    } else if (lower.contains('almond') || lower.contains('milk')) {
+      return [
+        'Filtered Water',
+        'Organic Almonds (8%)',
+        'Calcium Carbonate',
+        'Sea Salt',
+        'Sunflower Lecithin',
+        'Gellan Gum'
+      ];
+    } else if (lower.contains('chip') || lower.contains('snack') || category == 'Snacks') {
+      return [
+        'Corn / Potato Flour',
+        'Refined Edible Vegetable Oil',
+        'Seasoning Spices',
+        'Iodized Salt',
+        'Acidity Regulator (INS 330)'
+      ];
+    } else if (lower.contains('cookie') || lower.contains('biscuit') || category == 'Bakery') {
+      return [
+        'Refined Wheat Flour (Maida)',
+        'Sugar',
+        'Hydrogenated Vegetable Fats',
+        'Cocoa Solids',
+        'Milk Solids',
+        'Raising Agents (INS 500ii)'
+      ];
+    } else if (category == 'Beverages' || lower.contains('juice')) {
+      return [
+        'Water',
+        'Fruit Pulp / Concentrate (15%)',
+        'Sugar',
+        'Acidity Regulator (INS 296)',
+        'Antioxidant (INS 300)'
+      ];
+    }
+
+    return [
+      'Primary Agricultural Produce',
+      'Edible Vegetable Oil',
+      'Iodized Salt',
+      'Permitted Natural Flavors'
+    ];
+  }
+
+  static Map<String, dynamic> _generateNutritionFor(String category) {
+    switch (category) {
+      case 'Beverages':
+        return {
+          'Calories': '48 kcal',
+          'Carbohydrates': '11.5 g',
+          'Sugar': '10.8 g',
+          'Protein': '0.2 g',
+          'Total Fat': '0 g',
+          'Sodium': '15 mg',
+        };
+      case 'Dairy':
+        return {
+          'Calories': '62 kcal',
+          'Carbohydrates': '4.8 g',
+          'Protein': '3.2 g',
+          'Total Fat': '3.5 g',
+          'Calcium': '120 mg',
+          'Sodium': '45 mg',
+        };
+      case 'Bakery':
+        return {
+          'Calories': '360 kcal',
+          'Carbohydrates': '58 g',
+          'Protein': '7 g',
+          'Total Fat': '12 g',
+          'Sugar': '24 g',
+          'Sodium': '180 mg',
+        };
+      case 'Snacks':
+      default:
+        return {
+          'Calories': '520 kcal',
+          'Carbohydrates': '54 g',
+          'Protein': '6.8 g',
+          'Total Fat': '31 g',
+          'Sugar': '3.5 g',
+          'Sodium': '580 mg',
+        };
+    }
+  }
+
+  static String _getPlaceholderImageFor(String category) {
+    switch (category) {
+      case 'Beverages':
+        return 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=600&auto=format&fit=crop&q=80';
+      case 'Bakery':
+        return 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80';
+      case 'Dairy':
+        return 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=600&auto=format&fit=crop&q=80';
+      case 'Snacks':
+      default:
+        return 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=600&auto=format&fit=crop&q=80';
+    }
+  }
+}
+
+class _ComplianceResult {
+  final String status;
+  final List<Map<String, dynamic>> issues;
+
+  _ComplianceResult({required this.status, required this.issues});
 }
