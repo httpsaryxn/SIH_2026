@@ -17,7 +17,7 @@ class QuickFeatureStrip extends StatelessWidget {
         final items = [
           _FeatureItem(
             title: 'Ingredients',
-            subtitle: "Understand what's inside",
+            subtitle: "Understand what's inside the product.",
             icon: Icons.list_alt_rounded,
             iconBg: AppColors.tertiaryFixed,
             iconColor: AppColors.onTertiaryFixedVariant,
@@ -25,7 +25,7 @@ class QuickFeatureStrip extends StatelessWidget {
           ),
           _FeatureItem(
             title: 'Nutrition',
-            subtitle: 'View facts & calories',
+            subtitle: 'View available nutritional information.',
             icon: Icons.local_dining_rounded,
             iconBg: AppColors.primaryFixed.withValues(alpha: 0.3),
             iconColor: AppColors.primary,
@@ -33,7 +33,7 @@ class QuickFeatureStrip extends StatelessWidget {
           ),
           _FeatureItem(
             title: 'Label Check',
-            subtitle: 'Identify anomalies',
+            subtitle: 'Identify potential label anomalies.',
             icon: Icons.verified_user_rounded,
             iconBg: AppColors.errorContainer,
             iconColor: AppColors.onErrorContainer,
@@ -59,7 +59,7 @@ class QuickFeatureStrip extends StatelessWidget {
           child: Row(
             children: items
                 .map((item) => Container(
-                      width: 220,
+                      width: 250,
                       margin: const EdgeInsets.only(right: AppSpacing.sm),
                       child: _buildTile(context, item),
                     ))
@@ -85,8 +85,8 @@ class QuickFeatureStrip extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: item.iconBg,
                 shape: BoxShape.circle,
@@ -105,7 +105,7 @@ class QuickFeatureStrip extends StatelessWidget {
                     item.title,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.onSurface,
                     ),
                   ),
@@ -115,8 +115,9 @@ class QuickFeatureStrip extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: AppColors.onSurfaceVariant,
+                      height: 1.3,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],

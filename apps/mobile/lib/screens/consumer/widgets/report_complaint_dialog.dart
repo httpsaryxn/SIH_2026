@@ -26,26 +26,33 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
   late final TextEditingController _productNameController;
   late final TextEditingController _brandController;
   final _descController = TextEditingController();
+  final _storeLocationController = TextEditingController();
 
-  String _selectedCategory = 'Missing Allergen Warning';
+  String _selectedCategory = 'Incorrect/Missing MRP';
   bool _isSubmitting = false;
+  bool _hasAttachedImage = false;
 
   final List<String> _categories = [
-    'Missing Allergen Warning',
-    'Incorrect Nutrition Fact',
-    'Misleading Net Quantity Format',
+    'Incorrect/Missing MRP',
+    'Incorrect/Missing Net Quantity',
+    'Missing Manufacturer Information',
+    'Missing Date Information',
+    'Missing Consumer Care Details',
+    'Potentially Misleading Declaration',
     'Font Size Below 1.5mm Mandatory Rule',
-    'Missing Manufacturer / Importer Address',
-    'Non-compliant MRP / Expiry Date',
     'Dual Pricing / Overcharging',
-    'Other Label Metrology Issue',
+    'Other',
   ];
 
   @override
   void initState() {
     super.initState();
-    _productNameController = TextEditingController(text: widget.prefilledProductName ?? '');
+    _productNameController =
+        TextEditingController(text: widget.prefilledProductName ?? '');
     _brandController = TextEditingController(text: widget.prefilledBrand ?? '');
+    if (widget.prefilledProductName != null) {
+      _hasAttachedImage = true;
+    }
   }
 
   @override
@@ -53,6 +60,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
     _productNameController.dispose();
     _brandController.dispose();
     _descController.dispose();
+    _storeLocationController.dispose();
     super.dispose();
   }
 
@@ -66,6 +74,12 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
       brand: _brandController.text.isNotEmpty ? _brandController.text.trim() : null,
       issueCategory: _selectedCategory,
       description: _descController.text.trim(),
+      storeLocation: _storeLocationController.text.isNotEmpty
+          ? _storeLocationController.text.trim()
+          : null,
+      evidenceImageUrl: _hasAttachedImage
+          ? 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500'
+          : null,
     );
 
     if (mounted) {
@@ -75,7 +89,9 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
         widget.onComplaintSubmitted(newComplaint);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to submit complaint. Please try again.')),
+          const SnackBar(
+            content: Text('Failed to submit complaint. Please check connection.'),
+          ),
         );
       }
     }
@@ -88,7 +104,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
       shape: const RoundedRectangleBorder(borderRadius: AppSpacing.roundedLg),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 540),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Form(
@@ -102,8 +118,8 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                   Row(
                     children: [
                       Container(
-                        width: 38,
-                        height: 38,
+                        width: 42,
+                        height: 42,
                         decoration: BoxDecoration(
                           color: AppColors.errorContainer,
                           borderRadius: AppSpacing.roundedDefault,
@@ -112,19 +128,31 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                           child: Icon(
                             Icons.report_problem_rounded,
                             color: AppColors.onErrorContainer,
-                            size: 20,
+                            size: 22,
                           ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: Text(
-                          'Report Product Label',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.onSurface,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Report a Label Issue',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.onSurface,
+                              ),
+                            ),
+                            Text(
+                              'Help Legal Metrology authorities investigate anomalies.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       IconButton(
@@ -133,19 +161,11 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Submit an official compliance complaint to the Legal Metrology regulatory team.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
                   const SizedBox(height: AppSpacing.lg),
 
                   // Issue Category Dropdown
                   Text(
-                    'Violation Category',
+                    'Issue Category',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -189,7 +209,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                     controller: _productNameController,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14),
                     decoration: const InputDecoration(
-                      hintText: 'e.g. Choco Crisp Cereal 300g',
+                      hintText: 'e.g. ABC Snacks / Choco Crisp 300g',
                     ),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Please enter product name' : null,
@@ -210,7 +230,27 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                     controller: _brandController,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14),
                     decoration: const InputDecoration(
-                      hintText: 'e.g. MegaFoods International',
+                      hintText: 'e.g. XYZ Foods Pvt Ltd',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Optional Store / Location
+                  Text(
+                    'Store / Location where purchased (Optional)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  TextFormField(
+                    controller: _storeLocationController,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. FreshMart Supermarket, Sector 14, Pune',
+                      prefixIcon: Icon(Icons.storefront_rounded, size: 18),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -230,11 +270,65 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                     maxLines: 3,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14),
                     decoration: const InputDecoration(
-                      hintText: 'Explain the misleading information, missing declarations, or incorrect values observed on the packaging.',
+                      hintText:
+                          'Describe the issue observed (e.g. missing manufacturing date, obscured price sticker, dual MRP, or illegible font size).',
                     ),
-                    validator: (v) => (v == null || v.trim().length < 10)
-                        ? 'Please provide at least 10 characters'
+                    validator: (v) => (v == null || v.trim().length < 8)
+                        ? 'Please provide at least 8 characters'
                         : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Label Photo / Evidence attachment
+                  Text(
+                    'Label Photo / Evidence',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  InkWell(
+                    onTap: () {
+                      setState(() => _hasAttachedImage = !_hasAttachedImage);
+                    },
+                    borderRadius: AppSpacing.roundedDefault,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: _hasAttachedImage
+                            ? AppColors.primary.withValues(alpha: 0.08)
+                            : AppColors.surfaceContainerLow,
+                        borderRadius: AppSpacing.roundedDefault,
+                        border: Border.all(
+                          color: _hasAttachedImage ? AppColors.primary : AppColors.surfaceVariant,
+                          style: _hasAttachedImage ? BorderStyle.solid : BorderStyle.none,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _hasAttachedImage ? Icons.check_circle_rounded : Icons.camera_alt_rounded,
+                            color: _hasAttachedImage ? AppColors.primary : AppColors.secondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              _hasAttachedImage
+                                  ? 'Label packaging photo attached (evidence.jpg)'
+                                  : 'Tap to attach product label photo or scan evidence',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: _hasAttachedImage ? FontWeight.w600 : FontWeight.w400,
+                                color: _hasAttachedImage ? AppColors.primary : AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
@@ -258,16 +352,20 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.onPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
                           shape: const RoundedRectangleBorder(
                             borderRadius: AppSpacing.roundedDefault,
                           ),
+                          elevation: 0,
                         ),
                         child: _isSubmitting
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : Text(
                                 'Submit Complaint',

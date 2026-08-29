@@ -9,6 +9,7 @@ class RecentScansSection extends StatelessWidget {
   final bool isLoading;
   final Function(ConsumerScanModel scan) onScanTap;
   final VoidCallback onViewAllTap;
+  final VoidCallback onScanNewTap;
 
   const RecentScansSection({
     super.key,
@@ -16,6 +17,7 @@ class RecentScansSection extends StatelessWidget {
     this.isLoading = false,
     required this.onScanTap,
     required this.onViewAllTap,
+    required this.onScanNewTap,
   });
 
   @override
@@ -35,28 +37,29 @@ class RecentScansSection extends StatelessWidget {
                   'Recently Scanned',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.onSurface,
                   ),
                 ),
               ],
             ),
-            TextButton(
-              onPressed: onViewAllTap,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                'View All',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+            if (scans.isNotEmpty)
+              TextButton(
+                onPressed: onViewAllTap,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'View All',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -70,33 +73,66 @@ class RecentScansSection extends StatelessWidget {
             ),
           )
         else if (scans.isEmpty)
+          // Empty State Matching Prompt Requirements
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.xl),
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerLowest,
               borderRadius: AppSpacing.roundedMd,
               border: Border.all(color: AppColors.surfaceVariant),
+              boxShadow: AppSpacing.cardShadow,
             ),
             child: Center(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.qr_code_scanner_rounded, color: AppColors.outline, size: 40),
-                  const SizedBox(height: AppSpacing.sm),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryContainer.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.qr_code_scanner_rounded,
+                        color: AppColors.primary,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     'No products scanned yet',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Scan a product packaging label to check its Legal Metrology compliance.',
+                    'Scan your first product to see its ingredients, nutrition and label summary.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  ElevatedButton.icon(
+                    onPressed: onScanNewTap,
+                    icon: const Icon(Icons.photo_camera_rounded, size: 18),
+                    label: const Text('Scan Label'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: AppSpacing.roundedDefault,
+                      ),
+                      elevation: 0,
                     ),
                   ),
                 ],
@@ -116,7 +152,7 @@ class RecentScansSection extends StatelessWidget {
                   crossAxisCount: isWide ? 2 : 1,
                   crossAxisSpacing: AppSpacing.sm,
                   mainAxisSpacing: AppSpacing.sm,
-                  mainAxisExtent: 154,
+                  mainAxisExtent: 172,
                 ),
                 itemBuilder: (context, index) {
                   final scan = scans[index];
@@ -131,7 +167,7 @@ class RecentScansSection extends StatelessWidget {
 
   Widget _buildScanCard(BuildContext context, ConsumerScanModel scan) {
     final isCompliant = scan.complianceStatus == 'compliant';
-    final isWarning = scan.complianceStatus == 'warning';
+    final isWarning = scan.complianceStatus == 'warning' || scan.complianceStatus == 'potential_violation';
 
     Color badgeBg;
     Color badgeText;
@@ -142,17 +178,17 @@ class RecentScansSection extends StatelessWidget {
       badgeBg = AppColors.primaryFixed.withValues(alpha: 0.25);
       badgeText = AppColors.onPrimaryContainer;
       badgeIcon = Icons.check_circle_rounded;
-      badgeLabel = 'No issues';
+      badgeLabel = 'Label Check: No obvious issue detected';
     } else if (isWarning) {
       badgeBg = AppColors.errorContainer;
       badgeText = AppColors.onErrorContainer;
       badgeIcon = Icons.warning_rounded;
-      badgeLabel = 'Potential issue';
+      badgeLabel = 'Potential issue detected';
     } else {
       badgeBg = AppColors.surfaceContainerHigh;
       badgeText = AppColors.onSurfaceVariant;
       badgeIcon = Icons.help_outline_rounded;
-      badgeLabel = 'Unverified';
+      badgeLabel = 'Unverified label';
     }
 
     return InkWell(
@@ -172,9 +208,8 @@ class RecentScansSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Image Thumbnail & Status Badge
+            // Top Row: Thumbnail + Date Info
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Product Thumbnail
@@ -200,69 +235,96 @@ class RecentScansSection extends StatelessWidget {
                           color: AppColors.primary,
                         ),
                 ),
-
-                // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: AppSpacing.roundedFull,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(badgeIcon, color: badgeText, size: 12),
-                      const SizedBox(width: 4),
                       Text(
-                        badgeLabel,
+                        scan.productName,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: badgeText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${scan.brand} • ${scan.netQuantity}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.xs),
+
+            // Compliance Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: AppSpacing.roundedSm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(badgeIcon, color: badgeText, size: 12),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      badgeLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: badgeText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const Spacer(),
 
-            // Product Name
-            Text(
-              scan.productName,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurface,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-
-            // Brand & Quantity
-            Text(
-              '${scan.brand} • ${scan.netQuantity}',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                color: AppColors.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const Spacer(),
-
-            // Time Ago
+            // Bottom Row: Date Scanned & View Summary CTA
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.secondary),
-                const SizedBox(width: 4),
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.schedule_rounded, size: 12, color: AppColors.secondary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Scanned ${scan.timeAgo}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: AppColors.secondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 Text(
-                  'Scanned ${scan.timeAgo}',
+                  'View Summary →',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
-                    color: AppColors.secondary,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
               ],

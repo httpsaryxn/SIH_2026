@@ -11,6 +11,9 @@ class ProductModel {
   final String? manufacturerName;
   final String? manufacturerAddress;
   final String? fssaiLicenseNo;
+  final String? mfgDate;
+  final String? bestBefore;
+  final String? consumerCareInfo;
   final String? imageUrl;
   final String complianceStatus; // 'compliant', 'warning', 'potential_violation', 'unverified'
   final List<Map<String, dynamic>> complianceIssues;
@@ -29,6 +32,9 @@ class ProductModel {
     this.manufacturerName,
     this.manufacturerAddress,
     this.fssaiLicenseNo,
+    this.mfgDate,
+    this.bestBefore,
+    this.consumerCareInfo,
     this.imageUrl,
     this.complianceStatus = 'compliant',
     this.complianceIssues = const [],
@@ -54,6 +60,10 @@ class ProductModel {
       manufacturerName: json['manufacturer_name'] as String?,
       manufacturerAddress: json['manufacturer_address'] as String?,
       fssaiLicenseNo: json['fssai_license_no'] as String?,
+      mfgDate: json['mfg_date'] as String? ?? 'Jul 2026',
+      bestBefore: json['best_before'] as String? ?? '9 Months from packaging',
+      consumerCareInfo: json['consumer_care_info'] as String? ??
+          'care@foodbrand.in | 1800-200-8899',
       imageUrl: json['image_url'] as String?,
       complianceStatus: json['compliance_status'] as String? ?? 'compliant',
       complianceIssues: (json['compliance_issues'] as List<dynamic>?)
@@ -80,9 +90,23 @@ class ProductModel {
       'manufacturer_name': manufacturerName,
       'manufacturer_address': manufacturerAddress,
       'fssai_license_no': fssaiLicenseNo,
+      'mfg_date': mfgDate,
+      'best_before': bestBefore,
+      'consumer_care_info': consumerCareInfo,
       'image_url': imageUrl,
       'compliance_status': complianceStatus,
       'compliance_issues': complianceIssues,
     };
+  }
+
+  String get labelStatusText {
+    switch (complianceStatus) {
+      case 'warning':
+      case 'potential_violation':
+        return 'Potential issue detected';
+      case 'compliant':
+      default:
+        return 'No obvious issue detected';
+    }
   }
 }

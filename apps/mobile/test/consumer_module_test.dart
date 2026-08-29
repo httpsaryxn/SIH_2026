@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/models/consumer_complaint_model.dart';
-import 'package:mobile/core/models/consumer_saved_product.dart';
 import 'package:mobile/core/models/consumer_scan_model.dart';
 import 'package:mobile/core/models/product_model.dart';
+import 'package:mobile/screens/consumer/widgets/complaint_detail_modal.dart';
 import 'package:mobile/screens/consumer/widgets/my_complaints_section.dart';
 import 'package:mobile/screens/consumer/widgets/quick_feature_strip.dart';
 import 'package:mobile/screens/consumer/widgets/recent_scans_section.dart';
-import 'package:mobile/screens/consumer/widgets/report_issue_hero_card.dart';
-import 'package:mobile/screens/consumer/widgets/saved_products_section.dart';
 import 'package:mobile/screens/consumer/widgets/scan_hero_card.dart';
 
 void main() {
   group('Consumer Models Tests', () {
-    test('ProductModel parses and serializes correctly', () {
+    test('ProductModel parses Legal Metrology and nutrition data', () {
       final product = ProductModel(
         id: 'prod-123',
         barcode: '8901234567890',
@@ -23,13 +21,16 @@ void main() {
         netQuantity: '300 g',
         mrp: 199.0,
         ingredients: ['Wheat', 'Cocoa', 'Sugar'],
-        nutritionFacts: {'calories': '380 kcal'},
+        nutritionFacts: {'calories': '380 kcal', 'protein': '6g'},
         complianceStatus: 'warning',
+        mfgDate: 'Aug 2026',
+        bestBefore: '12 Months',
       );
 
       final json = product.toJson();
       expect(json['product_name'], 'Choco Crisp Cereal');
       expect(json['mrp'], 199.0);
+      expect(product.labelStatusText, 'Potential issue detected');
 
       final parsed = ProductModel.fromJson(json);
       expect(parsed.id, 'prod-123');
@@ -37,38 +38,45 @@ void main() {
       expect(parsed.complianceStatus, 'warning');
     });
 
-    test('ConsumerScanModel timeAgo calculation', () {
-      final scanNow = ConsumerScanModel(
-        id: 's-1',
-        consumerId: 'u-1',
-        productName: 'Bread',
-        scannedAt: DateTime.now().subtract(const Duration(minutes: 5)),
-      );
-      expect(scanNow.timeAgo, '5m ago');
-
-      final scanHours = ConsumerScanModel(
-        id: 's-2',
-        consumerId: 'u-1',
-        productName: 'Milk',
-        scannedAt: DateTime.now().subtract(const Duration(hours: 3)),
-      );
-      expect(scanHours.timeAgo, '3h ago');
-    });
-
-    test('ConsumerComplaintModel displayStatus and formattedDate', () {
-      final complaint = ConsumerComplaintModel(
+    test('ConsumerComplaintModel step index and timeline tracking', () {
+      final cSubmitted = ConsumerComplaintModel(
         id: 'c-1',
-        complaintCode: '#CPL-8924',
+        complaintCode: 'CMP-2026-001284',
         consumerId: 'u-1',
-        productName: 'Choco Crisp',
-        issueCategory: 'Missing Allergen Warning',
-        description: 'Font is too small',
-        status: 'under_review',
-        createdAt: DateTime(2026, 10, 12),
+        productName: 'ABC Snacks',
+        issueCategory: 'Potential MRP Discrepancy',
+        description: 'Dual price sticker',
+        status: 'submitted',
+        createdAt: DateTime(2026, 8, 27),
       );
+      expect(cSubmitted.currentStepIndex, 0);
+      expect(cSubmitted.formattedDate, '27 Aug 2026');
 
-      expect(complaint.displayStatus, 'Under Review');
-      expect(complaint.formattedDate, 'Oct 12');
+      final cUnderReview = ConsumerComplaintModel(
+        id: 'c-2',
+        complaintCode: 'CMP-2026-001285',
+        consumerId: 'u-1',
+        productName: 'ABC Snacks',
+        issueCategory: 'Potential MRP Discrepancy',
+        description: 'Dual price sticker',
+        status: 'under_review',
+        createdAt: DateTime(2026, 8, 27),
+      );
+      expect(cUnderReview.currentStepIndex, 1);
+      expect(cUnderReview.displayStatus, 'Under Review');
+
+      final cForwarded = ConsumerComplaintModel(
+        id: 'c-3',
+        complaintCode: 'CMP-2026-001286',
+        consumerId: 'u-1',
+        productName: 'ABC Snacks',
+        issueCategory: 'Potential MRP Discrepancy',
+        description: 'Dual price sticker',
+        status: 'forwarded_to_company',
+        createdAt: DateTime(2026, 8, 27),
+      );
+      expect(cForwarded.currentStepIndex, 2);
+      expect(cForwarded.displayStatus, 'Forwarded to Company');
     });
   });
 
@@ -120,7 +128,7 @@ void main() {
       expect(selectedFeature, 'ingredients');
     });
 
-    testWidgets('RecentScansSection renders scan items and compliance status tags', (tester) async {
+    testWidgets('RecentScansSection renders scan items, status tags, and View Summary CTA', (tester) async {
       final dummyScans = [
         ConsumerScanModel(
           id: 's-1',
@@ -149,6 +157,7 @@ void main() {
               scans: dummyScans,
               onScanTap: (_) {},
               onViewAllTap: () {},
+              onScanNewTap: () {},
             ),
           ),
         ),
@@ -156,75 +165,49 @@ void main() {
 
       expect(find.text('Recently Scanned'), findsOneWidget);
       expect(find.text('Artisan Sourdough'), findsOneWidget);
-      expect(find.text('No issues'), findsOneWidget);
+      expect(find.text('Label Check: No obvious issue detected'), findsOneWidget);
       expect(find.text('Choco Crisp'), findsOneWidget);
-      expect(find.text('Potential issue'), findsOneWidget);
+      expect(find.text('Potential issue detected'), findsOneWidget);
+      expect(find.text('View Summary →'), findsNWidgets(2));
     });
 
-    testWidgets('SavedProductsSection renders bookmarks list and handles unsave', (tester) async {
-      bool unsaved = false;
-      final dummySaved = [
-        ConsumerSavedProduct(
-          id: 'b-1',
-          consumerId: 'u-1',
-          productId: 'p-1',
-          productName: 'Organic Almond Milk',
-          brand: "Nature's Best",
-          quantity: '1L',
-          savedAt: DateTime.now(),
-        ),
-      ];
+    testWidgets('RecentScansSection renders empty state when no scans exist', (tester) async {
+      bool scanNewTapped = false;
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SavedProductsSection(
-              savedProducts: dummySaved,
-              onProductTap: (_) {},
-              onUnsaveTap: (_) => unsaved = true,
+            body: RecentScansSection(
+              scans: const [],
+              onScanTap: (_) {},
+              onViewAllTap: () {},
+              onScanNewTap: () => scanNewTapped = true,
             ),
           ),
         ),
       );
 
-      expect(find.text('Saved Products'), findsOneWidget);
-      expect(find.text('Organic Almond Milk'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Remove bookmark'));
-      expect(unsaved, true);
-    });
-
-    testWidgets('ReportIssueHeroCard renders CTA and trigger callback', (tester) async {
-      bool reportPressed = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ReportIssueHeroCard(
-              onReportTap: () => reportPressed = true,
-            ),
-          ),
-        ),
+      expect(find.text('No products scanned yet'), findsOneWidget);
+      expect(
+        find.text('Scan your first product to see its ingredients, nutrition and label summary.'),
+        findsOneWidget,
       );
 
-      expect(find.text('See something wrong?'), findsOneWidget);
-      expect(find.text('Report an Issue'), findsOneWidget);
-
-      await tester.tap(find.text('Report an Issue'));
-      expect(reportPressed, true);
+      await tester.tap(find.text('Scan Label'));
+      expect(scanNewTapped, true);
     });
 
-    testWidgets('MyComplaintsSection renders complaint items and status tags', (tester) async {
+    testWidgets('MyComplaintsSection renders complaint items, status, and timeline link', (tester) async {
       final dummyComplaints = [
         ConsumerComplaintModel(
           id: 'c-1',
-          complaintCode: '#CPL-8924',
+          complaintCode: 'CMP-2026-001284',
           consumerId: 'u-1',
-          productName: 'Choco Crisp 300g',
-          issueCategory: 'Missing Allergen Warning',
-          description: 'Font illegible',
+          productName: 'ABC Snacks',
+          issueCategory: 'Potential MRP Discrepancy',
+          description: 'Dual price sticker',
           status: 'under_review',
-          createdAt: DateTime(2026, 10, 12),
+          createdAt: DateTime(2026, 8, 27),
         ),
       ];
 
@@ -235,16 +218,47 @@ void main() {
               complaints: dummyComplaints,
               onComplaintTap: (_) {},
               onViewAllTap: () {},
+              onReportNewTap: () {},
             ),
           ),
         ),
       );
 
       expect(find.text('My Complaints'), findsOneWidget);
-      expect(find.text('Missing Allergen Warning'), findsOneWidget);
+      expect(find.text('CMP-2026-001284'), findsOneWidget);
       expect(find.text('Under Review'), findsOneWidget);
-      expect(find.text('Choco Crisp 300g'), findsOneWidget);
-      expect(find.text('View All Complaints'), findsOneWidget);
+      expect(find.text('ABC Snacks'), findsOneWidget);
+      expect(find.text('Track Timeline →'), findsOneWidget);
+    });
+
+    testWidgets('ComplaintDetailModal renders timeline stages and details', (tester) async {
+      final complaint = ConsumerComplaintModel(
+        id: 'c-1',
+        complaintCode: 'CMP-2026-001284',
+        consumerId: 'u-1',
+        productName: 'ABC Snacks',
+        brand: 'XYZ Foods',
+        issueCategory: 'Potential MRP Discrepancy',
+        description: 'Dual price sticker observed',
+        storeLocation: 'City Center Mall',
+        status: 'under_review',
+        createdAt: DateTime(2026, 8, 27),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ComplaintDetailModal(complaint: complaint),
+          ),
+        ),
+      );
+
+      expect(find.text('CMP-2026-001284'), findsOneWidget);
+      expect(find.text('ABC Snacks'), findsOneWidget);
+      expect(find.text('Location: City Center Mall'), findsOneWidget);
+      expect(find.text('Complaint Submitted'), findsOneWidget);
+      expect(find.text('Under Review'), findsOneWidget);
+      expect(find.text('Forwarded to Company'), findsOneWidget);
     });
   });
 }

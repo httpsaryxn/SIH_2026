@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/consumer_complaint_model.dart';
+import '../models/consumer_notification_model.dart';
 import '../models/consumer_saved_product.dart';
 import '../models/consumer_scan_model.dart';
 import '../models/product_model.dart';
@@ -25,7 +26,7 @@ class ConsumerDataService {
     }
   }
 
-  /// Fetch recent scans for current consumer (with automatic initial seeding if empty)
+  /// Fetch recent scans for current consumer
   static Future<List<ConsumerScanModel>> fetchRecentScans() async {
     final uid = _userId;
     if (uid == null) return [];
@@ -45,11 +46,11 @@ class ConsumerDataService {
       final products = await fetchProductsCatalog();
       if (products.isNotEmpty) {
         final sourdough = products.firstWhere(
-          (p) => p.productName.contains('Sourdough'),
+          (p) => p.productName.contains('Sourdough') || p.productName.contains('Bread'),
           orElse: () => products[0],
         );
         final choco = products.firstWhere(
-          (p) => p.productName.contains('Choco'),
+          (p) => p.productName.contains('Choco') || p.productName.contains('Crisp'),
           orElse: () => products.length > 1 ? products[1] : products[0],
         );
 
@@ -95,10 +96,16 @@ class ConsumerDataService {
           'ingredients': product.ingredients,
           'nutrition_facts': product.nutritionFacts,
           'manufacturer': product.manufacturerName,
+          'manufacturer_address': product.manufacturerAddress,
+          'mrp': product.mrp,
+          'fssai_license_no': product.fssaiLicenseNo,
+          'mfg_date': product.mfgDate,
+          'best_before': product.bestBefore,
+          'consumer_care_info': product.consumerCareInfo,
         },
         'scan_notes': product.complianceIssues.isNotEmpty
             ? product.complianceIssues.first['message']
-            : 'All mandatory Legal Metrology declarations verified.',
+            : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.',
         'scanned_at': (customTime ?? DateTime.now()).toIso8601String(),
       };
 
@@ -111,6 +118,23 @@ class ConsumerDataService {
       return ConsumerScanModel.fromJson(res);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Delete a scan
+  static Future<bool> deleteScan(String scanId) async {
+    final uid = _userId;
+    if (uid == null) return false;
+
+    try {
+      await _client
+          .from('consumer_scans')
+          .delete()
+          .eq('consumer_id', uid)
+          .eq('id', scanId);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -137,13 +161,13 @@ class ConsumerDataService {
           (p) => p.productName.contains('Almond'),
           orElse: () => products[0],
         );
-        final eggsOrBar = products.firstWhere(
+        final proteinBar = products.firstWhere(
           (p) => p.productName.contains('Protein') || p.productName.contains('Sourdough'),
           orElse: () => products.length > 1 ? products[1] : products[0],
         );
 
         await saveProduct(almondMilk);
-        await saveProduct(eggsOrBar);
+        await saveProduct(proteinBar);
 
         final refreshed = await _client
             .from('saved_products')
@@ -199,15 +223,6 @@ class ConsumerDataService {
     }
   }
 
-  /// Toggle saved status
-  static Future<bool> toggleSave(ProductModel product, bool isCurrentlySaved) async {
-    if (isCurrentlySaved) {
-      return !(await unsaveProduct(product.id));
-    } else {
-      return await saveProduct(product);
-    }
-  }
-
   /// Fetch consumer complaints
   static Future<List<ConsumerComplaintModel>> fetchMyComplaints() async {
     final uid = _userId;
@@ -224,24 +239,26 @@ class ConsumerDataService {
         return data.map((e) => ConsumerComplaintModel.fromJson(e)).toList();
       }
 
-      // Seed initial demo complaints matching Stitch design
+      // Seed initial demo complaints matching requirements
+      await submitComplaint(
+        productName: 'ABC Snacks & Confectionery',
+        brand: 'XYZ Foods Pvt Ltd',
+        issueCategory: 'Potential MRP Discrepancy',
+        description: 'Dual MRP stickers observed on package with conflicting prices at supermarket.',
+        storeLocation: 'City Center Mall, Sector 14',
+        initialStatus: 'under_review',
+        customCode: 'CMP-2026-001284',
+        customDate: DateTime.now().subtract(const Duration(days: 2)),
+      );
+
       await submitComplaint(
         productName: 'Choco Crisp Cereal 300g',
         brand: 'MegaFoods International',
         issueCategory: 'Missing Allergen Warning',
-        description: 'Allergen warning font is illegible and below the Legal Metrology minimum 1.5mm specification.',
-        initialStatus: 'under_review',
-        customCode: '#CPL-8924',
-        customDate: DateTime.now().subtract(const Duration(days: 3)),
-      );
-
-      await submitComplaint(
-        productName: 'High Protein Nut Bar 50g',
-        brand: 'ProActive Nutrition',
-        issueCategory: 'Incorrect Nutrition Fact',
-        description: 'Printed net weight symbol format is non-compliant with standard units.',
-        initialStatus: 'submitted',
-        customCode: '#CPL-8891',
+        description: 'Allergen warning text size is printed below mandatory 1.5mm threshold.',
+        storeLocation: 'FreshMart Supermarket',
+        initialStatus: 'forwarded_to_company',
+        customCode: 'CMP-2026-000892',
         customDate: DateTime.now().subtract(const Duration(days: 5)),
       );
 
@@ -257,12 +274,13 @@ class ConsumerDataService {
     }
   }
 
-  /// Submit a new consumer complaint to Supabase
+  /// Submit a new consumer complaint
   static Future<ConsumerComplaintModel?> submitComplaint({
     required String productName,
     String? brand,
     required String issueCategory,
     required String description,
+    String? storeLocation,
     String? evidenceImageUrl,
     String initialStatus = 'submitted',
     String? customCode,
@@ -271,7 +289,7 @@ class ConsumerDataService {
     final uid = _userId;
     if (uid == null) return null;
 
-    final code = customCode ?? '#CPL-${1000 + Random().nextInt(9000)}';
+    final code = customCode ?? 'CMP-2026-${(100000 + Random().nextInt(900000))}';
 
     try {
       final data = {
@@ -281,6 +299,7 @@ class ConsumerDataService {
         'brand': brand?.trim() ?? 'General Brand',
         'issue_category': issueCategory.trim(),
         'description': description.trim(),
+        'store_location': storeLocation?.trim(),
         'evidence_image_url': evidenceImageUrl,
         'status': initialStatus,
         'created_at': (customDate ?? DateTime.now()).toIso8601String(),
@@ -293,9 +312,36 @@ class ConsumerDataService {
           .select()
           .single();
 
+      // Create notification
+      await _client.from('consumer_notifications').insert({
+        'consumer_id': uid,
+        'title': 'Complaint Submitted',
+        'message': 'Your complaint $code for $productName has been logged with authorities.',
+        'type': 'complaint_update',
+        'related_complaint_id': res['id'],
+      });
+
       return ConsumerComplaintModel.fromJson(res);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Fetch user notifications
+  static Future<List<ConsumerNotificationModel>> fetchNotifications() async {
+    final uid = _userId;
+    if (uid == null) return [];
+
+    try {
+      final data = await _client
+          .from('consumer_notifications')
+          .select()
+          .eq('consumer_id', uid)
+          .order('created_at', ascending: false);
+
+      return (data as List).map((e) => ConsumerNotificationModel.fromJson(e)).toList();
+    } catch (e) {
+      return [];
     }
   }
 }
