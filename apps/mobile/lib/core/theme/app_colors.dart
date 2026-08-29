@@ -11,6 +11,8 @@ class AppColors {
   static const Color primaryContainer = Color(0xFF91EE9F);
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color onPrimaryContainer = Color(0xFF002109);
+  static const Color primaryFixed = Color(0xFF6BFF8F);
+  static const Color onPrimaryFixed = Color(0xFF002109);
 
   // Brand specific aliases
   static const Color brandDeepGreen = Color(0xFF006E2F);

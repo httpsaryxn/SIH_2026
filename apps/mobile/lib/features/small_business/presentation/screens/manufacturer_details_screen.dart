@@ -7,7 +7,7 @@ import '../widgets/consumer_care_card.dart';
 import '../widgets/manufacturer_details_card.dart';
 import '../widgets/manufacturer_progress_bar.dart';
 import '../widgets/nutrition_bottom_bar.dart';
-import 'product_claims_screen.dart';
+import 'final_details_screen.dart';
 
 class ManufacturerDetailsScreen extends StatefulWidget {
   const ManufacturerDetailsScreen({super.key});
@@ -75,12 +75,12 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => ProductClaimsScreen(
+        builder: (context) => FinalDetailsScreen(
           brandName: 'Desi Harvest',
           productName: 'Authentic Mango Pickle',
           productCategory: 'Pickles & Condiments',
           netQuantity: '250 g',
-          mrp: '₹ 149.00',
+          mrp: '149.00',
         ),
       ),
     );
@@ -89,7 +89,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
   void _onSkip() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const ProductClaimsScreen(),
+        builder: (context) => const FinalDetailsScreen(),
       ),
     );
   }
