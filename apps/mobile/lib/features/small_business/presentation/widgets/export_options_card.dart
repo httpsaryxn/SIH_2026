@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 enum ExportFormat {
-  pdf('Print PDF', '300 DPI Vector with Bleed & Crop Marks', Icons.picture_as_pdf_rounded),
-  png('High-Res PNG', 'Clean raster image with white or transparent bg', Icons.image_rounded),
-  svg('Vector SVG', 'Scalable vector for commercial packaging printers', Icons.polyline_rounded),
-  json('Compliance JSON', 'Machine-readable regulatory metadata schema', Icons.code_rounded);
+  png('High-Res PNG', 'Clean 600 DPI raster image for e-commerce and mockups', Icons.image_rounded),
+  pdf('Print Ready PDF', '300 DPI Vector with Bleed & Crop Marks for Offset / Digital Press', Icons.picture_as_pdf_rounded),
+  svg('Vector SVG', 'Scalable master vector artwork for packaging flexo printers', Icons.polyline_rounded),
+  json('Compliance JSON', 'Machine-readable Legal Metrology & FSSAI schema metadata', Icons.code_rounded);
 
   const ExportFormat(this.title, this.subtitle, this.icon);
   final String title;
@@ -20,27 +20,69 @@ class ExportOptionsCard extends StatefulWidget {
     required this.onFormatChanged,
     required this.selectedDimension,
     required this.onDimensionChanged,
+    this.customWidthMm = 100,
+    this.customHeightMm = 150,
+    this.onCustomDimensionsChanged,
   });
 
   final ExportFormat selectedFormat;
   final ValueChanged<ExportFormat> onFormatChanged;
   final String selectedDimension;
   final ValueChanged<String> onDimensionChanged;
+  final double customWidthMm;
+  final double customHeightMm;
+  final void Function(double width, double height)? onCustomDimensionsChanged;
 
   @override
   State<ExportOptionsCard> createState() => _ExportOptionsCardState();
 }
 
 class _ExportOptionsCardState extends State<ExportOptionsCard> {
-  final List<String> _dimensions = [
+  late final TextEditingController _widthController;
+  late final TextEditingController _heightController;
+
+  static const List<String> dimensionsList = [
     'Standard Pouch (100 × 150 mm)',
-    'Glass Jar Sticker (80 × 60 mm)',
-    'Carton Box Wrap (120 × 180 mm)',
-    'Custom Label Size',
+    'Wide Pouch / Namkeen Bag (150 × 200 mm)',
+    'Large Stand-Up Zipper Pouch (180 × 260 mm)',
+    'Glass Jar / Bottle Wrap (70 × 180 mm)',
+    'Hexagonal Honey Jar Label (60 × 120 mm)',
+    'Cylindrical Tin Container (90 × 280 mm)',
+    'Small Spice Jar / Dispenser (45 × 90 mm)',
+    'Square Box / Mithai Box Front (120 × 120 mm)',
+    'Large Carton / Bulk Pack (210 × 297 mm - A4)',
+    'Round Container Lid Sticker (80 × 80 mm Circle)',
+    'Custom Label Size (Specify Width × Height in mm)',
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _widthController = TextEditingController(text: widget.customWidthMm.toInt().toString());
+    _heightController = TextEditingController(text: widget.customHeightMm.toInt().toString());
+  }
+
+  @override
+  void dispose() {
+    _widthController.dispose();
+    _heightController.dispose();
+    super.dispose();
+  }
+
+  void _onDimensionsInputChanged() {
+    final w = double.tryParse(_widthController.text.trim()) ?? 100.0;
+    final h = double.tryParse(_heightController.text.trim()) ?? 150.0;
+    widget.onCustomDimensionsChanged?.call(w, h);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final effectiveDimension = dimensionsList.contains(widget.selectedDimension)
+        ? widget.selectedDimension
+        : dimensionsList.first;
+
+    final isCustom = effectiveDimension.startsWith('Custom');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -89,7 +131,7 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
                     ),
                   ),
                   Text(
-                    'Choose output format for packaging printer',
+                    'Choose output format & packaging print size',
                     style: TextStyle(
                       fontSize: 11.5,
                       color: AppColors.onSurfaceVariant,
@@ -101,7 +143,7 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
           ),
           const SizedBox(height: 14),
 
-          // Format selector grid/list
+          // Format selector list
           ...ExportFormat.values.map((fmt) {
             final isSelected = widget.selectedFormat == fmt;
             return Padding(
@@ -177,17 +219,30 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
               ),
             );
           }),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          // Print Dimensions Dropdown
-          const Text(
-            'LABEL PRINT DIMENSIONS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceVariant,
-              letterSpacing: 0.8,
-            ),
+          // Print Dimensions Dropdown Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text(
+                'LABEL PRINT DIMENSIONS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurfaceVariant,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              Text(
+                '10+ Presets',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.brandDeepGreen,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Container(
@@ -201,32 +256,135 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: widget.selectedDimension,
+                value: effectiveDimension,
                 isExpanded: true,
                 icon: const Icon(
                   Icons.arrow_drop_down,
                   color: AppColors.onSurfaceVariant,
                 ),
-                items: _dimensions.map((dim) {
+                items: dimensionsList.map((dim) {
                   return DropdownMenuItem(
                     value: dim,
                     child: Text(
                       dim,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 12.5,
                         color: AppColors.onSurface,
+                        fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   );
                 }).toList(),
                 onChanged: (val) {
                   if (val != null) {
                     widget.onDimensionChanged(val);
+                    if (!val.startsWith('Custom')) {
+                      // Extract width and height numbers from string e.g. (100 × 150 mm)
+                      final match = RegExp(r'(\d+)\s*×\s*(\d+)').firstMatch(val);
+                      if (match != null) {
+                        final w = double.tryParse(match.group(1)!) ?? 100.0;
+                        final h = double.tryParse(match.group(2)!) ?? 150.0;
+                        _widthController.text = w.toInt().toString();
+                        _heightController.text = h.toInt().toString();
+                        widget.onCustomDimensionsChanged?.call(w, h);
+                      }
+                    }
                   }
                 },
               ),
             ),
           ),
+
+          // Custom Width × Height Input Fields
+          if (isCustom) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Custom Packaging Specifications',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF15803D),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Width (mm)', style: TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant)),
+                            const SizedBox(height: 4),
+                            Container(
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.outlineVariant),
+                              ),
+                              child: TextField(
+                                controller: _widthController,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => _onDimensionsInputChanged(),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  border: InputBorder.none,
+                                  suffixText: 'mm',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text('×', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Height (mm)', style: TextStyle(fontSize: 11, color: AppColors.onSurfaceVariant)),
+                            const SizedBox(height: 4),
+                            Container(
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.outlineVariant),
+                              ),
+                              child: TextField(
+                                controller: _heightController,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => _onDimensionsInputChanged(),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  border: InputBorder.none,
+                                  suffixText: 'mm',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

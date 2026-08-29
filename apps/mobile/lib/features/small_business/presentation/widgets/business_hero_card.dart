@@ -30,13 +30,13 @@ class BusinessHeroCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
-                  Icons.store_rounded,
+                  Icons.business_rounded,
                   color: AppColors.brandDeepGreen,
                   size: 20,
                 ),
@@ -44,7 +44,7 @@ class BusinessHeroCard extends StatelessWidget {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Business & Manufacturer',
+                  'Business & Manufacturing Facility',
                   style: TextStyle(
                     color: AppColors.onSurface,
                     fontSize: 16,
@@ -54,35 +54,105 @@ class BusinessHeroCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            'Provide details about where the product is manufactured and packed.',
+            'Declare official manufacturer details, registered physical address, 14-digit FSSAI license, and mandatory customer support contacts.',
             style: TextStyle(
               color: AppColors.onSurfaceVariant,
-              fontSize: 13,
+              fontSize: 12.5,
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 12),
-          // Hero Image container
+          const SizedBox(height: 14),
+
+          // High-Fidelity Vector Illustrated Facility Banner
           Container(
-            height: 160,
+            height: 130,
             width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: AppColors.surfaceContainer,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Image.network(
-              'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?auto=format&fit=crop&w=600&q=80',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(
-                  Icons.business_center_rounded,
-                  color: AppColors.onSurfaceVariant,
-                  size: 48,
-                ),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F3D24), Color(0xFF1E6F43), Color(0xFF0284C7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F3D24).withValues(alpha: 0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.verified_user_rounded, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'FSSAI LICENSED FACILITY',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Packaged Commodity\nDeclaration Standards',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Legal Metrology (PC) Rules, 2011 Verified',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.factory_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

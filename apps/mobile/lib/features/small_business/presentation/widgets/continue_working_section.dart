@@ -1,18 +1,35 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
 
 class ContinueWorkingSection extends StatelessWidget {
   const ContinueWorkingSection({
     super.key,
+    this.draft,
     this.onViewDrafts,
     this.onDraftCardTap,
+    this.onDeleteDraft,
   });
 
+  final SmallBusinessLabelModel? draft;
   final VoidCallback? onViewDrafts;
   final VoidCallback? onDraftCardTap;
+  final VoidCallback? onDeleteDraft;
 
   @override
   Widget build(BuildContext context) {
+    if (draft == null) {
+      return const SizedBox.shrink();
+    }
+
+    final currentDraft = draft!;
+    final title = currentDraft.productName.isNotEmpty
+        ? '${currentDraft.brandName} ${currentDraft.productName}'
+        : (currentDraft.brandName.isNotEmpty ? currentDraft.brandName : 'Untitled Draft');
+    final percentage = currentDraft.completionPercentage.clamp(0, 100);
+    final imageUrl = currentDraft.logoUrl ??
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuCkULLvU1u_zh9bb1xjyt0ZBfPgrBKk92xykR2LHfI8VoTB_l6JDfIuTQ5X79CUZJhtwowCYuOC56sE4_vtTVbNw1riKWKmMfw5BE50_b5-XpX8EGwXJ6kDc11OT2wyDl5MZSIJ8S5IZIsnw_87MJVi9hf2H716UU3YtM4Ae2VoG3AizLPNoIMfuiXBp-FtqKNQ1dMUpHZFKd4enROv-82G9XroFpejyn8GRC9py7d9qm-nVqOQBA8-Zg';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -28,22 +45,39 @@ class ContinueWorkingSection extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            TextButton(
-              onPressed: onViewDrafts,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 0),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'View drafts',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+            Row(
+              children: [
+                if (onDeleteDraft != null)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: AppColors.error,
+                    ),
+                    tooltip: 'Delete Draft',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: onDeleteDraft,
+                  ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: onViewDrafts,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'View drafts',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
@@ -83,7 +117,7 @@ class ContinueWorkingSection extends StatelessWidget {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Image.network(
-                      'https://lh3.googleusercontent.com/aida-public/AB6AXuCkULLvU1u_zh9bb1xjyt0ZBfPgrBKk92xykR2LHfI8VoTB_l6JDfIuTQ5X79CUZJhtwowCYuOC56sE4_vtTVbNw1riKWKmMfw5BE50_b5-XpX8EGwXJ6kDc11OT2wyDl5MZSIJ8S5IZIsnw_87MJVi9hf2H716UU3YtM4Ae2VoG3AizLPNoIMfuiXBp-FtqKNQ1dMUpHZFKd4enROv-82G9XroFpejyn8GRC9py7d9qm-nVqOQBA8-Zg',
+                      imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
                           const Center(
@@ -126,7 +160,7 @@ class ContinueWorkingSection extends StatelessWidget {
                             const SizedBox(width: 6),
                             const Expanded(
                               child: Text(
-                                'Last edited today',
+                                'Synced with Supabase Cloud',
                                 style: TextStyle(
                                   color: AppColors.onSurfaceVariant,
                                   fontSize: 12,
@@ -138,9 +172,9 @@ class ContinueWorkingSection extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         // Title
-                        const Text(
-                          'Annapurna Mango Pickle',
-                          style: TextStyle(
+                        Text(
+                          title,
+                          style: const TextStyle(
                             color: AppColors.onBackground,
                             fontSize: 14.5,
                             fontWeight: FontWeight.w600,
@@ -160,7 +194,7 @@ class ContinueWorkingSection extends StatelessWidget {
                                   child: Align(
                                     alignment: Alignment.centerLeft,
                                     child: FractionallySizedBox(
-                                      widthFactor: 0.8,
+                                      widthFactor: (percentage / 100.0).clamp(0.05, 1.0),
                                       child: Container(
                                         color: AppColors.primary,
                                       ),
@@ -170,9 +204,9 @@ class ContinueWorkingSection extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Details 80% complete',
-                              style: TextStyle(
+                            Text(
+                              'Details $percentage% complete',
+                              style: const TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w500,
@@ -184,10 +218,11 @@ class ContinueWorkingSection extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // Chevron Icon
                   const Icon(
                     Icons.chevron_right_rounded,
                     color: AppColors.onSurfaceVariant,
-                    size: 22,
+                    size: 24,
                   ),
                 ],
               ),

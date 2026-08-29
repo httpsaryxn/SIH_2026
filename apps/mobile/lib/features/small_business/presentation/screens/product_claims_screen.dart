@@ -1,23 +1,28 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
+import '../../data/repositories/small_business_label_repository.dart';
+import '../../data/services/notification_service.dart';
 import '../widgets/add_custom_claim_card.dart';
 import '../widgets/claim_item_card.dart';
 import '../widgets/claims_bottom_bar.dart';
 import '../widgets/claims_category_tab_bar.dart';
 import '../widgets/claims_hero_card.dart';
-import '../widgets/claims_progress_bar.dart';
 import '../widgets/claims_regulatory_notice_card.dart';
+import '../widgets/wizard_step_progress_card.dart';
 import 'label_review_export_screen.dart';
+import 'my_label_studio_screen.dart';
 
 class ProductClaimsScreen extends StatefulWidget {
   const ProductClaimsScreen({
     super.key,
-    this.brandName = 'Desi Harvest',
-    this.productName = 'Authentic Mango Pickle',
-    this.productCategory = 'Pickles & Condiments',
-    this.netQuantity = '250 g',
-    this.mrp = '₹ 149.00',
+    this.brandName = '',
+    this.productName = '',
+    this.productCategory = '',
+    this.netQuantity = '',
+    this.mrp = '',
+    this.labelModel,
   });
 
   final String brandName;
@@ -25,40 +30,51 @@ class ProductClaimsScreen extends StatefulWidget {
   final String productCategory;
   final String netQuantity;
   final String mrp;
+  final SmallBusinessLabelModel? labelModel;
 
   @override
   State<ProductClaimsScreen> createState() => _ProductClaimsScreenState();
 }
 
 class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
+  final SmallBusinessLabelRepository _repository =
+      SmallBusinessLabelRepository();
+  final SmallBusinessNotificationService _notificationService =
+      SmallBusinessNotificationService();
   final TextEditingController _searchController = TextEditingController();
   ClaimCategory? _selectedCategory;
 
-  // Predefined Mock Claims categorized according to FSSAI & Legal Metrology standards
+  late SmallBusinessLabelModel _currentModel;
+  bool _isSaving = false;
+
   final List<ProductClaim> _allClaims = [
     // Common Claims
     const ProductClaim(
       id: 'c1',
       title: '100% Natural',
-      description: 'Contains only natural agricultural ingredients without synthetic chemicals.',
+      description:
+          'Contains only natural agricultural ingredients without synthetic chemicals.',
       category: ClaimCategory.common,
     ),
     const ProductClaim(
       id: 'c2',
       title: 'No Added Preservatives',
-      description: 'Preserved naturally using salt, spices, and cold-pressed edible oil.',
+      description:
+          'Preserved naturally using salt, spices, and cold-pressed edible oil.',
       category: ClaimCategory.common,
     ),
     const ProductClaim(
       id: 'c3',
       title: 'No Artificial Flavours',
-      description: 'Flavor derived exclusively from genuine regional aromatic spices.',
+      description:
+          'Flavor derived exclusively from genuine regional aromatic spices.',
       category: ClaimCategory.common,
     ),
     const ProductClaim(
       id: 'c4',
       title: 'No Artificial Colours',
-      description: 'Free from synthetic food colors, tartrazine or sunset yellow.',
+      description:
+          'Free from synthetic food colors, tartrazine or sunset yellow.',
       category: ClaimCategory.common,
     ),
     const ProductClaim(
@@ -78,7 +94,8 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     const ProductClaim(
       id: 'd1',
       title: 'Gluten-Free',
-      description: 'Manufactured and tested to contain less than 20 mg/kg gluten.',
+      description:
+          'Manufactured and tested to contain less than 20 mg/kg gluten.',
       category: ClaimCategory.dietary,
       requiresLabReport: true,
       legalReference: 'FSSAI Gluten-Free Standard',
@@ -86,7 +103,8 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     const ProductClaim(
       id: 'd2',
       title: '100% Vegan',
-      description: 'Zero animal ingredients, animal derivatives, or milk solids.',
+      description:
+          'Zero animal ingredients, animal derivatives, or milk solids.',
       category: ClaimCategory.dietary,
     ),
     const ProductClaim(
@@ -172,13 +190,18 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     ),
   ];
 
-  // Selected Claims state (initialized with 3 popular compliant defaults)
   late final Set<String> _selectedClaimIds;
 
   @override
   void initState() {
     super.initState();
-    _selectedClaimIds = {'c1', 'c2', 'q3'}; // 100% Natural, No Preservatives, Traditional Recipe
+    _currentModel = widget.labelModel ?? const SmallBusinessLabelModel();
+
+    if (_currentModel.claims.isNotEmpty) {
+      _selectedClaimIds = _currentModel.claims.map((c) => c.claimId ?? c.title).toSet();
+    } else {
+      _selectedClaimIds = {};
+    }
   }
 
   @override
@@ -202,32 +225,150 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
       _allClaims.insert(0, newClaim);
       _selectedClaimIds.add(newClaim.id);
     });
+
+    _notificationService.notify(
+      title: 'Custom Claim Added',
+      message: 'Added verified claim: "${newClaim.title}".',
+      type: NotificationType.info,
+    );
   }
 
-  void _saveDraft() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Product claims draft saved successfully'),
-        backgroundColor: AppColors.brandDeepGreen,
-        duration: Duration(seconds: 2),
+  SmallBusinessLabelModel _buildCurrentState() {
+    final selectedClaims = _allClaims
+        .where((c) => _selectedClaimIds.contains(c.id))
+        .map((c) {
+          return SmallBusinessClaimModel(
+            claimId: c.id,
+            title: c.title,
+            description: c.description,
+            category: c.category.name,
+            requiresLabReport: c.requiresLabReport,
+            legalReference: c.legalReference,
+          );
+        }).toList();
+
+    return _currentModel.copyWith(
+      claims: selectedClaims,
+      currentStep: 6,
+      completionPercentage: 95,
+    );
+  }
+
+  Future<void> _saveDraft() async {
+    setState(() => _isSaving = true);
+    final modelToSave = _buildCurrentState();
+
+    try {
+      final saved = await _repository.saveDraft(modelToSave);
+      if (mounted) {
+        setState(() {
+          _currentModel = saved;
+          _isSaving = false;
+        });
+
+        _notificationService.notify(
+          title: 'Claims Draft Saved',
+          message: 'Saved ${_selectedClaimIds.length} verified front-of-pack claims.',
+          type: NotificationType.success,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Product claims saved to draft'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved locally: $e'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteDraft() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Draft?'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to discard this draft label? All entered fields will be deleted.',
+          style: TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (_currentModel.id != null) {
+                await _repository.deleteLabel(_currentModel.id!);
+              }
+
+              _notificationService.notify(
+                title: 'Draft Discarded',
+                message: 'Deleted draft for "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "New Label"}".',
+                type: NotificationType.warning,
+              );
+
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Draft'),
+          ),
+        ],
       ),
     );
   }
 
   void _onContinue() {
+    final updatedModel = _buildCurrentState();
+
     final selectedClaims = _allClaims
         .where((c) => _selectedClaimIds.contains(c.id))
         .toList();
 
+    _notificationService.notify(
+      title: 'Claims Finalized',
+      message: 'Prepared final review and 98% legal compliance audit.',
+      type: NotificationType.compliance,
+    );
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => LabelReviewExportScreen(
-          brandName: widget.brandName,
-          productName: widget.productName,
-          productCategory: widget.productCategory,
-          netQuantity: widget.netQuantity,
-          mrp: widget.mrp,
+          brandName: updatedModel.brandName,
+          productName: updatedModel.productName,
+          productCategory: updatedModel.productCategory,
+          netQuantity: '${updatedModel.netQuantity} ${updatedModel.netQuantityUnit}',
+          mrp: updatedModel.mrp.startsWith('₹') ? updatedModel.mrp : '₹ ${updatedModel.mrp}',
           selectedClaims: selectedClaims,
+          labelModel: updatedModel,
         ),
       ),
     );
@@ -237,7 +378,6 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
   Widget build(BuildContext context) {
     final searchQuery = _searchController.text.trim().toLowerCase();
 
-    // Filter claims by category & search query
     final filteredClaims = _allClaims.where((claim) {
       final matchesCategory = _selectedCategory == null ||
           claim.category == _selectedCategory;
@@ -256,7 +396,7 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.85),
+                color: Colors.white.withValues(alpha: 0.88),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -290,8 +430,7 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-
+                      const SizedBox(width: 8),
                       // Title & Subtitle
                       Expanded(
                         child: Column(
@@ -301,13 +440,13 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                             Text(
                               'Product Claims',
                               style: TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 16,
+                                color: AppColors.brandDeepGreen,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
-                              'Add verifiable front-of-pack claims',
+                              'Step 6 of 6: Front-of-pack claims',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
@@ -316,10 +455,53 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                           ],
                         ),
                       ),
-
+                      // Notification Bell
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: AppColors.brandDeepGreen,
+                        ),
+                        onPressed:
+                            () => SmallBusinessNotificationService
+                                .showNotificationCenter(context),
+                      ),
+                      // Delete Draft Button
+                      OutlinedButton(
+                        onPressed: _confirmDeleteDraft,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          side: const BorderSide(
+                            color: Color(0xFFFCA5A5),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
+                            SizedBox(width: 2),
+                            Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
-                        onPressed: _saveDraft,
+                        onPressed: _isSaving ? null : _saveDraft,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -335,13 +517,22 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                           ),
                           foregroundColor: AppColors.onSurface,
                         ),
-                        child: const Text(
-                          'Save draft',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
+                                ),
+                              )
+                            : const Text(
+                                'Save draft',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ],
                   ),
@@ -351,198 +542,164 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          // Ambient blurred glowing blobs
-          Positioned(
-            top: 60,
-            right: -50,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.brandDeepGreen.withValues(alpha: 0.05),
-              ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Standardized Step Marker (Step 6 of 6, 95%)
+            const WizardStepProgressCard(
+              currentStep: 6,
+              totalSteps: 6,
+              stepTitle: 'Product Claims & Verification',
+              percentage: 95,
             ),
-          ),
-          Positioned(
-            bottom: 120,
-            left: -40,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF005AC2).withValues(alpha: 0.04),
-              ),
-            ),
-          ),
+            const SizedBox(height: 16),
 
-          // Scrollable content
-          SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 16.0,
+            // Hero Card
+            const ClaimsHeroCard(),
+            const SizedBox(height: 16),
+
+            // Search Bar
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.5),
+                ),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search claims (e.g. Natural, Gluten-Free, Fiber)',
+                  hintStyle: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.outline,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.onSurfaceVariant,
+                    size: 20,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            size: 18,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 14),
+
+            // Category Filter Chips
+            ClaimsCategoryTabBar(
+              selectedCategory: _selectedCategory,
+              onCategorySelected: (cat) {
+                setState(() => _selectedCategory = cat);
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Claims List Section Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Step Progress Bar (Step 5 of 6, 83%)
-                const ClaimsProgressBar(
-                  currentStep: 5,
-                  totalSteps: 6,
-                  stepTitle: 'Product Claims',
-                  percentage: 83,
-                ),
-                const SizedBox(height: 16),
-
-                // Hero Card ("Add Product Claims")
-                const ClaimsHeroCard(),
-                const SizedBox(height: 16),
-
-                // Search Bar
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      color: AppColors.onSurface,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search claims (e.g. Natural, Gluten-Free, Fiber)',
-                      hintStyle: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.outline,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        color: AppColors.onSurfaceVariant,
-                        size: 20,
-                      ),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.clear_rounded,
-                                size: 18,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
+                Text(
+                  _selectedCategory == null
+                      ? 'Available Claims (${filteredClaims.length})'
+                      : '${_selectedCategory!.label} (${filteredClaims.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 14),
-
-                // Category Filter Chips
-                ClaimsCategoryTabBar(
-                  selectedCategory: _selectedCategory,
-                  onCategorySelected: (cat) {
-                    setState(() => _selectedCategory = cat);
-                  },
+                Text(
+                  '${_selectedClaimIds.length} Selected',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brandDeepGreen,
+                  ),
                 ),
-                const SizedBox(height: 16),
+              ],
+            ),
+            const SizedBox(height: 10),
 
-                // Claims List Section Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Claims Cards
+            if (filteredClaims.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                alignment: Alignment.center,
+                child: Column(
                   children: [
-                    Text(
-                      _selectedCategory == null
-                          ? 'Available Claims (${filteredClaims.length})'
-                          : '${_selectedCategory!.label} (${filteredClaims.length})',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
-                      ),
+                    const Icon(
+                      Icons.search_off_rounded,
+                      size: 40,
+                      color: AppColors.outline,
                     ),
+                    const SizedBox(height: 8),
                     Text(
-                      '${_selectedClaimIds.length} Selected',
+                      'No claims found matching "$searchQuery"',
                       style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.brandDeepGreen,
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredClaims.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final claim = filteredClaims[index];
+                  final isSelected = _selectedClaimIds.contains(claim.id);
+                  return ClaimItemCard(
+                    claim: claim,
+                    isSelected: isSelected,
+                    onTap: () => _toggleClaim(claim.id),
+                  );
+                },
+              ),
+            const SizedBox(height: 16),
 
-                // Claims Cards
-                if (filteredClaims.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    alignment: Alignment.center,
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.search_off_rounded,
-                          size: 40,
-                          color: AppColors.outline,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No claims found matching "$searchQuery"',
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredClaims.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final claim = filteredClaims[index];
-                      final isSelected = _selectedClaimIds.contains(claim.id);
-                      return ClaimItemCard(
-                        claim: claim,
-                        isSelected: isSelected,
-                        onTap: () => _toggleClaim(claim.id),
-                      );
-                    },
-                  ),
-                const SizedBox(height: 16),
-
-                // Add Custom Claim Card
-                AddCustomClaimCard(
-                  onAddCustomClaim: _addCustomClaim,
-                ),
-                const SizedBox(height: 16),
-
-                // Regulatory Notice Callout
-                ClaimsRegulatoryNoticeCard(
-                  selectedCount: _selectedClaimIds.length,
-                ),
-                const SizedBox(height: 100), // Padding for sticky bottom bar
-              ],
+            // Add Custom Claim Card
+            AddCustomClaimCard(
+              onAddCustomClaim: _addCustomClaim,
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+
+            // Regulatory Notice Callout
+            ClaimsRegulatoryNoticeCard(
+              selectedCount: _selectedClaimIds.length,
+            ),
+            const SizedBox(height: 100), // Padding for sticky bottom bar
+          ],
+        ),
       ),
       bottomNavigationBar: ClaimsBottomBar(
         onBack: () => Navigator.of(context).maybePop(),

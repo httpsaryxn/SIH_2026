@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/services/notification_service.dart';
 
 class StudioHeader extends StatelessWidget {
   const StudioHeader({super.key, this.onNotificationTap, this.onProfileTap});
@@ -9,6 +10,8 @@ class StudioHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final notificationService = SmallBusinessNotificationService();
+
     return Padding(
       padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
       child: Row(
@@ -53,43 +56,66 @@ class StudioHeader extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Notification button with badge
-              Material(
-                color: Colors.transparent,
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onNotificationTap,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.onSurfaceVariant,
-                          size: 26,
-                        ),
-                        Positioned(
-                          top: 1,
-                          right: 2,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.background,
-                                width: 1.5,
-                              ),
+              // Notification button with real unread count badge
+              AnimatedBuilder(
+                animation: notificationService,
+                builder: (context, _) {
+                  final unread = notificationService.unreadCount;
+
+                  return Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onNotificationTap ??
+                          () => SmallBusinessNotificationService.showNotificationCenter(context),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(
+                              Icons.notifications_none_rounded,
+                              color: AppColors.onSurfaceVariant,
+                              size: 26,
                             ),
-                          ),
+                            if (unread > 0)
+                              Positioned(
+                                top: -2,
+                                right: -2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3.5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: AppColors.background,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '$unread',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
               const SizedBox(width: 6),
               // User Avatar
@@ -99,22 +125,20 @@ class StudioHeader extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: AppColors.primaryContainer,
                     shape: BoxShape.circle,
-                    color: AppColors.surfaceContainerHighest,
                     border: Border.all(
                       color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                      width: 1.2,
+                      width: 1.5,
                     ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Image.network(
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuB5_uJUfx-UVWIzpnIDUaTnnWcls6dxLz2wsOvvS7k1P_gcI_Ac4MbMNR_43s5_k3Z1OCFVi33ohdYRH387IQs6iQkklA6JGem7MhHi8BkBaAjSx3wh1h9WtLohjBOp-Fpl9sXoCGLYBLikbUYAaq24OUzAj6s1yPJjU3fY-F4I1BMdDRXMFtBMDXDvYgGpUm3OEB_qWqIU1lWGlEevMJ5UjqKFGGIYCB1dWi3oC6ln8K9_Q9uP5BIwkA',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Center(
-                      child: Icon(
-                        Icons.person_rounded,
-                        color: AppColors.onSurfaceVariant,
-                        size: 24,
+                  child: const Center(
+                    child: Text(
+                      'SB',
+                      style: TextStyle(
+                        color: AppColors.onPrimaryContainer,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

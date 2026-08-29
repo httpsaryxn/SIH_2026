@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
 import 'claim_item_card.dart';
 
 class ReviewAccordionSection extends StatefulWidget {
@@ -11,6 +12,7 @@ class ReviewAccordionSection extends StatefulWidget {
     required this.netQuantity,
     required this.mrp,
     required this.selectedClaims,
+    this.labelModel,
     this.onEditDeclaration,
     this.onEditIngredients,
     this.onEditNutrition,
@@ -24,6 +26,7 @@ class ReviewAccordionSection extends StatefulWidget {
   final String netQuantity;
   final String mrp;
   final List<ProductClaim> selectedClaims;
+  final SmallBusinessLabelModel? labelModel;
   final VoidCallback? onEditDeclaration;
   final VoidCallback? onEditIngredients;
   final VoidCallback? onEditNutrition;
@@ -45,6 +48,29 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
 
   @override
   Widget build(BuildContext context) {
+    final model = widget.labelModel;
+    final ingredientsText = (model != null && model.ingredients.isNotEmpty)
+        ? model.ingredients.map((i) => '${i.name} (${i.percentage ?? 0}%)').join(', ')
+        : 'Raw Mango Pieces (60%), Mustard Oil (20%), Salt (10%), Spices (10%)';
+    final allergensText = (model != null && model.allergens.isNotEmpty)
+        ? model.allergens.join(', ')
+        : 'Mustard';
+    final manufacturerName = (model != null && model.manufacturerName.isNotEmpty)
+        ? model.manufacturerName
+        : widget.brandName;
+    final facilityAddress = (model != null && model.manufacturerAddress.isNotEmpty)
+        ? model.manufacturerAddress
+        : 'Plot 12, Greenfield Organic Estate, Phase 3, Pune, MH, 411028';
+    final fssaiNumber = (model != null && model.fssaiLicenseNumber.isNotEmpty)
+        ? model.fssaiLicenseNumber
+        : '12345678901234';
+    final phone = (model != null && model.consumerCarePhone.isNotEmpty)
+        ? model.consumerCarePhone
+        : '+91 98765 43210';
+    final email = (model != null && model.consumerCareEmail.isNotEmpty)
+        ? model.consumerCareEmail
+        : 'care@desiharvest.in';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -75,6 +101,10 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
               _InfoRow('Category', widget.productCategory),
               _InfoRow('Net Quantity', widget.netQuantity),
               _InfoRow('MRP (Max Retail Price)', widget.mrp),
+              if (model != null && model.usp.isNotEmpty)
+                _InfoRow('Unit Sale Price (USP)', model.usp),
+              if (model != null && model.batchNumber.isNotEmpty)
+                _InfoRow('Batch / Lot No.', model.batchNumber),
             ],
           ),
         ),
@@ -83,18 +113,18 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 2: Ingredients & Allergens
         _AccordionCard(
           title: 'Ingredients & Allergens',
-          subtitle: '8 declared ingredients • 1 allergen alert',
+          subtitle: '${model?.ingredients.length ?? 5} declared ingredients • ${model?.allergens.length ?? 1} allergen alert',
           icon: Icons.eco_rounded,
           isExpanded: _expandedIndex == 1,
           onToggle: () => _toggle(1),
           onEdit: widget.onEditIngredients,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _InfoRow('Major Ingredients', 'Raw Mango (65%), Mustard Oil, Spices, Salt'),
+            children: [
+              _InfoRow('Major Ingredients', ingredientsText),
               _InfoRow('Preservative Class', 'Natural (Spices & Edible Oil)'),
-              _InfoRow('Declared Allergens', 'Mustard (Bold on label)'),
-              _InfoRow('Cross-Contamination Alert', 'Sesame, Tree Nuts'),
+              _InfoRow('Declared Allergens', '$allergensText (Bold on label)'),
+              _InfoRow('Cross-Contamination Alert', 'Sesame Seeds, Tree Nuts'),
             ],
           ),
         ),
@@ -103,19 +133,19 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 3: Nutritional Values
         _AccordionCard(
           title: 'Nutritional Values Table',
-          subtitle: 'Per 100g & per 30g serving • Table format',
+          subtitle: 'Per 100g & per ${model?.servingSize ?? 30}${model?.servingSizeUnit ?? 'g'} serving • Table format',
           icon: Icons.analytics_rounded,
           isExpanded: _expandedIndex == 2,
           onToggle: () => _toggle(2),
           onEdit: widget.onEditNutrition,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _InfoRow('Serving Size', '30 g'),
-              _InfoRow('Energy per serving', '75 kcal (3.7% RDA)'),
-              _InfoRow('Total Fat', '5.4 g (Trans Fat: 0g)'),
+            children: [
+              _InfoRow('Serving Size', '${model?.servingSize ?? 30} ${model?.servingSizeUnit ?? 'g'}'),
+              _InfoRow('Energy per serving', '180 kcal (9.0% RDA)'),
+              _InfoRow('Total Fat', '12 g (Trans Fat: 0g)'),
               _InfoRow('Added Sugars', '0 g (Zero Added Sugar)'),
-              _InfoRow('Sodium', '267 mg per serving'),
+              _InfoRow('Sodium', '980 mg per serving'),
             ],
           ),
         ),
@@ -124,19 +154,19 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 4: Manufacturer & Business Details
         _AccordionCard(
           title: 'Manufacturer & Business Information',
-          subtitle: 'Lic: 12345678901234 • Pune facility',
+          subtitle: 'Lic: $fssaiNumber • $manufacturerName',
           icon: Icons.storefront_rounded,
           isExpanded: _expandedIndex == 3,
           onToggle: () => _toggle(3),
           onEdit: widget.onEditManufacturer,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _InfoRow('Business Name', 'Desi Harvest Foods Pvt. Ltd.'),
-              _InfoRow('Facility Address', 'Plot 12, Greenfield Organic Estate, Phase 3, Pune, MH, 411028'),
-              _InfoRow('FSSAI License', '12345678901234'),
-              _InfoRow('Consumer Care Phone', '+91 98765 43210'),
-              _InfoRow('Consumer Care Email', 'care@desiharvest.in'),
+            children: [
+              _InfoRow('Business Name', manufacturerName),
+              _InfoRow('Facility Address', facilityAddress),
+              _InfoRow('FSSAI License', fssaiNumber),
+              _InfoRow('Consumer Care Phone', phone),
+              _InfoRow('Consumer Care Email', email),
             ],
           ),
         ),
@@ -250,12 +280,20 @@ class _AccordionCard extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                      color: isExpanded
+                          ? AppColors.brandDeepGreen.withValues(alpha: 0.1)
+                          : AppColors.surfaceContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(icon, color: AppColors.brandDeepGreen, size: 18),
+                    child: Icon(
+                      icon,
+                      size: 18,
+                      color: isExpanded
+                          ? AppColors.brandDeepGreen
+                          : AppColors.onSurfaceVariant,
+                    ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,33 +306,19 @@ class _AccordionCard extends StatelessWidget {
                             color: AppColors.onSurface,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           subtitle,
                           style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.onSurfaceVariant,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  if (onEdit != null)
-                    TextButton(
-                      onPressed: onEdit,
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.brandDeepGreen,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: const Size(0, 0),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'Edit',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
                   Icon(
                     isExpanded
                         ? Icons.keyboard_arrow_up_rounded
@@ -307,10 +331,34 @@ class _AccordionCard extends StatelessWidget {
             ),
           ),
           if (isExpanded) ...[
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            const Divider(height: 1, color: AppColors.outlineVariant),
             Padding(
               padding: const EdgeInsets.all(14.0),
-              child: child,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  child,
+                  if (onEdit != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_outlined, size: 14),
+                        label: const Text(
+                          'Edit Section',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.brandDeepGreen,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: const Size(0, 0),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ],
@@ -333,13 +381,13 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 140,
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontSize: 12,
                 color: AppColors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -349,8 +397,8 @@ class _InfoRow extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
                 color: AppColors.onSurface,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

@@ -8,13 +8,20 @@ class ProductCategorySelector extends StatelessWidget {
     this.onCategoryChanged,
     this.onHelpTap,
     this.categories = const [
-      'Spices & Condiments',
-      'Beverages',
-      'Snacks & Sweets',
-      'Grains & Pulses',
-      'Sauces & Condiments',
+      'Pickles & Condiments',
+      'Spices & Seasonings',
+      'Honey & Natural Sweeteners',
+      'Dairy & Ghee Products',
+      'Edible Oils & Cold Pressed Oils',
+      'Snacks & Namkeen',
+      'Sweets & Mithai',
+      'Grains, Flours & Pulses',
+      'Sauces, Chutneys & Pastes',
+      'Beverages & Tea/Coffee',
       'Bakery & Confectionery',
-      'Other Food Products',
+      'Organic & Health Foods',
+      'Ready-to-Eat / Ready-to-Cook',
+      'Other Packaged Foods',
     ],
   });
 
@@ -25,6 +32,21 @@ class ProductCategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure selectedCategory is guaranteed to be in the items list to prevent DropdownButton assertion errors
+    final effectiveCategories = List<String>.from(categories);
+    if (selectedCategory != null &&
+        selectedCategory!.isNotEmpty &&
+        !effectiveCategories.contains(selectedCategory)) {
+      effectiveCategories.insert(0, selectedCategory!);
+    }
+
+    final effectiveValue =
+        (selectedCategory != null &&
+                selectedCategory!.isNotEmpty &&
+                effectiveCategories.contains(selectedCategory))
+            ? selectedCategory
+            : null;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
@@ -45,16 +67,16 @@ class ProductCategorySelector extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Optional badge
+          // Header with Required badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Product Category',
+                'Product Category *',
                 style: TextStyle(
                   color: AppColors.onSurface,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               Container(
@@ -63,15 +85,15 @@ class ProductCategorySelector extends StatelessWidget {
                   vertical: 2.5,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
+                  color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
-                  'OPTIONAL',
+                  'FSSAI MANDATORY',
                   style: TextStyle(
-                    color: AppColors.onSurfaceVariant,
+                    color: AppColors.brandDeepGreen,
                     fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -89,7 +111,7 @@ class ProductCategorySelector extends StatelessWidget {
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: selectedCategory,
+                value: effectiveValue,
                 isExpanded: true,
                 hint: Row(
                   children: const [
@@ -100,7 +122,7 @@ class ProductCategorySelector extends StatelessWidget {
                     ),
                     SizedBox(width: 10),
                     Text(
-                      'Select a category',
+                      'Select product category',
                       style: TextStyle(
                         color: AppColors.onSurfaceVariant,
                         fontSize: 14,
@@ -113,29 +135,33 @@ class ProductCategorySelector extends StatelessWidget {
                   color: AppColors.onSurfaceVariant,
                 ),
                 onChanged: onCategoryChanged,
-                items: categories.map((cat) {
-                  return DropdownMenuItem<String>(
-                    value: cat,
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.category_outlined,
-                          color: AppColors.brandDeepGreen,
-                          size: 20,
+                items:
+                    effectiveCategories.map((cat) {
+                      return DropdownMenuItem<String>(
+                        value: cat,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.category_outlined,
+                              color: AppColors.brandDeepGreen,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                cat,
+                                style: const TextStyle(
+                                  color: AppColors.onSurface,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          cat,
-                          style: const TextStyle(
-                            color: AppColors.onSurface,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               ),
             ),
           ),
@@ -148,7 +174,7 @@ class ProductCategorySelector extends StatelessWidget {
               style: TextStyle(
                 color: AppColors.brandBlue,
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 decoration: TextDecoration.underline,
               ),
             ),

@@ -6,12 +6,14 @@ class ReviewExportBottomBar extends StatelessWidget {
   const ReviewExportBottomBar({
     super.key,
     this.onBack,
+    this.onHome,
     this.onShare,
     this.onExport,
     this.isExporting = false,
   });
 
   final VoidCallback? onBack;
+  final VoidCallback? onHome;
   final VoidCallback? onShare;
   final VoidCallback? onExport;
   final bool isExporting;
@@ -24,7 +26,7 @@ class ReviewExportBottomBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
+            color: Colors.white.withValues(alpha: 0.95),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             border: Border(
               top: BorderSide(
@@ -44,14 +46,14 @@ class ReviewExportBottomBar extends StatelessWidget {
             top: false,
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12.0,
+                horizontal: 14.0,
+                vertical: 10.0,
               ),
               child: Row(
                 children: [
                   // Back Button
                   SizedBox(
-                    height: 48,
+                    height: 46,
                     child: OutlinedButton(
                       onPressed: onBack ?? () => Navigator.of(context).maybePop(),
                       style: OutlinedButton.styleFrom(
@@ -64,23 +66,60 @@ class ReviewExportBottomBar extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
                       child: const Icon(Icons.arrow_back_rounded, size: 18),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
+
+                  // Home Studio Hub Button
+                  if (onHome != null) ...[
+                    SizedBox(
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: onHome,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.brandDeepGreen,
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.home_rounded, size: 18, color: AppColors.brandDeepGreen),
+                            SizedBox(width: 4),
+                            Text(
+                              'Home',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.brandDeepGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
 
                   // Share Button
                   SizedBox(
-                    height: 48,
+                    height: 46,
                     child: OutlinedButton.icon(
                       onPressed: onShare,
                       icon: const Icon(Icons.share_outlined, size: 16),
                       label: const Text(
                         'Share',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -94,47 +133,47 @@ class ReviewExportBottomBar extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
 
                   // Primary Export Button
                   Expanded(
                     child: SizedBox(
-                      height: 48,
+                      height: 46,
                       child: ElevatedButton(
                         onPressed: isExporting ? null : onExport,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brandDeepGreen,
                           foregroundColor: Colors.white,
-                          elevation: 3,
+                          elevation: 2,
                           shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.5,
+                            alpha: 0.4,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
                         child: isExporting
                             ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
                                   SizedBox(
-                                    width: 18,
-                                    height: 18,
+                                    width: 16,
+                                    height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
                                   ),
-                                  SizedBox(width: 8),
+                                  SizedBox(width: 6),
                                   Text(
-                                    'Preparing Label...',
+                                    'Generating...',
                                     style: TextStyle(
-                                      fontSize: 13.5,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -144,11 +183,11 @@ class ReviewExportBottomBar extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
                                   Icon(Icons.download_rounded, size: 18),
-                                  SizedBox(width: 6),
+                                  SizedBox(width: 4),
                                   Text(
                                     'Download Label',
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),

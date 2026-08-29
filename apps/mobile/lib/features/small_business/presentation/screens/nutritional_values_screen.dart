@@ -1,16 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
+import '../../data/repositories/small_business_label_repository.dart';
+import '../../data/services/notification_service.dart';
 import '../widgets/nutrition_bottom_bar.dart';
 import '../widgets/nutrition_format_settings_card.dart';
-import '../widgets/nutrition_progress_stepper.dart';
 import '../widgets/nutrition_values_table_card.dart';
 import '../widgets/weight_serving_card.dart';
-
+import '../widgets/wizard_step_progress_card.dart';
 import 'manufacturer_details_screen.dart';
+import 'my_label_studio_screen.dart';
 
 class NutritionalValuesScreen extends StatefulWidget {
-  const NutritionalValuesScreen({super.key});
+  const NutritionalValuesScreen({super.key, this.labelModel});
+
+  final SmallBusinessLabelModel? labelModel;
 
   @override
   State<NutritionalValuesScreen> createState() =>
@@ -18,108 +23,171 @@ class NutritionalValuesScreen extends StatefulWidget {
 }
 
 class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
-  // Weight & Serving controllers
-  final TextEditingController _netQuantityController = TextEditingController(
-    text: '100',
-  );
-  final TextEditingController _servingSizeController = TextEditingController(
-    text: '30',
-  );
-  String _netQuantityUnit = 'g';
-  String _servingSizeUnit = 'g';
+  final SmallBusinessLabelRepository _repository =
+      SmallBusinessLabelRepository();
+  final SmallBusinessNotificationService _notificationService =
+      SmallBusinessNotificationService();
 
-  // Display and format settings
-  NutritionValuesDisplayMode _displayMode =
-      NutritionValuesDisplayMode.perServing;
-  NutritionLabelFormat _labelFormat = NutritionLabelFormat.table;
-  String _targetAudience = 'General';
-  String _ageGroup = 'Adults (18+)';
+  late final TextEditingController _netQuantityController;
+  late final TextEditingController _servingSizeController;
+  late String _netQuantityUnit;
+  late String _servingSizeUnit;
 
-  // Nutrient values controllers (prepopulated with compliant defaults)
+  late NutritionValuesDisplayMode _displayMode;
+  late NutritionLabelFormat _labelFormat;
+  late String _targetAudience;
+  late String _ageGroup;
+
   late final List<NutrientRowData> _nutrients;
   String? _selectedAdditionalNutrient;
+
   final List<String> _availableAdditionalNutrients = [
+    'Vitamin A (Retinol)',
+    'Vitamin B1 (Thiamine)',
+    'Vitamin B2 (Riboflavin)',
+    'Vitamin B3 (Niacin)',
+    'Vitamin B6 (Pyridoxine)',
+    'Vitamin B9 (Folic Acid)',
+    'Vitamin B12 (Cobalamin)',
+    'Vitamin C (Ascorbic Acid)',
+    'Vitamin D (D2/D3)',
+    'Vitamin E (Tocopherol)',
+    'Vitamin K (Phylloquinone)',
+    'Calcium (Ca)',
+    'Iron (Fe)',
+    'Zinc (Zn)',
+    'Magnesium (Mg)',
+    'Potassium (K)',
+    'Phosphorus (P)',
+    'Iodine (I)',
+    'Selenium (Se)',
+    'Copper (Cu)',
     'Cholesterol',
-    'Vitamin A',
-    'Vitamin C',
-    'Vitamin D',
-    'Calcium',
-    'Iron',
-    'Potassium',
-    'Zinc',
-    'Magnesium',
+    'Monounsaturated Fatty Acids (MUFA)',
+    'Polyunsaturated Fatty Acids (PUFA)',
+    'Omega-3 Fatty Acids',
+    'Omega-6 Fatty Acids',
   ];
+
+  late SmallBusinessLabelModel _currentModel;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _nutrients = [
-      NutrientRowData(
-        label: 'Calories',
-        icon: Icons.local_fire_department_rounded,
-        isRequired: true,
-        unit: 'kcal',
-        controller: TextEditingController(text: '250'),
-      ),
-      NutrientRowData(
-        label: 'Total Fat',
-        icon: Icons.water_drop_outlined,
-        isRequired: true,
-        unit: 'g',
-        controller: TextEditingController(text: '12'),
-      ),
-      NutrientRowData(
-        label: 'Saturated Fat',
-        isSubNutrient: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Trans Fat',
-        isSubNutrient: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Sodium',
-        icon: Icons.grain_rounded,
-        isRequired: true,
-        unit: 'mg',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Carbohydrates',
-        icon: Icons.grass_rounded,
-        isRequired: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Dietary Fiber',
-        isSubNutrient: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Total Sugars',
-        isSubNutrient: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Added Sugars',
-        isSubNutrient: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-      NutrientRowData(
-        label: 'Protein',
-        icon: Icons.egg_outlined,
-        isRequired: true,
-        unit: 'g',
-        controller: TextEditingController(text: '0'),
-      ),
-    ];
+    _currentModel = widget.labelModel ?? const SmallBusinessLabelModel();
+
+    _netQuantityController = TextEditingController(
+      text: _currentModel.netQuantity,
+    );
+    _servingSizeController = TextEditingController(
+      text: _currentModel.servingSize,
+    );
+    _netQuantityUnit = _currentModel.netQuantityUnit.isNotEmpty ? _currentModel.netQuantityUnit : 'g';
+    _servingSizeUnit = _currentModel.servingSizeUnit.isNotEmpty ? _currentModel.servingSizeUnit : 'g';
+
+    _displayMode =
+        _currentModel.displayMode == 'per100g'
+            ? NutritionValuesDisplayMode.per100g
+            : (_currentModel.displayMode == 'both'
+                ? NutritionValuesDisplayMode.both
+                : NutritionValuesDisplayMode.perServing);
+
+    _labelFormat =
+        _currentModel.labelFormat == 'text'
+            ? NutritionLabelFormat.text
+            : NutritionLabelFormat.table;
+
+    _targetAudience =
+        _currentModel.targetAudience.isNotEmpty
+            ? _currentModel.targetAudience
+            : 'General Population (All Consumers)';
+    _ageGroup =
+        _currentModel.ageGroup.isNotEmpty
+            ? _currentModel.ageGroup
+            : 'All Age Groups (General)';
+
+    if (_currentModel.nutrients.isNotEmpty) {
+      _nutrients =
+          _currentModel.nutrients.map((n) {
+            return NutrientRowData(
+              label: n.label,
+              unit: n.unit,
+              isRequired: n.isRequired,
+              isSubNutrient: n.isSubNutrient,
+              controller: TextEditingController(text: n.value),
+            );
+          }).toList();
+    } else {
+      // Standard baseline mandatory nutrients
+      _nutrients = [
+        NutrientRowData(
+          label: 'Calories',
+          icon: Icons.local_fire_department_rounded,
+          isRequired: true,
+          unit: 'kcal',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Total Fat',
+          icon: Icons.water_drop_outlined,
+          isRequired: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Saturated Fat',
+          isSubNutrient: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Trans Fat',
+          isSubNutrient: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Sodium',
+          icon: Icons.grain_rounded,
+          isRequired: true,
+          unit: 'mg',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Carbohydrates',
+          icon: Icons.grass_rounded,
+          isRequired: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Dietary Fiber',
+          isSubNutrient: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Total Sugars',
+          isSubNutrient: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Added Sugars',
+          isSubNutrient: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+        NutrientRowData(
+          label: 'Protein',
+          icon: Icons.egg_outlined,
+          isRequired: true,
+          unit: 'g',
+          controller: TextEditingController(text: ''),
+        ),
+      ];
+    }
   }
 
   @override
@@ -132,11 +200,134 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     super.dispose();
   }
 
+  SmallBusinessLabelModel _buildCurrentState() {
+    final nutrientModels =
+        _nutrients.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final n = entry.value;
+          return SmallBusinessNutrientModel(
+            label: n.label,
+            value: n.controller.text.trim(),
+            unit: n.unit,
+            isRequired: n.isRequired,
+            isSubNutrient: n.isSubNutrient,
+            orderIndex: idx + 1,
+          );
+        }).toList();
+
+    return _currentModel.copyWith(
+      netQuantity: _netQuantityController.text.trim(),
+      netQuantityUnit: _netQuantityUnit,
+      servingSize: _servingSizeController.text.trim(),
+      servingSizeUnit: _servingSizeUnit,
+      displayMode: _displayMode.name,
+      labelFormat: _labelFormat.name,
+      targetAudience: _targetAudience,
+      ageGroup: _ageGroup,
+      nutrients: nutrientModels,
+      currentStep: 3,
+      completionPercentage: 50,
+    );
+  }
+
+  Future<void> _saveDraft() async {
+    setState(() => _isSaving = true);
+    final modelToSave = _buildCurrentState();
+
+    try {
+      final saved = await _repository.saveDraft(modelToSave);
+      if (mounted) {
+        setState(() {
+          _currentModel = saved;
+          _isSaving = false;
+        });
+
+        _notificationService.notify(
+          title: 'Nutritional Values Saved',
+          message:
+              'Saved nutrition table (${_nutrients.length} parameters) and serving dimensions.',
+          type: NotificationType.success,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nutritional values saved to draft'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved locally: $e'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteDraft() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Draft?'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to discard this draft label? All entered fields will be deleted.',
+          style: TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (_currentModel.id != null) {
+                await _repository.deleteLabel(_currentModel.id!);
+              }
+
+              _notificationService.notify(
+                title: 'Draft Discarded',
+                message: 'Deleted draft for "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "New Label"}".',
+                type: NotificationType.warning,
+              );
+
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Draft'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addAdditionalNutrient() {
     if (_selectedAdditionalNutrient == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a nutrient to add.'),
+          content: Text('Please select a nutrient from the list to add.'),
           duration: Duration(seconds: 1),
         ),
       );
@@ -144,21 +335,41 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     }
 
     final nutrientName = _selectedAdditionalNutrient!;
-    final unit = nutrientName.contains('Vitamin') || nutrientName == 'Iron'
-        ? 'mg'
-        : 'g';
+    String unit = 'g';
+    if (nutrientName.contains('Vitamin') ||
+        nutrientName.contains('Iron') ||
+        nutrientName.contains('Zinc') ||
+        nutrientName.contains('Calcium') ||
+        nutrientName.contains('Magnesium') ||
+        nutrientName.contains('Potassium') ||
+        nutrientName.contains('Phosphorus') ||
+        nutrientName.contains('Cholesterol')) {
+      unit = 'mg';
+    }
+    if (nutrientName.contains('Iodine') ||
+        nutrientName.contains('Selenium') ||
+        nutrientName.contains('Vitamin B12') ||
+        nutrientName.contains('Vitamin D')) {
+      unit = 'mcg';
+    }
 
     setState(() {
       _nutrients.add(
         NutrientRowData(
           label: nutrientName,
           unit: unit,
-          controller: TextEditingController(text: '0'),
+          controller: TextEditingController(text: ''),
         ),
       );
       _availableAdditionalNutrients.remove(nutrientName);
       _selectedAdditionalNutrient = null;
     });
+
+    _notificationService.notify(
+      title: 'Added Micronutrient',
+      message: 'Added $nutrientName ($unit) to nutrition declaration table.',
+      type: NotificationType.info,
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -170,18 +381,74 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
   }
 
   void _onNext() {
+    final netQty = _netQuantityController.text.trim();
+    final serving = _servingSizeController.text.trim();
+
+    if (netQty.isEmpty) {
+      _showValidationError('Please enter Net Quantity (Weight/Volume).');
+      return;
+    }
+    if (serving.isEmpty) {
+      _showValidationError('Please enter Serving Size.');
+      return;
+    }
+
+    // Check mandatory baseline nutrients
+    final calories = _getNutrientValue('Calories');
+    final fat = _getNutrientValue('Total Fat');
+    final carbs = _getNutrientValue('Carbohydrates');
+    final protein = _getNutrientValue('Protein');
+    final sodium = _getNutrientValue('Sodium');
+
+    if (calories.isEmpty || fat.isEmpty || carbs.isEmpty || protein.isEmpty || sodium.isEmpty) {
+      _showValidationError(
+        'Please enter values for mandatory nutrients: Calories, Fat, Carbs, Protein, and Sodium.',
+      );
+      return;
+    }
+
+    final updatedModel = _buildCurrentState();
+
+    _notificationService.notify(
+      title: 'Step 3 Complete',
+      message:
+          'Nutrition facts verified for ${updatedModel.netQuantity}${updatedModel.netQuantityUnit}. Proceeding to Manufacturer Details.',
+      type: NotificationType.compliance,
+    );
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const ManufacturerDetailsScreen(),
+        builder:
+            (context) => ManufacturerDetailsScreen(labelModel: updatedModel),
       ),
     );
   }
 
-  void _onSkip() {
+  String _getNutrientValue(String label) {
+    final item = _nutrients.firstWhere(
+      (n) => n.label.toLowerCase() == label.toLowerCase(),
+      orElse: () => NutrientRowData(label: '', unit: '', controller: TextEditingController()),
+    );
+    return item.controller.text.trim();
+  }
+
+  void _showValidationError(String msg) {
+    _notificationService.notify(
+      title: 'Validation Incomplete',
+      message: msg,
+      type: NotificationType.warning,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Skipped nutritional table setup.'),
-        duration: Duration(seconds: 1),
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -197,7 +464,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.85),
+                color: Colors.white.withValues(alpha: 0.88),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -214,25 +481,24 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                   ),
                   child: Row(
                     children: [
-                      // Back Button / App Badge
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).maybePop(),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.brandDeepGreen,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: 20,
+                      // Back Button
+                      Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: () => Navigator.of(context).maybePop(),
+                          customBorder: const CircleBorder(),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Icon(
+                              Icons.arrow_back,
+                              color: AppColors.brandDeepGreen,
+                              size: 24,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       // Title & Subtitle
                       Expanded(
                         child: Column(
@@ -240,15 +506,15 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
                             Text(
-                              'Create Product Label',
+                              'Nutritional Values',
                               style: TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 16,
+                                color: AppColors.brandDeepGreen,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
-                              'Build your compliant nutrition label',
+                              'Step 3 of 6: Nutrition Profile & Serving',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
@@ -258,23 +524,83 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                         ),
                       ),
                       // Notification Bell
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border: Border.all(
-                            color: AppColors.outlineVariant.withValues(
-                              alpha: 0.5,
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: AppColors.brandDeepGreen,
+                        ),
+                        onPressed:
+                            () => SmallBusinessNotificationService
+                                .showNotificationCenter(context),
+                      ),
+                      // Delete Draft Button
+                      OutlinedButton(
+                        onPressed: _confirmDeleteDraft,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          side: const BorderSide(
+                            color: Color(0xFFFCA5A5),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
+                            SizedBox(width: 2),
+                            Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Save Draft Button
+                      OutlinedButton(
+                        onPressed: _isSaving ? null : _saveDraft,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.onSurfaceVariant,
-                          size: 20,
-                        ),
+                        child:
+                            _isSaving
+                                ? const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.brandDeepGreen,
+                                  ),
+                                )
+                                : const Text(
+                                  'Save',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.brandDeepGreen,
+                                  ),
+                                ),
                       ),
                     ],
                   ),
@@ -290,23 +616,12 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Screen Headline
-            const Text(
-              'Nutritional Values',
-              style: TextStyle(
-                color: AppColors.brandDeepGreen,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.4,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Stepper Card (Step 3 of 6)
-            const NutritionProgressStepper(
+            // Standardized Progress Marker (Step 3 of 6, 50%)
+            const WizardStepProgressCard(
               currentStep: 3,
               totalSteps: 6,
               stepTitle: 'Nutritional Values',
+              percentage: 50,
             ),
             const SizedBox(height: 16),
 
@@ -335,10 +650,10 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
               labelFormat: _labelFormat,
               targetAudience: _targetAudience,
               ageGroup: _ageGroup,
-              onDisplayModeChanged: (mode) =>
-                  setState(() => _displayMode = mode),
-              onLabelFormatChanged: (format) =>
-                  setState(() => _labelFormat = format),
+              onDisplayModeChanged:
+                  (mode) => setState(() => _displayMode = mode),
+              onLabelFormatChanged:
+                  (format) => setState(() => _labelFormat = format),
               onTargetAudienceChanged: (aud) {
                 if (aud != null) setState(() => _targetAudience = aud);
               },
@@ -348,13 +663,13 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Card 3: Nutrition Values Table Card
+            // Card 3: Nutrition Values Table Card with expanded nutrients
             NutritionValuesTableCard(
               nutrients: _nutrients,
               selectedAdditionalNutrient: _selectedAdditionalNutrient,
               availableAdditionalNutrients: _availableAdditionalNutrients,
-              onAdditionalNutrientChanged: (nutr) =>
-                  setState(() => _selectedAdditionalNutrient = nutr),
+              onAdditionalNutrientChanged:
+                  (nutr) => setState(() => _selectedAdditionalNutrient = nutr),
               onAddNutrientTap: _addAdditionalNutrient,
             ),
             const SizedBox(height: 100), // Bottom bar padding
@@ -363,7 +678,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
       ),
       bottomNavigationBar: NutritionBottomBar(
         onBack: () => Navigator.of(context).maybePop(),
-        onSkip: _onSkip,
+        onSkip: _onNext,
         onNext: _onNext,
       ),
     );

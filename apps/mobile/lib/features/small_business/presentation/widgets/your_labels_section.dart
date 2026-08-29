@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
 
 class LabelItemData {
   final String title;
@@ -7,6 +8,7 @@ class LabelItemData {
   final String imageUrl;
   final String status;
   final bool isReady;
+  final SmallBusinessLabelModel? rawModel;
 
   const LabelItemData({
     required this.title,
@@ -14,7 +16,30 @@ class LabelItemData {
     required this.imageUrl,
     required this.status,
     this.isReady = true,
+    this.rawModel,
   });
+
+  factory LabelItemData.fromModel(SmallBusinessLabelModel model) {
+    final title = model.productName.isNotEmpty
+        ? model.productName
+        : model.brandName;
+    final subtitle = '${model.brandName} • ${model.productCategory}';
+    final isReady = model.status == 'ready';
+    final statusText = isReady
+        ? 'Ready'
+        : (model.status == 'needs_review' ? 'Needs review' : 'Draft');
+    final imageUrl = model.logoUrl ??
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuDnCr3KXRKxzPyTldCE9V128qLCdnYDaOARm0rd1SbRCE29NYegL9cVPCOyKz2NlBIqLE4Z36GoXiskgUmkAQUEzJf9QBXbPHNsMvRSRW6kLbQ4u240gBrPnoeRANs2b6AG4D1vaEE7z7bvZGkQtf2yIRjHLqb80QQ8Si2rhFYNf0wCZ1_XZLP0xwqXXhzFcQLfv_pI6hmjt8cETOA4OO2PRliBJQvTqIMTf_uU_6sF4AOV4WPdQHpvUQ';
+
+    return LabelItemData(
+      title: title,
+      subtitle: subtitle,
+      imageUrl: imageUrl,
+      status: statusText,
+      isReady: isReady,
+      rawModel: model,
+    );
+  }
 }
 
 class YourLabelsSection extends StatelessWidget {
@@ -22,32 +47,7 @@ class YourLabelsSection extends StatelessWidget {
     super.key,
     this.onSeeAll,
     this.onLabelTap,
-    this.labels = const [
-      LabelItemData(
-        title: 'Village Gold Turmeric',
-        subtitle: 'Desi Harvest • Updated 2 days ago',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuDnCr3KXRKxzPyTldCE9V128qLCdnYDaOARm0rd1SbRCE29NYegL9cVPCOyKz2NlBIqLE4Z36GoXiskgUmkAQUEzJf9QBXbPHNsMvRSRW6kLbQ4u240gBrPnoeRANs2b6AG4D1vaEE7z7bvZGkQtf2yIRjHLqb80QQ8Si2rhFYNf0wCZ1_XZLP0xwqXXhzFcQLfv_pI6hmjt8cETOA4OO2PRliBJQvTqIMTf_uU_6sF4AOV4WPdQHpvUQ',
-        status: 'Ready',
-        isReady: true,
-      ),
-      LabelItemData(
-        title: 'Raw Forest Honey',
-        subtitle: 'Himalayan Roots • Updated last week',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuDqtSKTW1FTWnpu1-XzsyHeRUSeDBUZj1yFDitC1bK9Ai6Sosr9FD7iUGZRn9KQFiEXURqlMAUNT7_NlCoe7n0xBYS88zA3fdtRjib-NYJic_4HlRfm1Q84dzzmtRCWuBTPip6jORsKcuR6EsfVT1swKiqBuRZS5d2eust8CENfZ9Ee0wrsCU8Vam-nFI2Ex6rH7BRLoCacvmHWn45GyUjHtSOkFqVUBnAgLJk0coyiganzwmml1biRRA',
-        status: 'Ready',
-        isReady: true,
-      ),
-      LabelItemData(
-        title: 'Spicy Chana Mix',
-        subtitle: 'Ghar Ka Taste • Updated 5 days ago',
-        imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBW7_8F7y65HhUZPZMi_Dx7Zj-m3P4nFV_9y2IPRXZfGAn44o-vymFC9Jz0Fp17VAa5gD-N272dujLVsA0GkLh4nPX6Ofru4qsCCBSBmj4ld129S1NRrbA2MxVHJREyvlG7zJkBwzyLE62zwQSRDmWsIOaer6QmpQjmW5hN-knQWNk43IrC6bkbQZeWz9nWY-Q-rd2FmleCWZSi5iv3ScCPZ8WJTyLXuOiiRSPqmJZGmpKv31rPw07ZCg',
-        status: 'Needs review',
-        isReady: false,
-      ),
-    ],
+    this.labels = const [],
   });
 
   final VoidCallback? onSeeAll;
@@ -56,6 +56,10 @@ class YourLabelsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (labels.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -64,7 +68,7 @@ class YourLabelsSection extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Your labels (${labels.length > 3 ? 12 : labels.length})',
+              'Your labels (${labels.length})',
               style: const TextStyle(
                 color: AppColors.onBackground,
                 fontSize: 18,

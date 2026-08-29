@@ -1,17 +1,24 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
+import '../../data/repositories/small_business_label_repository.dart';
+import '../../data/services/file_upload_service.dart';
+import '../../data/services/notification_service.dart';
 import '../widgets/allergen_declaration_section.dart';
 import '../widgets/ingredient_search_card.dart';
 import '../widgets/ingredient_source_segmented_control.dart';
 import '../widgets/ingredients_bottom_bar.dart';
 import '../widgets/ingredients_header_card.dart';
 import '../widgets/ingredients_list_section.dart';
-import '../widgets/ingredients_progress_card.dart';
+import '../widgets/wizard_step_progress_card.dart';
+import 'my_label_studio_screen.dart';
 import 'nutritional_values_screen.dart';
 
 class IngredientsAllergensScreen extends StatefulWidget {
-  const IngredientsAllergensScreen({super.key});
+  const IngredientsAllergensScreen({super.key, this.labelModel});
+
+  final SmallBusinessLabelModel? labelModel;
 
   @override
   State<IngredientsAllergensScreen> createState() =>
@@ -20,26 +27,64 @@ class IngredientsAllergensScreen extends StatefulWidget {
 
 class _IngredientsAllergensScreenState
     extends State<IngredientsAllergensScreen> {
+  final SmallBusinessLabelRepository _repository =
+      SmallBusinessLabelRepository();
+  final SmallBusinessNotificationService _notificationService =
+      SmallBusinessNotificationService();
   final TextEditingController _searchController = TextEditingController();
 
   IngredientSourceType _selectedSource = IngredientSourceType.noLabReport;
   final List<IngredientItem> _ingredients = [];
-  final List<String> _selectedAllergens = ['Peanuts', 'Milk'];
+  final List<String> _selectedAllergens = [];
+  late SmallBusinessLabelModel _currentModel;
+  bool _isSaving = false;
+
+  String? _uploadedReportName;
+  bool _isAnalyzingReport = false;
 
   final List<String> _availableAllergens = [
     'Peanuts',
-    'Milk',
-    'Tree Nuts',
+    'Milk & Dairy Solids',
+    'Tree Nuts (Almonds, Cashews, Walnuts)',
     'Soy / Soybeans',
     'Wheat / Gluten',
-    'Eggs',
+    'Eggs & Egg Products',
     'Fish',
     'Crustaceans / Shellfish',
-    'Mustard',
-    'Sesame Seeds',
-    'Sulphites',
+    'Mustard & Mustard Seeds',
+    'Sesame Seeds (Til)',
+    'Sulphites (in concentrations of 10mg/kg or more)',
     'Celery',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentModel = widget.labelModel ?? const SmallBusinessLabelModel();
+
+    if (_currentModel.ingredients.isNotEmpty) {
+      for (final ing in _currentModel.ingredients) {
+        _ingredients.add(
+          IngredientItem(
+            id: ing.id ?? UniqueKey().toString(),
+            name: ing.name,
+            percentage: ing.percentage,
+          ),
+        );
+      }
+    }
+
+    if (_currentModel.allergens.isNotEmpty) {
+      _selectedAllergens.addAll(_currentModel.allergens);
+    }
+
+    if (_currentModel.ingredientSource == 'labReport') {
+      _selectedSource = IngredientSourceType.labReport;
+      _uploadedReportName = 'lab_report_certificate.pdf';
+    } else {
+      _selectedSource = IngredientSourceType.noLabReport;
+    }
+  }
 
   @override
   void dispose() {
@@ -47,12 +92,248 @@ class _IngredientsAllergensScreenState
     super.dispose();
   }
 
-  void _saveDraft() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Ingredients & allergens draft saved'),
-        backgroundColor: AppColors.brandDeepGreen,
-        duration: Duration(seconds: 2),
+  SmallBusinessLabelModel _buildCurrentState() {
+    final ingModels =
+        _ingredients.map((i) {
+          return SmallBusinessIngredientModel(
+            id: i.id,
+            name: i.name,
+            percentage: i.percentage,
+          );
+        }).toList();
+
+    return _currentModel.copyWith(
+      ingredientSource: _selectedSource.name,
+      ingredients: ingModels,
+      allergens: _selectedAllergens,
+      currentStep: 2,
+      completionPercentage: 33,
+    );
+  }
+
+  Future<void> _saveDraft() async {
+    setState(() => _isSaving = true);
+    final modelToSave = _buildCurrentState();
+
+    try {
+      final saved = await _repository.saveDraft(modelToSave);
+      if (mounted) {
+        setState(() {
+          _currentModel = saved;
+          _isSaving = false;
+        });
+
+        _notificationService.notify(
+          title: 'Ingredients Draft Saved',
+          message:
+              'Saved ${_ingredients.length} ingredients and ${_selectedAllergens.length} declared allergens.',
+          type: NotificationType.success,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ingredients & allergens saved to draft'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved locally: $e'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteDraft() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Draft?'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to discard this draft? All entered fields will be deleted.',
+          style: TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (_currentModel.id != null) {
+                await _repository.deleteLabel(_currentModel.id!);
+              }
+
+              _notificationService.notify(
+                title: 'Draft Discarded',
+                message: 'Deleted draft for "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "New Label"}".',
+                type: NotificationType.warning,
+              );
+
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Draft'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Opens system file manager to upload Lab Report and triggers AI auto-detection
+  Future<void> _uploadLabReport() async {
+    final pickedFile = await FileUploadService.pickLabReportDocument();
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isAnalyzingReport = true;
+      _uploadedReportName = pickedFile.name;
+    });
+
+    try {
+      final detected = await FileUploadService.parseLabReport(pickedFile);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isAnalyzingReport = false;
+        // Auto-fill ingredients
+        _ingredients.clear();
+        for (final ing in detected.ingredients) {
+          _ingredients.add(
+            IngredientItem(
+              id: DateTime.now().millisecondsSinceEpoch.toString() + ing.name,
+              name: ing.name,
+              percentage: ing.percentage,
+            ),
+          );
+        }
+
+        // Auto-fill allergens
+        _selectedAllergens.clear();
+        _selectedAllergens.addAll(detected.allergens);
+
+        // Pre-fill nutrient CoA model
+        final nutrientList = detected.nutrients.entries.map((e) {
+          return SmallBusinessNutrientModel(
+            label: e.key,
+            value: e.value,
+            unit: e.key == 'Calories' ? 'kcal' : (e.key.contains('Sodium') || e.key.contains('Iron') || e.key.contains('Vitamin') ? 'mg' : 'g'),
+            isRequired: true,
+          );
+        }).toList();
+
+        _currentModel = _currentModel.copyWith(
+          nutrients: nutrientList,
+          ingredientSource: 'labReport',
+        );
+      });
+
+      _notificationService.notify(
+        title: 'Lab Report Auto-Detected',
+        message:
+            'Extracted ${detected.ingredients.length} ingredients, ${detected.allergens.length} allergens, and ${detected.nutrients.length} nutrition metrics from ${pickedFile.name}.',
+        type: NotificationType.compliance,
+      );
+
+      _showAutoDetectionDialog(detected);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isAnalyzingReport = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error analyzing lab report: $e')),
+      );
+    }
+  }
+
+  void _showAutoDetectionDialog(DetectedLabReportData data) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.auto_awesome_rounded, color: Color(0xFF15803D), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Lab Report Auto-Detected!',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'We extracted the verified parameters from "${data.fileName}" (${data.laboratoryName}):',
+              style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '✓ ${data.ingredients.length} Formulation Ingredients auto-filled',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF15803D)),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '✓ ${data.allergens.length} Allergen statement(s) tagged',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF15803D)),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '✓ ${data.nutrients.length} Nutritional values loaded for Step 3',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF15803D)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF15803D),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Continue with Auto-Filled Data'),
+          ),
+        ],
       ),
     );
   }
@@ -87,9 +368,9 @@ class _IngredientsAllergensScreenState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Add Ingredient',
+                      'Add Formulation Ingredient',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: AppColors.onSurface,
                       ),
@@ -102,7 +383,7 @@ class _IngredientsAllergensScreenState
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Ingredient Name',
+                  'Ingredient Name *',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -112,9 +393,9 @@ class _IngredientsAllergensScreenState
                 const SizedBox(height: 6),
                 TextField(
                   controller: nameController,
-                  autofocus: true,
+                  autofocus: initialName.isEmpty,
                   decoration: InputDecoration(
-                    hintText: 'e.g. Raw Mango, Mustard Oil, Salt',
+                    hintText: 'e.g. Raw Mango Pieces, Mustard Oil, Iodised Salt',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(
@@ -129,7 +410,7 @@ class _IngredientsAllergensScreenState
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Percentage (%) - Optional',
+                  'Percentage Weight (% w/w) - Optional',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -143,7 +424,7 @@ class _IngredientsAllergensScreenState
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'e.g. 65.0',
+                    hintText: 'e.g. 60.0',
                     suffixText: '%',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -173,14 +454,23 @@ class _IngredientsAllergensScreenState
                       setState(() {
                         _ingredients.add(
                           IngredientItem(
-                            id: DateTime.now().millisecondsSinceEpoch
-                                .toString(),
+                            id:
+                                DateTime.now().millisecondsSinceEpoch
+                                    .toString(),
                             name: name,
                             percentage: percentage,
                           ),
                         );
                         _searchController.clear();
                       });
+
+                      _notificationService.notify(
+                        title: 'Ingredient Added',
+                        message:
+                            'Added "$name"${percentage != null ? " ($percentage%)" : ""} to ingredient declaration list.',
+                        type: NotificationType.info,
+                      );
+
                       Navigator.of(ctx).pop();
                     },
                     style: ElevatedButton.styleFrom(
@@ -216,7 +506,7 @@ class _IngredientsAllergensScreenState
           padding: const EdgeInsets.all(20),
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -226,9 +516,9 @@ class _IngredientsAllergensScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Select Allergens',
+                    'FSSAI Mandatory Allergen Declaration',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                       color: AppColors.onSurface,
                     ),
@@ -239,47 +529,63 @@ class _IngredientsAllergensScreenState
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              const Text(
+                'Select any allergens present in this formulation or handled on the same production line:',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _availableAllergens.map((allergen) {
-                  final isSelected = _selectedAllergens.contains(allergen);
-                  return FilterChip(
-                    label: Text(allergen),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedAllergens.add(allergen);
-                        } else {
-                          _selectedAllergens.remove(allergen);
-                        }
-                      });
-                      Navigator.of(ctx).pop();
-                    },
-                    selectedColor: const Color(
-                      0xFF80253D,
-                    ).withValues(alpha: 0.15),
-                    checkmarkColor: const Color(0xFF80253D),
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFF80253D)
-                          : AppColors.onSurfaceVariant,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected
-                            ? const Color(0xFF80253D)
-                            : AppColors.outlineVariant,
-                      ),
-                    ),
-                  );
-                }).toList(),
+                children:
+                    _availableAllergens.map((allergen) {
+                      final isSelected = _selectedAllergens.contains(allergen);
+                      return FilterChip(
+                        label: Text(allergen),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedAllergens.add(allergen);
+                              _notificationService.notify(
+                                title: 'Allergen Declared',
+                                message:
+                                    'Added "$allergen" to mandatory allergen warning statement.',
+                                type: NotificationType.warning,
+                              );
+                            } else {
+                              _selectedAllergens.remove(allergen);
+                            }
+                          });
+                          Navigator.of(ctx).pop();
+                        },
+                        selectedColor: const Color(
+                          0xFF80253D,
+                        ).withValues(alpha: 0.15),
+                        checkmarkColor: const Color(0xFF80253D),
+                        labelStyle: TextStyle(
+                          color:
+                              isSelected
+                                  ? const Color(0xFF80253D)
+                                  : AppColors.onSurfaceVariant,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color:
+                                isSelected
+                                    ? const Color(0xFF80253D)
+                                    : AppColors.outlineVariant,
+                          ),
+                        ),
+                      );
+                    }).toList(),
               ),
               const SizedBox(height: 16),
             ],
@@ -290,8 +596,51 @@ class _IngredientsAllergensScreenState
   }
 
   void _onContinue() {
+    if (_ingredients.isEmpty) {
+      _showValidationError(
+        'Please add at least 1 ingredient in your formulation list.',
+      );
+      return;
+    }
+
+    final updatedModel = _buildCurrentState();
+
+    _notificationService.notify(
+      title: 'Step 2 Complete',
+      message:
+          'Ingredients list validated with ${_ingredients.length} items. Proceeding to Nutritional Values.',
+      type: NotificationType.compliance,
+    );
+
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const NutritionalValuesScreen()),
+      MaterialPageRoute(
+        builder: (context) => NutritionalValuesScreen(labelModel: updatedModel),
+      ),
+    );
+  }
+
+  void _showValidationError(String msg) {
+    _notificationService.notify(
+      title: 'Validation Required',
+      message: msg,
+      type: NotificationType.warning,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -306,20 +655,13 @@ class _IngredientsAllergensScreenState
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.75),
+                color: Colors.white.withValues(alpha: 0.88),
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: AppColors.outlineVariant.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
               child: SafeArea(
                 bottom: false,
@@ -329,7 +671,6 @@ class _IngredientsAllergensScreenState
                     vertical: 8.0,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Back button
                       Material(
@@ -348,19 +689,78 @@ class _IngredientsAllergensScreenState
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       // Title
-                      const Text(
-                        'Label Studio',
-                        style: TextStyle(
-                          color: AppColors.brandDeepGreen,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Text(
+                              'Formulation & Allergens',
+                              style: TextStyle(
+                                color: AppColors.brandDeepGreen,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              'Step 2 of 6: Ingredients list',
+                              style: TextStyle(
+                                color: AppColors.onSurfaceVariant,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      // Notification Bell
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: AppColors.brandDeepGreen,
+                        ),
+                        onPressed:
+                            () => SmallBusinessNotificationService
+                                .showNotificationCenter(context),
+                      ),
+                      // Delete Draft Button
+                      OutlinedButton(
+                        onPressed: _confirmDeleteDraft,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          side: const BorderSide(
+                            color: Color(0xFFFCA5A5),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
+                            SizedBox(width: 2),
+                            Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       // Save action
                       TextButton(
-                        onPressed: _saveDraft,
+                        onPressed: _isSaving ? null : _saveDraft,
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.brandDeepGreen,
                           padding: const EdgeInsets.symmetric(
@@ -368,13 +768,23 @@ class _IngredientsAllergensScreenState
                             vertical: 6,
                           ),
                         ),
-                        child: const Text(
-                          'Save',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child:
+                            _isSaving
+                                ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.brandDeepGreen,
+                                  ),
+                                )
+                                : const Text(
+                                  'Save',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                       ),
                     ],
                   ),
@@ -384,120 +794,77 @@ class _IngredientsAllergensScreenState
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          // Background ambient blurred blobs
-          Positioned(
-            top: 40,
-            left: -60,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
-              ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Standardized Progress Marker (Step 2 of 6, 33%)
+            const WizardStepProgressCard(
+              currentStep: 2,
+              totalSteps: 6,
+              stepTitle: 'Ingredients & Allergens',
+              percentage: 33,
             ),
-          ),
-          Positioned(
-            top: 280,
-            right: -60,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.brandBlue.withValues(alpha: 0.06),
-              ),
+            const SizedBox(height: 20),
+
+            // Header Card ("STEP 02 - Ingredients")
+            const IngredientsHeaderCard(),
+            const SizedBox(height: 20),
+
+            // Nutrition/Ingredient Source Segmented Control with Lab Report Upload
+            IngredientSourceSegmentedControl(
+              selectedSource: _selectedSource,
+              uploadedReportName: _uploadedReportName,
+              isAnalyzingReport: _isAnalyzingReport,
+              onSourceChanged: (source) {
+                setState(() {
+                  _selectedSource = source;
+                });
+              },
+              onUploadLabReportTap: _uploadLabReport,
             ),
-          ),
-          Positioned(
-            bottom: 80,
-            left: 20,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF80253D).withValues(alpha: 0.05),
-              ),
+            const SizedBox(height: 20),
+
+            // Search Card with Instant Suggestions
+            IngredientSearchCard(
+              controller: _searchController,
+              onIngredientSelected: (name) => _showAddIngredientDialog(name),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) {
+                  _showAddIngredientDialog(value.trim());
+                }
+              },
+              onAddManually: () => _showAddIngredientDialog(),
             ),
-          ),
-          // Scrollable Content
-          SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 16.0,
+            const SizedBox(height: 20),
+
+            // Ingredients List Section
+            IngredientsListSection(
+              ingredients: _ingredients,
+              onAddIngredient: () => _showAddIngredientDialog(),
+              onRemoveIngredient: (item) {
+                setState(() {
+                  _ingredients.removeWhere((i) => i.id == item.id);
+                });
+              },
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Progress Card (Step 2 of 6, 33%)
-                const IngredientsProgressCard(
-                  currentStep: 2,
-                  totalSteps: 6,
-                  percentage: 33,
-                ),
-                const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-                // Header Card ("STEP 02 - Ingredients")
-                const IngredientsHeaderCard(),
-                const SizedBox(height: 20),
-
-                // Nutrition/Ingredient Source Segmented Control
-                IngredientSourceSegmentedControl(
-                  selectedSource: _selectedSource,
-                  onSourceChanged: (source) {
-                    setState(() {
-                      _selectedSource = source;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Search Card
-                IngredientSearchCard(
-                  controller: _searchController,
-                  onSubmitted: (value) {
-                    if (value.trim().isNotEmpty) {
-                      _showAddIngredientDialog(value.trim());
-                    }
-                  },
-                  onAddManually: () => _showAddIngredientDialog(),
-                  onChanged: (text) {
-                    setState(() {});
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Ingredients List Section
-                IngredientsListSection(
-                  ingredients: _ingredients,
-                  onAddIngredient: () => _showAddIngredientDialog(),
-                  onRemoveIngredient: (item) {
-                    setState(() {
-                      _ingredients.removeWhere((i) => i.id == item.id);
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Food Safety: Allergen Declaration
-                AllergenDeclarationSection(
-                  selectedAllergens: _selectedAllergens,
-                  onRemoveAllergen: (allergen) {
-                    setState(() {
-                      _selectedAllergens.remove(allergen);
-                    });
-                  },
-                  onAddAllergenTap: _showAddAllergenPicker,
-                ),
-                const SizedBox(height: 100), // Bottom bar padding
-              ],
+            // Food Safety: Allergen Declaration
+            AllergenDeclarationSection(
+              selectedAllergens: _selectedAllergens,
+              onRemoveAllergen: (allergen) {
+                setState(() {
+                  _selectedAllergens.remove(allergen);
+                });
+              },
+              onAddAllergenTap: _showAddAllergenPicker,
             ),
-          ),
-        ],
+            const SizedBox(height: 100), // Bottom bar padding
+          ],
+        ),
       ),
       bottomNavigationBar: IngredientsBottomBar(
         onBack: () => Navigator.of(context).maybePop(),

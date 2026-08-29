@@ -1,22 +1,27 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/small_business_label_model.dart';
+import '../../data/repositories/small_business_label_repository.dart';
+import '../../data/services/notification_service.dart';
 import '../widgets/dates_batch_pricing_card.dart';
 import '../widgets/final_details_bottom_bar.dart';
 import '../widgets/final_details_hero_card.dart';
-import '../widgets/final_details_progress_bar.dart';
 import '../widgets/packaging_environmental_card.dart';
 import '../widgets/storage_usage_card.dart';
+import '../widgets/wizard_step_progress_card.dart';
+import 'my_label_studio_screen.dart';
 import 'product_claims_screen.dart';
 
 class FinalDetailsScreen extends StatefulWidget {
   const FinalDetailsScreen({
     super.key,
-    this.brandName = 'Desi Harvest',
-    this.productName = 'Authentic Mango Pickle',
-    this.productCategory = 'Pickles & Condiments',
-    this.netQuantity = '250 g',
-    this.mrp = '149.00',
+    this.brandName = '',
+    this.productName = '',
+    this.productCategory = '',
+    this.netQuantity = '',
+    this.mrp = '',
+    this.labelModel,
   });
 
   final String brandName;
@@ -24,45 +29,72 @@ class FinalDetailsScreen extends StatefulWidget {
   final String productCategory;
   final String netQuantity;
   final String mrp;
+  final SmallBusinessLabelModel? labelModel;
 
   @override
   State<FinalDetailsScreen> createState() => _FinalDetailsScreenState();
 }
 
 class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
-  // Pricing & Batch controllers
+  final SmallBusinessLabelRepository _repository =
+      SmallBusinessLabelRepository();
+  final SmallBusinessNotificationService _notificationService =
+      SmallBusinessNotificationService();
+
   late final TextEditingController _mrpController;
   late final TextEditingController _uspController;
   late final TextEditingController _batchController;
   late final TextEditingController _mfgDateController;
-  String _selectedBestBefore = '12 Months from Packaging';
+  late String _selectedBestBefore;
 
-  // Storage & Usage controllers
   late final TextEditingController _storageController;
   late final TextEditingController _usageController;
-  final List<String> _selectedStorageChips = [
-    'Store in a cool & dry place',
-    'Keep away from direct sunlight',
-  ];
+  final List<String> _selectedStorageChips = [];
 
-  // Packaging & Environmental
-  String _selectedPackagingType = 'Food Grade Glass Jar';
-  bool _isVegetarian = true;
-  String _selectedRecyclingMark = 'Keep Clean (MoEFCC Disposal Logo)';
+  late String _selectedPackagingType;
+  late bool _isVegetarian;
+  late String _selectedRecyclingMark;
+
+  late SmallBusinessLabelModel _currentModel;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _mrpController = TextEditingController(text: widget.mrp.replaceAll('₹', '').trim());
-    _uspController = TextEditingController(text: '₹ 0.60 / g');
-    _batchController = TextEditingController(text: 'DH-2026-B8');
-    _mfgDateController = TextEditingController(text: 'AUG 2026');
+    _currentModel = widget.labelModel ?? const SmallBusinessLabelModel();
+
+    final initialMrp = _currentModel.mrp.isNotEmpty
+        ? _currentModel.mrp.replaceAll('₹', '').trim()
+        : widget.mrp.replaceAll('₹', '').trim();
+
+    _mrpController = TextEditingController(text: initialMrp);
+    _uspController = TextEditingController(text: _currentModel.usp);
+    _batchController = TextEditingController(text: _currentModel.batchNumber);
+    _mfgDateController = TextEditingController(
+      text: _currentModel.mfgDate.isNotEmpty
+          ? _currentModel.mfgDate
+          : 'AUG 2026',
+    );
+    _selectedBestBefore = _currentModel.bestBefore.isNotEmpty
+        ? _currentModel.bestBefore
+        : '12 Months from Packaging';
+
     _storageController = TextEditingController(
-      text: 'Store in a cool, dry place away from direct sunlight. Refrigerate after opening.',
+      text: _currentModel.storageInstructions,
     );
     _usageController = TextEditingController(
-      text: 'Use a clean, dry spoon. Consume within 30 days after opening.',
+      text: _currentModel.usageInstructions ?? '',
     );
+
+    _selectedPackagingType =
+        _currentModel.packagingType.isNotEmpty
+            ? _currentModel.packagingType
+            : 'Food Grade Glass Jar';
+    _isVegetarian = _currentModel.isVegetarian;
+    _selectedRecyclingMark =
+        _currentModel.recyclingMark.isNotEmpty
+            ? _currentModel.recyclingMark
+            : 'Keep Clean (MoEFCC Disposal Logo)';
   }
 
   @override
@@ -76,48 +108,171 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     super.dispose();
   }
 
+  SmallBusinessLabelModel _buildCurrentState() {
+    return _currentModel.copyWith(
+      mrp: _mrpController.text.trim(),
+      usp: _uspController.text.trim(),
+      batchNumber: _batchController.text.trim(),
+      mfgDate: _mfgDateController.text.trim(),
+      bestBefore: _selectedBestBefore,
+      storageInstructions: _storageController.text.trim(),
+      usageInstructions: _usageController.text.trim(),
+      packagingType: _selectedPackagingType,
+      isVegetarian: _isVegetarian,
+      recyclingMark: _selectedRecyclingMark,
+      currentStep: 5,
+      completionPercentage: 83,
+    );
+  }
+
+  Future<void> _saveDraft() async {
+    setState(() => _isSaving = true);
+    final modelToSave = _buildCurrentState();
+
+    try {
+      final saved = await _repository.saveDraft(modelToSave);
+      if (mounted) {
+        setState(() {
+          _currentModel = saved;
+          _isSaving = false;
+        });
+
+        _notificationService.notify(
+          title: 'Finishing Details Saved',
+          message:
+              'Saved pricing (MRP ₹${modelToSave.mrp}), batch ${modelToSave.batchNumber}, and packaging rules.',
+          type: NotificationType.success,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Finishing details saved to draft'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved locally: $e'),
+            backgroundColor: AppColors.brandDeepGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteDraft() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Draft?'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to discard this draft label? All entered fields will be deleted.',
+          style: TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (_currentModel.id != null) {
+                await _repository.deleteLabel(_currentModel.id!);
+              }
+
+              _notificationService.notify(
+                title: 'Draft Discarded',
+                message: 'Deleted draft for "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "New Label"}".',
+                type: NotificationType.warning,
+              );
+
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Draft'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _autoCalculateUSP() {
     final mrpVal = double.tryParse(_mrpController.text.trim());
     if (mrpVal != null && mrpVal > 0) {
-      // Assuming 250g as base net quantity
-      final usp = mrpVal / 250.0;
+      final qty = double.tryParse(_currentModel.netQuantity) ?? 100.0;
+      final unit = _currentModel.netQuantityUnit.isNotEmpty ? _currentModel.netQuantityUnit : 'g';
+      final usp = mrpVal / qty;
+      final calculated = '₹ ${usp.toStringAsFixed(2)} / $unit';
+
       setState(() {
-        _uspController.text = '₹ ${usp.toStringAsFixed(2)} / g';
+        _uspController.text = calculated;
       });
+
+      _notificationService.notify(
+        title: 'USP Calculated',
+        message: 'Auto-calculated Unit Sale Price: $calculated.',
+        type: NotificationType.info,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Calculated Unit Sale Price: ₹ ${usp.toStringAsFixed(2)} / g'),
+          content: Text('Calculated Unit Sale Price: $calculated'),
           backgroundColor: AppColors.brandDeepGreen,
-          duration: const Duration(seconds: 1),
+          duration: const Duration(seconds: 2),
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid MRP to calculate USP'),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 1),
-        ),
-      );
+      _showValidationError('Please enter a valid MRP before calculating USP.');
     }
   }
 
   void _generateBatchCode() {
     final now = DateTime.now();
     final year = now.year.toString();
-    final monthChar = String.fromCharCode(65 + (now.month - 1)); // A-L
+    final monthChar = String.fromCharCode(65 + (now.month - 1));
     final randomNum = (now.millisecondsSinceEpoch % 90 + 10).toString();
-    final newBatch = 'DH-$year-$monthChar$randomNum';
+    final prefix = _currentModel.brandName.isNotEmpty
+        ? _currentModel.brandName.split(' ').first.toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '')
+        : 'BATCH';
+    final newBatch = '$prefix-$year-$monthChar$randomNum';
 
     setState(() {
       _batchController.text = newBatch;
     });
 
+    _notificationService.notify(
+      title: 'Batch Code Generated',
+      message: 'Created production lot identifier: $newBatch.',
+      type: NotificationType.info,
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Generated Batch Code: $newBatch'),
         backgroundColor: AppColors.brandDeepGreen,
-        duration: const Duration(seconds: 1),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -133,54 +288,69 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     });
   }
 
-  void _saveDraft() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Finishing details draft saved successfully'),
-        backgroundColor: AppColors.brandDeepGreen,
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   void _onContinue() {
     final mrpText = _mrpController.text.trim();
-    if (mrpText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter Maximum Retail Price (MRP)'),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 2),
-        ),
-      );
+    final batch = _batchController.text.trim();
+    final mfg = _mfgDateController.text.trim();
+    final storage = _storageController.text.trim();
+
+    if (mrpText.isEmpty || double.tryParse(mrpText) == null) {
+      _showValidationError('Please enter Maximum Retail Price (MRP).');
+      return;
+    }
+    if (batch.isEmpty) {
+      _showValidationError('Please enter or generate a Batch / Lot Code.');
+      return;
+    }
+    if (mfg.isEmpty) {
+      _showValidationError('Please enter Manufacturing Date.');
+      return;
+    }
+    if (storage.isEmpty) {
+      _showValidationError('Please specify Storage Instructions.');
       return;
     }
 
-    final formattedMrp = mrpText.startsWith('₹') ? mrpText : '₹ $mrpText';
+    final updatedModel = _buildCurrentState();
+
+    _notificationService.notify(
+      title: 'Step 5 Complete',
+      message:
+          'Pricing, batch ($batch) & packaging rules verified. Moving to Product Claims.',
+      type: NotificationType.compliance,
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProductClaimsScreen(
-          brandName: widget.brandName,
-          productName: widget.productName,
-          productCategory: widget.productCategory,
-          netQuantity: widget.netQuantity,
-          mrp: formattedMrp,
+          brandName: updatedModel.brandName,
+          productName: updatedModel.productName,
+          productCategory: updatedModel.productCategory,
+          netQuantity: '${updatedModel.netQuantity} ${updatedModel.netQuantityUnit}',
+          mrp: mrpText.startsWith('₹') ? mrpText : '₹ $mrpText',
+          labelModel: updatedModel,
         ),
       ),
     );
   }
 
-  void _onSkip() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ProductClaimsScreen(
-          brandName: widget.brandName,
-          productName: widget.productName,
-          productCategory: widget.productCategory,
-          netQuantity: widget.netQuantity,
-          mrp: widget.mrp.startsWith('₹') ? widget.mrp : '₹ ${widget.mrp}',
+  void _showValidationError(String msg) {
+    _notificationService.notify(
+      title: 'Validation Incomplete',
+      message: msg,
+      type: NotificationType.warning,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ],
         ),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -196,7 +366,7 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.85),
+                color: Colors.white.withValues(alpha: 0.88),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -230,8 +400,7 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-
+                      const SizedBox(width: 8),
                       // Title & Subtitle
                       Expanded(
                         child: Column(
@@ -241,13 +410,13 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
                             Text(
                               'Finishing Details',
                               style: TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 16,
+                                color: AppColors.brandDeepGreen,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
-                              'Pricing, batch, dates & storage instructions',
+                              'Step 5 of 6: Pricing, dates & packaging',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
@@ -256,10 +425,53 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
                           ],
                         ),
                       ),
-
+                      // Notification Bell
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: AppColors.brandDeepGreen,
+                        ),
+                        onPressed:
+                            () => SmallBusinessNotificationService
+                                .showNotificationCenter(context),
+                      ),
+                      // Delete Draft Button
+                      OutlinedButton(
+                        onPressed: _confirmDeleteDraft,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          side: const BorderSide(
+                            color: Color(0xFFFCA5A5),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
+                            SizedBox(width: 2),
+                            Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
-                        onPressed: _saveDraft,
+                        onPressed: _isSaving ? null : _saveDraft,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -275,13 +487,22 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
                           ),
                           foregroundColor: AppColors.onSurface,
                         ),
-                        child: const Text(
-                          'Save draft',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
+                                ),
+                              )
+                            : const Text(
+                                'Save draft',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ],
                   ),
@@ -291,101 +512,67 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          // Background ambient glowing blobs
-          Positioned(
-            top: 60,
-            left: -50,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.brandDeepGreen.withValues(alpha: 0.05),
-              ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Standardized Step Marker (Step 5 of 6, 83%)
+            const WizardStepProgressCard(
+              currentStep: 5,
+              totalSteps: 6,
+              stepTitle: 'Finishing Details',
+              percentage: 83,
             ),
-          ),
-          Positioned(
-            bottom: 120,
-            right: -40,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF005AC2).withValues(alpha: 0.04),
-              ),
+            const SizedBox(height: 16),
+
+            // Hero Card
+            const FinalDetailsHeroCard(),
+            const SizedBox(height: 16),
+
+            // Card 1: Pricing, Batch Code & Dates
+            DatesBatchPricingCard(
+              mrpController: _mrpController,
+              uspController: _uspController,
+              batchController: _batchController,
+              mfgDateController: _mfgDateController,
+              selectedBestBefore: _selectedBestBefore,
+              onBestBeforeChanged: (val) =>
+                  setState(() => _selectedBestBefore = val),
+              onAutoCalculateUSP: _autoCalculateUSP,
+              onGenerateBatchCode: _generateBatchCode,
             ),
-          ),
+            const SizedBox(height: 16),
 
-          // Scrollable Content
-          SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 16.0,
+            // Card 2: Storage & Usage Instructions
+            StorageUsageCard(
+              storageController: _storageController,
+              usageController: _usageController,
+              selectedStorageChips: _selectedStorageChips,
+              onToggleStorageChip: _toggleStorageChip,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Progress Bar (Step 5 of 7, 72%)
-                const FinalDetailsProgressBar(
-                  currentStep: 5,
-                  totalSteps: 7,
-                  stepTitle: 'Finishing Details',
-                  percentage: 72,
-                ),
-                const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-                // Hero Card ("Finishing Details")
-                const FinalDetailsHeroCard(),
-                const SizedBox(height: 16),
-
-                // Card 1: Pricing, Batch Code & Dates
-                DatesBatchPricingCard(
-                  mrpController: _mrpController,
-                  uspController: _uspController,
-                  batchController: _batchController,
-                  mfgDateController: _mfgDateController,
-                  selectedBestBefore: _selectedBestBefore,
-                  onBestBeforeChanged: (val) =>
-                      setState(() => _selectedBestBefore = val),
-                  onAutoCalculateUSP: _autoCalculateUSP,
-                  onGenerateBatchCode: _generateBatchCode,
-                ),
-                const SizedBox(height: 16),
-
-                // Card 2: Storage & Usage Instructions
-                StorageUsageCard(
-                  storageController: _storageController,
-                  usageController: _usageController,
-                  selectedStorageChips: _selectedStorageChips,
-                  onToggleStorageChip: _toggleStorageChip,
-                ),
-                const SizedBox(height: 16),
-
-                // Card 3: Packaging Material & Environmental Symbols
-                PackagingEnvironmentalCard(
-                  selectedPackagingType: _selectedPackagingType,
-                  onPackagingTypeChanged: (val) =>
-                      setState(() => _selectedPackagingType = val),
-                  isVegetarian: _isVegetarian,
-                  onVegetarianChanged: (val) =>
-                      setState(() => _isVegetarian = val),
-                  selectedRecyclingMark: _selectedRecyclingMark,
-                  onRecyclingMarkChanged: (val) =>
-                      setState(() => _selectedRecyclingMark = val),
-                ),
-                const SizedBox(height: 100), // Spacing for bottom bar
-              ],
+            // Card 3: Packaging Material & Environmental Symbols
+            PackagingEnvironmentalCard(
+              selectedPackagingType: _selectedPackagingType,
+              onPackagingTypeChanged: (val) =>
+                  setState(() => _selectedPackagingType = val),
+              isVegetarian: _isVegetarian,
+              onVegetarianChanged: (val) =>
+                  setState(() => _isVegetarian = val),
+              selectedRecyclingMark: _selectedRecyclingMark,
+              onRecyclingMarkChanged: (val) =>
+                  setState(() => _selectedRecyclingMark = val),
             ),
-          ),
-        ],
+            const SizedBox(height: 100), // Spacing for bottom bar
+          ],
+        ),
       ),
       bottomNavigationBar: FinalDetailsBottomBar(
         onBack: () => Navigator.of(context).maybePop(),
-        onSkip: _onSkip,
+        onSkip: _onContinue,
         onContinue: _onContinue,
       ),
     );
