@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
@@ -22,6 +24,7 @@ class _RegulatorComplaintInboxScreenState
   String _selectedStatus = 'All';
   bool _isLoading = true;
   List<RegulatorComplaint> _complaints = [];
+  StreamSubscription<List<RegulatorComplaint>>? _complaintSubscription;
 
   final List<String> _statusTabs = [
     'All',
@@ -35,19 +38,40 @@ class _RegulatorComplaintInboxScreenState
   void initState() {
     super.initState();
     _loadComplaints();
+    _subscribeToComplaintUpdates();
   }
 
   Future<void> _loadComplaints() async {
     setState(() => _isLoading = true);
-    final data = await RegulatorDataService.getComplaints(
-      status: _selectedStatus == 'All' ? null : _selectedStatus,
-    );
-    if (mounted) {
-      setState(() {
-        _complaints = data;
-        _isLoading = false;
-      });
+    try {
+      final data = await RegulatorDataService.getComplaints(
+        status: _selectedStatus == 'All' ? null : _selectedStatus,
+      );
+      if (mounted) {
+        setState(() {
+          _complaints = data;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _subscribeToComplaintUpdates() {
+    _complaintSubscription?.cancel();
+    _complaintSubscription =
+        RegulatorDataService.watchComplaints(
+          status: _selectedStatus == 'All' ? null : _selectedStatus,
+        ).listen((complaints) {
+          if (mounted) setState(() => _complaints = complaints);
+        });
+  }
+
+  @override
+  void dispose() {
+    _complaintSubscription?.cancel();
+    super.dispose();
   }
 
   String _formatRelativeTime(DateTime date) {
@@ -76,81 +100,88 @@ class _RegulatorComplaintInboxScreenState
               physics: const AlwaysScrollableScrollPhysics(
                 parent: ClampingScrollPhysics(),
               ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.gutter,
-              vertical: AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Text(
-                  'Inbox',
-                  style: AppTypography.headlineSm.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Review pending consumer complaints and compliance flags.',
-                  style: AppTypography.bodySm.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Filter Tabs
-                _buildFilterTabs(),
-                const SizedBox(height: AppSpacing.md),
-
-                // Complaints List
-                if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.gutter,
+                vertical: AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Text(
+                    'Inbox',
+                    style: AppTypography.headlineSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
                     ),
-                  )
-                else if (_complaints.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLowest,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                      border: Border.all(color: AppColors.surfaceVariant),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Review pending consumer complaints and compliance flags.',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.onSurfaceVariant,
                     ),
-                    child: Text(
-                      'No complaints matching "$_selectedStatus".',
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Filter Tabs
+                  _buildFilterTabs(),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Complaints List
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
                       ),
+                    )
+                  else if (_complaints.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLowest,
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusMd,
+                        ),
+                        border: Border.all(color: AppColors.surfaceVariant),
+                      ),
+                      child: Text(
+                        'No complaints matching "$_selectedStatus".',
+                        style: AppTypography.bodyMd.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _complaints.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: AppSpacing.md),
+                      itemBuilder: (context, index) {
+                        final complaint = _complaints[index];
+                        return _buildComplaintCard(complaint);
+                      },
                     ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _complaints.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: AppSpacing.md),
-                    itemBuilder: (context, index) {
-                      final complaint = _complaints[index];
-                      return _buildComplaintCard(complaint);
-                    },
-                  ),
-                const SizedBox(height: AppSpacing.xxl),
-              ],
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-    bottomNavigationBar: RegulatorBottomNavBar(
+      bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.inbox,
-        onTabSelected: (tab) =>
-            RegulatorBottomNavBar.navigateToTab(context, RegulatorNavTab.inbox, tab),
+        onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
+          context,
+          RegulatorNavTab.inbox,
+          tab,
+        ),
       ),
     );
   }
@@ -161,7 +192,8 @@ class _RegulatorComplaintInboxScreenState
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _statusTabs.length,
-        separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+        separatorBuilder: (context, index) =>
+            const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, index) {
           final tab = _statusTabs[index];
           final isSelected = tab == _selectedStatus;
@@ -170,6 +202,7 @@ class _RegulatorComplaintInboxScreenState
             onTap: () {
               setState(() => _selectedStatus = tab);
               _loadComplaints();
+              _subscribeToComplaintUpdates();
             },
             borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
             child: Container(
@@ -204,15 +237,20 @@ class _RegulatorComplaintInboxScreenState
 
   Widget _buildComplaintCard(RegulatorComplaint complaint) {
     final timeAgo = _formatRelativeTime(complaint.submittedAt);
+    final displayTitle = complaint.productName.isNotEmpty
+        ? complaint.productName
+        : complaint.title;
 
     return InkWell(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                RegulatorComplaintDetailScreen(complaintId: complaint.id),
-          ),
-        ).then((_) => _loadComplaints());
+        Navigator.of(context)
+            .push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    RegulatorComplaintDetailScreen(complaintId: complaint.id),
+              ),
+            )
+            .then((_) => _loadComplaints());
       },
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: Container(
@@ -242,13 +280,19 @@ class _RegulatorComplaintInboxScreenState
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) =>
                             const Center(
-                          child: Icon(Icons.scale_rounded,
-                              size: 32, color: AppColors.outline),
-                        ),
+                              child: Icon(
+                                Icons.report_problem_rounded,
+                                size: 32,
+                                color: AppColors.outline,
+                              ),
+                            ),
                       )
                     : const Center(
-                        child: Icon(Icons.scale_rounded,
-                            size: 32, color: AppColors.outline),
+                        child: Icon(
+                          Icons.report_problem_rounded,
+                          size: 32,
+                          color: AppColors.outline,
+                        ),
                       ),
               ),
             ),
@@ -261,7 +305,30 @@ class _RegulatorComplaintInboxScreenState
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      RegulatorStatusBadge.fromStatus(complaint.priority),
+                      Row(
+                        children: [
+                          RegulatorStatusBadge.fromStatus(complaint.priority),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerHigh,
+                              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                            ),
+                            child: Text(
+                              complaint.complaintCode,
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                       Text(
                         timeAgo,
                         style: AppTypography.labelSm.copyWith(
@@ -273,7 +340,7 @@ class _RegulatorComplaintInboxScreenState
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    complaint.title,
+                    displayTitle,
                     style: AppTypography.labelMd.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.onSurface,
@@ -281,6 +348,19 @@ class _RegulatorComplaintInboxScreenState
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (complaint.companyName.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Brand: ${complaint.companyName} • ${complaint.category}',
+                      style: AppTypography.bodySm.copyWith(
+                        color: AppColors.tertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     complaint.description,
@@ -303,7 +383,9 @@ class _RegulatorComplaintInboxScreenState
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          complaint.locationName,
+                          complaint.locationName.isNotEmpty
+                              ? complaint.locationName
+                              : complaint.address,
                           style: AppTypography.labelSm.copyWith(
                             color: AppColors.onSurfaceVariant,
                             fontSize: 11,
@@ -313,6 +395,7 @@ class _RegulatorComplaintInboxScreenState
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      RegulatorStatusBadge.fromStatus(complaint.status),
                     ],
                   ),
                 ],
