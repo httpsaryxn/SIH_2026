@@ -8,6 +8,7 @@ import '../widgets/ingredients_bottom_bar.dart';
 import '../widgets/ingredients_header_card.dart';
 import '../widgets/ingredients_list_section.dart';
 import '../widgets/ingredients_progress_card.dart';
+import 'nutritional_values_screen.dart';
 
 class IngredientsAllergensScreen extends StatefulWidget {
   const IngredientsAllergensScreen({super.key});
@@ -289,14 +290,8 @@ class _IngredientsAllergensScreenState
   }
 
   void _onContinue() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Step 2 complete. Ready for Step 3 (Manufacturer & Packaging)...',
-        ),
-        backgroundColor: AppColors.brandDeepGreen,
-        duration: Duration(seconds: 2),
-      ),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const NutritionalValuesScreen()),
     );
   }
 
