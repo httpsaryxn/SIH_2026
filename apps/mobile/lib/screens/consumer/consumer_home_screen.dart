@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/models/consumer_complaint_model.dart';
@@ -7,7 +8,9 @@ import '../../core/models/consumer_saved_product.dart';
 import '../../core/models/consumer_scan_model.dart';
 import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
+import 'consumer_scan_analysis_screen.dart';
 import 'widgets/complaint_detail_modal.dart';
 import 'widgets/consumer_profile_sheet.dart';
 import 'widgets/my_complaints_section.dart';
@@ -80,6 +83,199 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _openScanLauncher() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Scan & Verify Product',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Point camera at packaged food labels to check Legal Metrology compliance.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                  side: const BorderSide(color: AppColors.surfaceVariant),
+                ),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_camera_rounded, color: AppColors.primary),
+                ),
+                title: Text(
+                  'Take Photo with Camera',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  'Instant camera capture & real-time OCR analysis',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final capture = await CameraCaptureService.captureImage(
+                    context: context,
+                    sourceTag: 'consumer_scan',
+                    imageSource: ImageSource.camera,
+                  );
+                  if (capture != null && mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ConsumerScanAnalysisScreen(
+                          pendingCapture: capture,
+                          onScanCompleted: (newScan) {
+                            setState(() {
+                              _recentScans.insert(0, newScan);
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                  side: const BorderSide(color: AppColors.surfaceVariant),
+                ),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryContainer.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: AppColors.secondary),
+                ),
+                title: Text(
+                  'Upload Label from Gallery',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  'Select existing photo from gallery',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final capture = await CameraCaptureService.captureImage(
+                    context: context,
+                    sourceTag: 'consumer_gallery',
+                    imageSource: ImageSource.gallery,
+                  );
+                  if (capture != null && mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ConsumerScanAnalysisScreen(
+                          pendingCapture: capture,
+                          onScanCompleted: (newScan) {
+                            setState(() {
+                              _recentScans.insert(0, newScan);
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                  side: const BorderSide(color: AppColors.surfaceVariant),
+                ),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.tertiaryContainer.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.edit_note_rounded, color: AppColors.tertiary),
+                ),
+                title: Text(
+                  'Manual Entry & Guided Scan',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  'Prefill product name before scanning',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _openScannerModal();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _openScannerModal({bool startWithUpload = false}) {
@@ -352,25 +548,25 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               Expanded(
                 flex: 3,
                 child: ScanHeroCard(
-                  onScanPressed: _openScannerModal,
+                  onScanPressed: _openScanLauncher,
                 ),
               ),
               const SizedBox(width: AppSpacing.gutter),
               Expanded(
                 flex: 1,
                 child: QuickFeatureStrip(
-                  onFeatureTap: (feature) => _openScannerModal(),
+                  onFeatureTap: (feature) => _openScanLauncher(),
                 ),
               ),
             ],
           )
         else ...[
           ScanHeroCard(
-            onScanPressed: _openScannerModal,
+            onScanPressed: _openScanLauncher,
           ),
           const SizedBox(height: AppSpacing.md),
           QuickFeatureStrip(
-            onFeatureTap: (feature) => _openScannerModal(),
+            onFeatureTap: (feature) => _openScanLauncher(),
           ),
         ],
 
@@ -392,7 +588,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                       isLoading: _isLoading,
                       onScanTap: _showProductSummary,
                       onViewAllTap: () => setState(() => _currentNavIndex = 1),
-                      onScanNewTap: _openScannerModal,
+                      onScanNewTap: _openScanLauncher,
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     SavedProductsSection(
@@ -451,7 +647,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
             isLoading: _isLoading,
             onScanTap: _showProductSummary,
             onViewAllTap: () => setState(() => _currentNavIndex = 1),
-            onScanNewTap: _openScannerModal,
+            onScanNewTap: _openScanLauncher,
           ),
           const SizedBox(height: AppSpacing.xl),
           SavedProductsSection(
@@ -520,7 +716,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _openScannerModal,
+              onPressed: _openScanLauncher,
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
               label: const Text('Scan New'),
               style: ElevatedButton.styleFrom(
@@ -553,7 +749,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           isLoading: _isLoading,
           onScanTap: _showProductSummary,
           onViewAllTap: () {},
-          onScanNewTap: _openScannerModal,
+          onScanNewTap: _openScanLauncher,
         ),
       ],
     );
@@ -689,7 +885,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               ),
               // Center Scan FAB
               GestureDetector(
-                onTap: _openScannerModal,
+                onTap: _openScanLauncher,
                 child: Container(
                   width: 50,
                   height: 50,

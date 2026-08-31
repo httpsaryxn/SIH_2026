@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/consumer_complaint_model.dart';
+import '../../../core/models/pending_capture.dart';
+import '../../../core/services/camera_capture_service.dart';
 import '../../../core/services/consumer_data_service.dart';
 
 class ReportComplaintDialog extends StatefulWidget {
   final String? prefilledProductName;
   final String? prefilledBrand;
+  final PendingCapture? prefilledCapture;
   final Function(ConsumerComplaintModel complaint) onComplaintSubmitted;
 
   const ReportComplaintDialog({
     super.key,
     this.prefilledProductName,
     this.prefilledBrand,
+    this.prefilledCapture,
     required this.onComplaintSubmitted,
   });
 
@@ -30,7 +35,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
 
   String _selectedCategory = 'Incorrect/Missing MRP';
   bool _isSubmitting = false;
-  bool _hasAttachedImage = false;
+  PendingCapture? _attachedCapture;
 
   final List<String> _categories = [
     'Incorrect/Missing MRP',
@@ -50,9 +55,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
     _productNameController =
         TextEditingController(text: widget.prefilledProductName ?? '');
     _brandController = TextEditingController(text: widget.prefilledBrand ?? '');
-    if (widget.prefilledProductName != null) {
-      _hasAttachedImage = true;
-    }
+    _attachedCapture = widget.prefilledCapture;
   }
 
   @override
@@ -62,6 +65,20 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
     _descController.dispose();
     _storeLocationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleCaptureEvidence() async {
+    final capture = await CameraCaptureService.captureImage(
+      context: context,
+      sourceTag: 'consumer_complaint',
+      imageSource: ImageSource.camera,
+    );
+
+    if (capture != null && mounted) {
+      setState(() {
+        _attachedCapture = capture;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -77,9 +94,7 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
       storeLocation: _storeLocationController.text.isNotEmpty
           ? _storeLocationController.text.trim()
           : null,
-      evidenceImageUrl: _hasAttachedImage
-          ? 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500'
-          : null,
+      pendingCapture: _attachedCapture,
     );
 
     if (mounted) {
@@ -290,39 +305,37 @@ class _ReportComplaintDialogState extends State<ReportComplaintDialog> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   InkWell(
-                    onTap: () {
-                      setState(() => _hasAttachedImage = !_hasAttachedImage);
-                    },
+                    onTap: _handleCaptureEvidence,
                     borderRadius: AppSpacing.roundedDefault,
                     child: Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
-                        color: _hasAttachedImage
+                        color: _attachedCapture != null
                             ? AppColors.primary.withValues(alpha: 0.08)
                             : AppColors.surfaceContainerLow,
                         borderRadius: AppSpacing.roundedDefault,
                         border: Border.all(
-                          color: _hasAttachedImage ? AppColors.primary : AppColors.surfaceVariant,
-                          style: _hasAttachedImage ? BorderStyle.solid : BorderStyle.none,
+                          color: _attachedCapture != null ? AppColors.primary : AppColors.surfaceVariant,
+                          style: _attachedCapture != null ? BorderStyle.solid : BorderStyle.none,
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            _hasAttachedImage ? Icons.check_circle_rounded : Icons.camera_alt_rounded,
-                            color: _hasAttachedImage ? AppColors.primary : AppColors.secondary,
+                            _attachedCapture != null ? Icons.check_circle_rounded : Icons.camera_alt_rounded,
+                            color: _attachedCapture != null ? AppColors.primary : AppColors.secondary,
                             size: 20,
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
-                              _hasAttachedImage
-                                  ? 'Label packaging photo attached (evidence.jpg)'
-                                  : 'Tap to attach product label photo or scan evidence',
+                              _attachedCapture != null
+                                  ? 'Label evidence attached (${_attachedCapture!.formattedSize} • ${_attachedCapture!.fileName})'
+                                  : 'Tap to capture product label photo with camera',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                fontWeight: _hasAttachedImage ? FontWeight.w600 : FontWeight.w400,
-                                color: _hasAttachedImage ? AppColors.primary : AppColors.onSurfaceVariant,
+                                fontWeight: _attachedCapture != null ? FontWeight.w600 : FontWeight.w400,
+                                color: _attachedCapture != null ? AppColors.primary : AppColors.onSurfaceVariant,
                               ),
                             ),
                           ),

@@ -3,8 +3,10 @@ import '../models/consumer_complaint_model.dart';
 import '../models/consumer_notification_model.dart';
 import '../models/consumer_saved_product.dart';
 import '../models/consumer_scan_model.dart';
+import '../models/pending_capture.dart';
 import '../models/product_model.dart';
 import 'auth_service.dart';
+import 'storage_service.dart';
 
 class ConsumerDataService {
   static SupabaseClient get _client => Supabase.instance.client;
@@ -54,6 +56,7 @@ class ConsumerDataService {
     String? category,
     String? netQuantity,
     double? mrp,
+    PendingCapture? pendingCapture,
     String? imageUrl,
     String? manufacturerName,
     String? manufacturerAddress,
@@ -92,12 +95,27 @@ class ConsumerDataService {
     final nowMs = DateTime.now().millisecondsSinceEpoch.toString();
     final barcode = '890${nowMs.substring(nowMs.length - 10)}';
     final fssaiNo = '115${nowMs.substring(nowMs.length - 11)}';
-    final resolvedImage = (imageUrl != null && imageUrl.isNotEmpty)
+    final tempScanId = 'scan_$nowMs';
+
+    // 1. Upload PendingCapture to Supabase Storage if provided
+    String resolvedImage = (imageUrl != null && imageUrl.isNotEmpty)
         ? imageUrl
         : _getPlaceholderImageFor(resolvedCategory);
 
+    if (pendingCapture != null && pendingCapture.existsSync) {
+      final storageUrl = await StorageService.uploadPendingCapture(
+        pendingCapture: pendingCapture,
+        source: 'consumer_scans',
+        recordId: tempScanId,
+        customUserId: uid,
+      );
+      if (storageUrl != null) {
+        resolvedImage = storageUrl;
+      }
+    }
+
     try {
-      // 1. Insert into public.products
+      // 2. Insert into public.products
       final productData = {
         'barcode': barcode,
         'product_name': trimmedName,
@@ -124,7 +142,7 @@ class ConsumerDataService {
 
       final newProduct = ProductModel.fromJson(insertedProduct);
 
-      // 2. Insert into public.consumer_scans
+      // 3. Insert into public.consumer_scans
       final scanData = {
         'consumer_id': ?uid,
         'product_id': newProduct.id,
@@ -155,6 +173,11 @@ class ConsumerDataService {
           .insert(scanData)
           .select()
           .single();
+
+      // Only delete local cached file after confirmed DB persistence
+      if (pendingCapture != null && resolvedImage.startsWith('http')) {
+        await StorageService.deleteLocalCacheAfterSync(pendingCapture);
+      }
 
       return ConsumerScanModel.fromJson(insertedScan);
     } catch (e) {
@@ -340,6 +363,7 @@ class ConsumerDataService {
     required String issueCategory,
     required String description,
     String? storeLocation,
+    PendingCapture? pendingCapture,
     String? evidenceImageUrl,
     String initialStatus = 'Submitted',
     String? customCode,
@@ -349,7 +373,22 @@ class ConsumerDataService {
     final nowMs = DateTime.now().millisecondsSinceEpoch.toString();
     final code = customCode ?? 'CMP-2026-${nowMs.substring(nowMs.length - 6)}';
 
+    // 1. Upload PendingCapture to Supabase Storage if provided
+    String? resolvedEvidenceUrl = evidenceImageUrl;
+    if (pendingCapture != null && pendingCapture.existsSync) {
+      final storageUrl = await StorageService.uploadPendingCapture(
+        pendingCapture: pendingCapture,
+        source: 'consumer_complaints',
+        recordId: code,
+        customUserId: uid,
+      );
+      if (storageUrl != null) {
+        resolvedEvidenceUrl = storageUrl;
+      }
+    }
+
     try {
+      final evidenceList = resolvedEvidenceUrl != null ? [resolvedEvidenceUrl] : <String>[];
       final data = {
         'complaint_code': code,
         'consumer_id': ?uid,
@@ -358,13 +397,13 @@ class ConsumerDataService {
         'issue_category': issueCategory.trim(),
         'description': description.trim(),
         'store_location': storeLocation?.trim(),
-        'evidence_image_url': evidenceImageUrl,
+        'evidence_image_url': resolvedEvidenceUrl,
         'status': initialStatus,
         'created_at': (customDate ?? DateTime.now()).toIso8601String(),
         'updated_at': (customDate ?? DateTime.now()).toIso8601String(),
         'title': '$issueCategory - ${productName.trim()}',
         'category': issueCategory.trim(),
-        'evidence_urls': evidenceImageUrl != null ? [evidenceImageUrl] : <String>[],
+        'evidence_urls': evidenceList,
         'priority': 'Normal',
       };
 
@@ -373,6 +412,11 @@ class ConsumerDataService {
           .insert(data)
           .select()
           .single();
+
+      // Only delete local cached file after confirmed DB persistence
+      if (pendingCapture != null && resolvedEvidenceUrl != null && resolvedEvidenceUrl.startsWith('http')) {
+        await StorageService.deleteLocalCacheAfterSync(pendingCapture);
+      }
 
       // Create notification
       try {
@@ -398,7 +442,7 @@ class ConsumerDataService {
         issueCategory: issueCategory.trim(),
         description: description.trim(),
         storeLocation: storeLocation?.trim(),
-        evidenceImageUrl: evidenceImageUrl,
+        evidenceImageUrl: resolvedEvidenceUrl ?? evidenceImageUrl,
         status: initialStatus,
         createdAt: customDate ?? DateTime.now(),
       );
