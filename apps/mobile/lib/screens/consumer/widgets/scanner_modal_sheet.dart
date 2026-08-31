@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/consumer_scan_model.dart';
+import '../../../core/models/pending_capture.dart';
+import '../../../core/services/camera_capture_service.dart';
 import '../../../core/services/consumer_data_service.dart';
+import '../consumer_scan_analysis_screen.dart';
 
 class ScannerModalSheet extends StatefulWidget {
   final Function(ConsumerScanModel scanResult) onScanCompleted;
@@ -29,7 +32,7 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
   final _mrpController = TextEditingController(text: '45.00');
 
   String _selectedCategory = 'Snacks';
-  XFile? _capturedImage;
+  PendingCapture? _pendingCapture;
   Uint8List? _imageBytes;
 
   int _currentStep = 0; // 0: Details, 1: Camera/Photo, 2: AI Processing
@@ -46,8 +49,6 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
     'Confectionery',
     'Other Food Product',
   ];
-
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -67,30 +68,69 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    try {
-      final picked = await _picker.pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
+    final capture = await CameraCaptureService.captureImage(
+      context: context,
+      sourceTag: source == ImageSource.camera ? 'consumer_scan' : 'consumer_gallery',
+      imageSource: source,
+    );
 
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        setState(() {
-          _capturedImage = picked;
-          _imageBytes = bytes;
-        });
-      }
-    } catch (_) {
-      // Fallback for desktop/unsupported camera: simulate photo capture
+    if (capture != null && mounted) {
+      final bytes = await capture.file.readAsBytes();
+      if (!mounted) return;
       setState(() {
-        _capturedImage = XFile('simulated_label.jpg');
+        _pendingCapture = capture;
+        _imageBytes = bytes;
       });
+
+      // Redirect immediately to the full-screen scanning & analysis experience
+      Navigator.of(context).pop();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ConsumerScanAnalysisScreen(
+            pendingCapture: capture,
+            prefilledProductName: _productNameController.text.trim().isNotEmpty
+                ? _productNameController.text.trim()
+                : null,
+            prefilledBrand: _brandController.text.trim().isNotEmpty
+                ? _brandController.text.trim()
+                : null,
+            prefilledCategory: _selectedCategory,
+            prefilledNetQty: _netQtyController.text.trim().isNotEmpty
+                ? _netQtyController.text.trim()
+                : null,
+            prefilledMrp: double.tryParse(_mrpController.text.replaceAll('₹', '').trim()),
+            onScanCompleted: widget.onScanCompleted,
+          ),
+        ),
+      );
     }
   }
 
   Future<void> _processAndSaveProduct() async {
+    if (_pendingCapture != null && mounted) {
+      Navigator.of(context).pop();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ConsumerScanAnalysisScreen(
+            pendingCapture: _pendingCapture!,
+            prefilledProductName: _productNameController.text.trim().isNotEmpty
+                ? _productNameController.text.trim()
+                : null,
+            prefilledBrand: _brandController.text.trim().isNotEmpty
+                ? _brandController.text.trim()
+                : null,
+            prefilledCategory: _selectedCategory,
+            prefilledNetQty: _netQtyController.text.trim().isNotEmpty
+                ? _netQtyController.text.trim()
+                : null,
+            prefilledMrp: double.tryParse(_mrpController.text.replaceAll('₹', '').trim()),
+            onScanCompleted: widget.onScanCompleted,
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _currentStep = 2;
       _processingStatus = 'Capturing label image...';
@@ -111,6 +151,20 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
 
       final parsedMrp = double.tryParse(_mrpController.text.replaceAll('₹', '').trim()) ?? 45.0;
 
+      // =========================================================================
+      // TODO: send PendingCapture to FastAPI backend, see services/backend/app/main.py
+      //
+      // When the backend consumer analysis API is connected:
+      // if (_pendingCapture != null) {
+      //   final fileBytes = await _pendingCapture!.file.readAsBytes();
+      //   final result = await BackendApiService.analyzeConsumerLabel(
+      //     fileBytes: fileBytes,
+      //     fileName: _pendingCapture!.fileName,
+      //     metadata: _pendingCapture!.toJson(),
+      //   );
+      // }
+      // =========================================================================
+
       // Create and save to Supabase
       final newScan = await ConsumerDataService.createNewProductAndScan(
         productName: _productNameController.text.trim(),
@@ -118,9 +172,7 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
         category: _selectedCategory,
         netQuantity: _netQtyController.text.trim(),
         mrp: parsedMrp,
-        imageUrl: _capturedImage != null && _imageBytes != null
-            ? null
-            : null,
+        imageUrl: _pendingCapture?.localPath,
       );
 
       if (mounted) {
@@ -395,7 +447,7 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
 
   // --- STEP 2: CAMERA CAPTURE / UPLOAD ---
   Widget _buildStep2CameraAndPreview() {
-    final hasPhoto = _capturedImage != null;
+    final hasPhoto = _pendingCapture != null && _pendingCapture!.existsSync;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -455,7 +507,14 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              if (_imageBytes != null)
+              if (_pendingCapture != null && _pendingCapture!.existsSync)
+                Image.file(
+                  _pendingCapture!.file,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                )
+              else if (_imageBytes != null)
                 Image.memory(
                   _imageBytes!,
                   fit: BoxFit.cover,
@@ -504,7 +563,9 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
                     borderRadius: AppSpacing.roundedFull,
                   ),
                   child: Text(
-                    hasPhoto ? 'Label Attached ✓' : 'Ready to capture',
+                    hasPhoto
+                        ? 'Label Attached (${_pendingCapture!.formattedSize}) ✓'
+                        : 'Ready to capture',
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white,
                       fontSize: 11,

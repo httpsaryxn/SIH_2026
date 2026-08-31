@@ -105,3 +105,39 @@ The non-REST `private` schema contains the `SECURITY DEFINER` role helpers `is_r
 ## Realtime
 
 `consumer_complaints` and `regulator_violations` are members of the `supabase_realtime` publication. Postgres Changes obey the same RLS select policies. The regulator app subscribes to violations for the Home priority queue and complaints for the inbox/home metrics; cancel subscriptions when their screens dispose.
+
+## Supabase Storage (`compliance-images`)
+
+Evidence photos, product label captures, and scan images are stored in the private Supabase Storage bucket `compliance-images`.
+
+### Bucket configuration
+- **Bucket name**: `compliance-images`
+- **Visibility**: `private` (`public = false`)
+- **File size limit**: 10 MB (`10485760` bytes)
+- **Allowed MIME types**: `image/jpeg`, `image/png`, `image/webp`, `image/heic`, `image/jpg`
+- **Access model**: Signed URLs generated on-demand with 1-year expiration (or direct storage path access for backend).
+
+### Path structure convention
+Paths are strictly hierarchical and traceable without database lookups:
+```
+compliance-images/{source}/{user_id}/{record_id}/{filename}
+```
+- `{source}`: `regulator_scans` | `consumer_scans` | `consumer_complaints`
+- `{user_id}`: `auth.uid()` of the uploader
+- `{record_id}`: Unique identifier for the associated entity (`scan_code`, `complaint_code`, or scan UUID)
+- `{filename}`: Unique collision-safe cached filename (e.g. `scan_regulator_field_1788190333041_8a9377.jpg`)
+
+### Storage RLS policies
+1. `compliance_images_insert`: Allows authenticated users to upload if `(storage.foldername(name))[2] = auth.uid()` OR `users.role = 'regulator'`.
+2. `compliance_images_read`: Allows users to read their own uploaded files (`(storage.foldername(name))[2] = auth.uid()`) OR regulators (`users.role = 'regulator'`) to read all evidence files.
+3. `compliance_images_delete`: Allows deletion only by file owner or regulator.
+
+### Database column mapping
+| Table | Column | Type | Description |
+|---|---|---|---|
+| `regulator_scans` | `image_url` | `text?` | Signed URL or storage path for field inspection photo |
+| `consumer_scans` | `image_url` | `text?` | Signed URL or storage path for scanned consumer product label |
+| `products` | `image_url` | `text?` | Product label catalog image |
+| `consumer_complaints` | `evidence_urls` | `text[]` | Array of uploaded evidence image signed URLs |
+| `consumer_complaints` | `evidence_image_url` | `text?` | Primary evidence image URL for single-image backwards compatibility |
+

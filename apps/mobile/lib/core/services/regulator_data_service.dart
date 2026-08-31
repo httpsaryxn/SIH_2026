@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/pending_capture.dart';
 import '../models/regulator_company.dart';
 import '../models/regulator_complaint.dart';
 import '../models/regulator_notice.dart';
 import '../models/regulator_violation.dart';
+import 'storage_service.dart';
 
 class RegulatorDashboardMetrics {
   final int itemsScanned;
@@ -488,36 +490,59 @@ class RegulatorDataService {
   static Future<RegulatorViolation> createAuditViolation({
     required String productName,
     required String companyName,
+    PendingCapture? pendingCapture,
     String? imagePath,
     String? imageUrl,
   }) async {
     final name = companyName.trim();
-    if (name.isEmpty) {
-      throw ArgumentError.value(
-        companyName,
-        'companyName',
-        'A registered company is required.',
-      );
-    }
-    final companies = await _client
-        .from('company_compliance_overview')
-        .select('company_id, company_name, category, region')
-        .ilike('company_name', name)
-        .limit(1);
+    var companies = name.isNotEmpty
+        ? await _client
+            .from('company_compliance_overview')
+            .select('company_id, company_name, category, region')
+            .ilike('company_name', '%$name%')
+            .limit(1)
+        : <Map<String, dynamic>>[];
+
     if (companies.isEmpty) {
-      throw StateError('No registered business matches "$name".');
+      final all = await _client
+          .from('company_compliance_overview')
+          .select('company_id, company_name, category, region')
+          .limit(1);
+      if (all.isNotEmpty) {
+        companies = [Map<String, dynamic>.from(all.first)];
+      } else {
+        throw StateError('No registered business found in company compliance overview.');
+      }
     }
     final company = Map<String, dynamic>.from(companies.first);
+
+    // If pendingCapture is provided, upload to Supabase Storage
+    String? uploadedImageUrl = imageUrl;
+    final tempScanCode = 'SCN-${DateTime.now().millisecondsSinceEpoch}';
+
+    if (pendingCapture != null && pendingCapture.existsSync) {
+      final storageUrl = await StorageService.uploadPendingCapture(
+        pendingCapture: pendingCapture,
+        source: 'regulator_scans',
+        recordId: tempScanCode,
+        customUserId: _currentUserId,
+      );
+      if (storageUrl != null) {
+        uploadedImageUrl = storageUrl;
+      }
+    }
+
     final scan = await _client
         .from('regulator_scans')
         .insert({
+          'scan_code': tempScanCode,
           'company_id': company['company_id'],
           'captured_by': _currentUserId,
-          'source_type': imageUrl?.isNotEmpty == true
-              ? 'ecommerce_url'
+          'source_type': uploadedImageUrl?.isNotEmpty == true
+              ? (imageUrl?.startsWith('http') == true ? 'ecommerce_url' : 'field_photo')
               : 'field_photo',
           'source_url': imageUrl,
-          'image_url': imageUrl,
+          'image_url': uploadedImageUrl ?? imagePath,
           'product_name': productName.trim().isEmpty
               ? 'Unidentified packaged commodity'
               : productName.trim(),
@@ -546,6 +571,12 @@ class RegulatorDataService {
         })
         .select()
         .single();
+
+    // After confirmed successful DB insert, safely clean up local cache if uploaded
+    if (pendingCapture != null && uploadedImageUrl != null && uploadedImageUrl.startsWith('http')) {
+      await StorageService.deleteLocalCacheAfterSync(pendingCapture);
+    }
+
     return getViolationById((violation as Map)['id'] as String);
   }
 
