@@ -23,7 +23,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedRole = widget.initialRole;
+    _selectedRole = widget.initialRole ?? UserRole.businessOwner;
   }
 
   void _onRoleSelected(UserRole role) {
@@ -33,7 +33,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   }
 
   void _proceedToAuth({bool isLogin = false}) {
-    final role = _selectedRole ?? UserRole.smallBusiness;
+    final role = _selectedRole ?? UserRole.businessOwner;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AuthScreen(
@@ -128,61 +128,17 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           ),
                           const SizedBox(height: AppSpacing.xl),
 
-                          // Role Cards Grid
-                          if (isWideScreen) ...[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: RoleCard(
-                                    role: UserRole.smallBusiness,
-                                    isSelected: _selectedRole == UserRole.smallBusiness,
-                                    onSelect: () => _onRoleSelected(UserRole.smallBusiness),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: RoleCard(
-                                    role: UserRole.largeBusiness,
-                                    isSelected: _selectedRole == UserRole.largeBusiness,
-                                    onSelect: () => _onRoleSelected(UserRole.largeBusiness),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: RoleCard(
-                                    role: UserRole.consumer,
-                                    isSelected: _selectedRole == UserRole.consumer,
-                                    onSelect: () => _onRoleSelected(UserRole.consumer),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: RoleCard(
-                                    role: UserRole.regulator,
-                                    isSelected: _selectedRole == UserRole.regulator,
-                                    onSelect: () => _onRoleSelected(UserRole.regulator),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ] else ...[
-                            ...UserRole.values.map(
-                              (role) => Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                                child: RoleCard(
-                                  role: role,
-                                  isSelected: _selectedRole == role,
-                                  onSelect: () => _onRoleSelected(role),
-                                ),
+                          // Role Cards (3 Merged Roles: Business Owner, Consumer, Regulator)
+                          ...UserRole.values.map(
+                            (role) => Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                              child: RoleCard(
+                                role: role,
+                                isSelected: _selectedRole == role,
+                                onSelect: () => _onRoleSelected(role),
                               ),
                             ),
-                          ],
+                          ),
 
                           const SizedBox(height: AppSpacing.xl),
                         ],
@@ -200,34 +156,28 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   vertical: AppSpacing.md,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withValues(alpha: 0.95),
+                  color: AppColors.surfaceContainerLowest.withValues(alpha: 0.95),
                   border: const Border(
-                    top: BorderSide(
-                      color: AppColors.surfaceVariant,
-                      width: 1,
-                    ),
+                    top: BorderSide(color: AppColors.surfaceVariant, width: 1),
                   ),
                 ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400),
+                    constraints: const BoxConstraints(maxWidth: 500),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Continue Button
                         CustomButton(
                           text: 'Continue',
                           onPressed: _selectedRole != null
                               ? () => _proceedToAuth(isLogin: false)
                               : null,
                         ),
-                        const SizedBox(height: AppSpacing.sm),
-
-                        // Login Link
+                        const SizedBox(height: AppSpacing.xs),
                         TextButton(
                           onPressed: () => _proceedToAuth(isLogin: true),
                           style: TextButton.styleFrom(
-                            foregroundColor: AppColors.tertiary,
+                            foregroundColor: AppColors.primary,
                             padding: const EdgeInsets.symmetric(
                               horizontal: AppSpacing.md,
                               vertical: AppSpacing.xs,
@@ -238,8 +188,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.tertiary,
-                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
