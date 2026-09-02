@@ -6,6 +6,7 @@ import '../models/consumer_scan_model.dart';
 import '../models/pending_capture.dart';
 import '../models/product_model.dart';
 import 'auth_service.dart';
+import 'legal_metrology_service.dart';
 import 'storage_service.dart';
 
 class ConsumerDataService {
@@ -62,6 +63,7 @@ class ConsumerDataService {
     String? manufacturerAddress,
     List<String>? ingredients,
     Map<String, dynamic>? nutritionFacts,
+    LmAuditResult? audit,
   }) async {
     final uid = _userId;
 
@@ -85,12 +87,30 @@ class ConsumerDataService {
     final resolvedNutrition =
         nutritionFacts ?? _generateNutritionFor(resolvedCategory);
 
-    // Perform Legal Metrology compliance evaluation
-    final compliance = _evaluateCompliance(
-      netQuantity: resolvedNetQty,
-      mrp: resolvedMrp,
-      productName: trimmedName,
-    );
+    // Perform Legal Metrology compliance evaluation.
+    // Prefer the real on-device pipeline result (`audit`) when the caller ran
+    // it; fall back to the lightweight heuristic otherwise.
+    final compliance = audit != null
+        ? _ComplianceResult(
+            status: audit.complianceStatus,
+            issues: audit.complianceIssues,
+          )
+        : _evaluateCompliance(
+            netQuantity: resolvedNetQty,
+            mrp: resolvedMrp,
+            productName: trimmedName,
+          );
+
+    // Declarations the pipeline actually read from the label / GTIN.
+    final auditDecl = audit?.detectedDeclarations ?? const {};
+    final auditMfrName = auditDecl['manufacturer'] as String?;
+    final auditMfrAddr = auditDecl['manufacturer_address'] as String?;
+    final auditFssai = auditDecl['fssai_license_no'] as String?;
+    final auditMfgDate = auditDecl['mfg_date'] as String?;
+    final auditBestBefore = auditDecl['best_before'] as String?;
+    final auditCare = auditDecl['consumer_care_info'] as String?;
+    final auditNetQty = auditDecl['net_quantity'] as String?;
+    final auditMrp = (auditDecl['mrp'] as num?)?.toDouble();
 
     final nowMs = DateTime.now().millisecondsSinceEpoch.toString();
     final barcode = '890${nowMs.substring(nowMs.length - 10)}';
@@ -116,19 +136,25 @@ class ConsumerDataService {
 
     try {
       // 2. Insert into public.products
+      final resolvedBarcode = (auditDecl['barcode'] is Map)
+          ? ((auditDecl['barcode'] as Map)['value'] as String? ?? barcode)
+          : barcode;
+
       final productData = {
-        'barcode': barcode,
+        'barcode': resolvedBarcode,
         'product_name': trimmedName,
         'brand': trimmedBrand,
         'category': resolvedCategory,
-        'net_quantity': resolvedNetQty,
-        'mrp': resolvedMrp,
+        'net_quantity': auditNetQty ?? resolvedNetQty,
+        'mrp': auditMrp ?? resolvedMrp,
         'ingredients': resolvedIngredients,
         'nutrition_facts': resolvedNutrition,
-        'manufacturer_name': manufacturerName ?? '$trimmedBrand India Pvt Ltd',
-        'manufacturer_address': manufacturerAddress ??
+        'manufacturer_name':
+            auditMfrName ?? manufacturerName ?? '$trimmedBrand India Pvt Ltd',
+        'manufacturer_address': auditMfrAddr ??
+            manufacturerAddress ??
             'Plot 42, Food Processing Zone, Phase 1, Pune 411018',
-        'fssai_license_no': fssaiNo,
+        'fssai_license_no': auditFssai ?? fssaiNo,
         'image_url': resolvedImage,
         'compliance_status': compliance.status,
         'compliance_issues': compliance.issues,
@@ -154,17 +180,20 @@ class ConsumerDataService {
         'detected_declarations': {
           'ingredients': newProduct.ingredients,
           'nutrition_facts': newProduct.nutritionFacts,
-          'manufacturer': newProduct.manufacturerName,
-          'manufacturer_address': newProduct.manufacturerAddress,
-          'mrp': newProduct.mrp,
-          'fssai_license_no': newProduct.fssaiLicenseNo,
-          'mfg_date': newProduct.mfgDate,
-          'best_before': newProduct.bestBefore,
-          'consumer_care_info': newProduct.consumerCareInfo,
+          'manufacturer': auditMfrName ?? newProduct.manufacturerName,
+          'manufacturer_address': auditMfrAddr ?? newProduct.manufacturerAddress,
+          'mrp': auditMrp ?? newProduct.mrp,
+          'fssai_license_no': auditFssai ?? newProduct.fssaiLicenseNo,
+          'mfg_date': auditMfgDate ?? newProduct.mfgDate,
+          'best_before': auditBestBefore ?? newProduct.bestBefore,
+          'consumer_care_info': auditCare ?? newProduct.consumerCareInfo,
+          if (audit != null) ...audit.detectedDeclarations,
         },
-        'scan_notes': newProduct.complianceIssues.isNotEmpty
-            ? newProduct.complianceIssues.first['message']
-            : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.',
+        'scan_notes': audit != null
+            ? _scanNotesFromAudit(audit)
+            : (newProduct.complianceIssues.isNotEmpty
+                ? newProduct.complianceIssues.first['message']
+                : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.'),
         'scanned_at': DateTime.now().toIso8601String(),
       };
 
@@ -209,15 +238,29 @@ class ConsumerDataService {
         detectedDeclarations: {
           'ingredients': resolvedIngredients,
           'nutrition_facts': resolvedNutrition,
-          'manufacturer': fallbackProduct.manufacturerName,
-          'mrp': resolvedMrp,
+          'manufacturer': auditMfrName ?? fallbackProduct.manufacturerName,
+          'mrp': auditMrp ?? resolvedMrp,
+          if (audit != null) ...audit.detectedDeclarations,
         },
-        scanNotes: compliance.issues.isNotEmpty
-            ? compliance.issues.first['message']
-            : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.',
+        scanNotes: audit != null
+            ? _scanNotesFromAudit(audit)
+            : (compliance.issues.isNotEmpty
+                ? compliance.issues.first['message']
+                : 'All mandatory Legal Metrology declarations verified. No obvious issue detected.'),
         scannedAt: DateTime.now(),
       );
     }
+  }
+
+  /// Human-readable scan note from a real pipeline audit.
+  static String _scanNotesFromAudit(LmAuditResult audit) {
+    final pct = audit.scorePercent;
+    if (audit.complianceIssues.isEmpty) {
+      return 'All mandatory Legal Metrology declarations verified ($pct%, '
+          '${audit.starLabel}). No obvious issue detected.';
+    }
+    final top = audit.complianceIssues.first['message'] as String? ?? '';
+    return '$pct% (${audit.starLabel}). ${audit.complianceIssues.length} finding(s). $top';
   }
 
   /// Helper to record an existing product scan
