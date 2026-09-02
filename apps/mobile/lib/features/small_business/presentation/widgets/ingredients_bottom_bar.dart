@@ -11,26 +11,17 @@ class IngredientsBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.85),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            color: Colors.white.withValues(alpha: 0.92),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: AppColors.outlineVariant.withValues(alpha: 0.35),
                 width: 1,
               ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 24,
-                offset: const Offset(0, -6),
-              ),
-            ],
           ),
           child: SafeArea(
             top: false,
@@ -42,39 +33,28 @@ class IngredientsBottomBar extends StatelessWidget {
               child: Row(
                 children: [
                   // Back Button
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed:
-                            onBack ?? () => Navigator.of(context).maybePop(),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.6),
-                          foregroundColor: AppColors.brandDeepGreen,
-                          side: BorderSide(
-                            color: AppColors.brandDeepGreen.withValues(
-                              alpha: 0.25,
-                            ),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                      label: const Text(
+                        'Back',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.chevron_left_rounded, size: 20),
-                            SizedBox(width: 4),
-                            Text(
-                              'Back',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.onSurface,
+                        side: const BorderSide(
+                          color: AppColors.outlineVariant,
+                          width: 1,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                     ),
                   ),
@@ -89,13 +69,14 @@ class IngredientsBottomBar extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brandDeepGreen,
                           foregroundColor: Colors.white,
-                          elevation: 3,
+                          elevation: 2,
                           shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.4,
+                            alpha: 0.35,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -103,7 +84,7 @@ class IngredientsBottomBar extends StatelessWidget {
                             Text(
                               'Continue',
                               style: TextStyle(
-                                fontSize: 14.5,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

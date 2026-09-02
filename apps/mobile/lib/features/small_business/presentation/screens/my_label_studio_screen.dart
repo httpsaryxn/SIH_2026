@@ -5,7 +5,6 @@ import '../../data/repositories/small_business_label_repository.dart';
 import '../../data/services/notification_service.dart';
 import '../widgets/continue_working_section.dart';
 import '../widgets/create_label_hero_card.dart';
-import '../widgets/get_inspired_section.dart';
 import '../widgets/studio_bottom_nav.dart';
 import '../widgets/studio_header.dart';
 import '../widgets/studio_search_bar.dart';
@@ -185,26 +184,6 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
     );
   }
 
-  void _onSampleTap(SampleLabelData sample) {
-    final templateModel = SmallBusinessLabelModel(
-      brandName: 'Desi Harvest',
-      productName: sample.title,
-      productCategory: sample.category,
-      typeFlavour: 'Heritage Special',
-      mrp: '199.00',
-    );
-
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder:
-                (context) =>
-                    CreateLabelDeclarationScreen(initialLabel: templateModel),
-          ),
-        )
-        .then((_) => _loadStudioData());
-  }
-
   void _showCategoryFilterDialog() {
     showModalBottomSheet(
       context: context,
@@ -332,54 +311,16 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                   controller: _searchController,
                   onFilterTap: _showCategoryFilterDialog,
                 ),
-                const SizedBox(height: 12),
-
-                // 3. Interactive Filter Tabs (All, Ready, Needs Review, Drafts)
-                Row(
-                  children: [
-                    _FilterChip(
-                      label: 'All (${_labels.length})',
-                      isSelected: _selectedStatusFilter == 'All',
-                      onTap: () => setState(() => _selectedStatusFilter = 'All'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Ready',
-                      isSelected: _selectedStatusFilter == 'Ready',
-                      onTap: () => setState(() => _selectedStatusFilter = 'Ready'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Needs Review',
-                      isSelected: _selectedStatusFilter == 'Needs Review',
-                      onTap: () => setState(() => _selectedStatusFilter = 'Needs Review'),
-                    ),
-                    if (_selectedCategoryFilter != null) ...[
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(_selectedCategoryFilter!),
-                        onDeleted: () => setState(() => _selectedCategoryFilter = null),
-                        deleteIcon: const Icon(Icons.close_rounded, size: 14),
-                        backgroundColor: AppColors.brandDeepGreen.withValues(alpha: 0.1),
-                        labelStyle: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.brandDeepGreen,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
                 const SizedBox(height: 16),
 
-                // 4. Hero Card
+                // 3. Hero Card
                 CreateLabelHeroCard(
                   onStartCreating: _onStartCreatingLabel,
                   onAddTap: _onStartCreatingLabel,
                 ),
                 const SizedBox(height: 24),
 
-                // 5. Continue Working Section
+                // 4. Continue Working Section
                 if (_activeDraft != null && (_selectedStatusFilter == 'All' || _selectedStatusFilter == 'Drafts'))
                   ContinueWorkingSection(
                     draft: _activeDraft,
@@ -390,7 +331,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                 if (_activeDraft != null && (_selectedStatusFilter == 'All' || _selectedStatusFilter == 'Drafts'))
                   const SizedBox(height: 24),
 
-                // 6. Your Labels Section
+                // 5. Your Labels Section with filter options below the header
                 if (_isLoading)
                   const Center(
                     child: Padding(
@@ -403,6 +344,17 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                 else
                   YourLabelsSection(
                     labels: labelItems,
+                    totalCount: _labels.length,
+                    readyCount: _labels.where((l) => l.status == 'ready').length,
+                    needsReviewCount: _labels.where((l) => l.status == 'needs_review').length,
+                    selectedStatusFilter: _selectedStatusFilter,
+                    selectedCategoryFilter: _selectedCategoryFilter,
+                    onStatusFilterChanged: (filter) {
+                      setState(() => _selectedStatusFilter = filter);
+                    },
+                    onClearCategoryFilter: () {
+                      setState(() => _selectedCategoryFilter = null);
+                    },
                     onSeeAll: () {
                       setState(() {
                         _selectedStatusFilter = 'All';
@@ -411,10 +363,6 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                     },
                     onLabelTap: _onLabelTap,
                   ),
-                const SizedBox(height: 24),
-
-                // 7. Get Inspired / Templates Section
-                GetInspiredSection(onSampleTap: _onSampleTap),
                 const SizedBox(height: 32),
               ],
             ),
@@ -433,49 +381,3 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.brandDeepGreen : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.brandDeepGreen : AppColors.outlineVariant,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.brandDeepGreen.withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}

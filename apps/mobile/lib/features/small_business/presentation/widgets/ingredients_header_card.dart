@@ -8,68 +8,74 @@ class IngredientsHeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.brandDeepGreen.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppColors.brandDeepGreen.withValues(alpha: 0.2),
+          color: AppColors.brandDeepGreen.withValues(alpha: 0.18),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Background decorative leaf illustration/icon
+          // Background subtle eco leaf icon
           Positioned(
-            right: -12,
-            top: -12,
+            right: -10,
+            bottom: -15,
             child: Icon(
               Icons.eco_rounded,
-              size: 110,
-              color: AppColors.brandDeepGreen.withValues(alpha: 0.12),
+              size: 90,
+              color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
             ),
           ),
           // Content
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'STEP 02',
-                  style: TextStyle(
-                    color: AppColors.brandDeepGreen,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Ingredients',
-                  style: TextStyle(
-                    color: AppColors.onSurface,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                SizedBox(height: 6),
-                SizedBox(
-                  width: 280,
-                  child: Text(
-                    "Build your product's ingredient statement accurately for compliance.",
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 13,
-                      height: 1.35,
-                    ),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandDeepGreen.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'STEP 02',
+                          style: TextStyle(
+                            color: AppColors.brandDeepGreen,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Formulation & Ingredients',
+                        style: TextStyle(
+                          color: AppColors.onSurface,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        "Build your product's ingredient statement accurately for compliance.",
+                        style: TextStyle(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

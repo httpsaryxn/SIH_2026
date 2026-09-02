@@ -269,15 +269,15 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FB),
+      backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
         child: ClipRRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -289,8 +289,8 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
+                    horizontal: 12.0,
+                    vertical: 6.0,
                   ),
                   child: Row(
                     children: [
@@ -304,33 +304,38 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                           child: const Padding(
                             padding: EdgeInsets.all(8.0),
                             child: Icon(
-                              Icons.arrow_back,
-                              color: AppColors.brandDeepGreen,
-                              size: 24,
+                              Icons.arrow_back_rounded,
+                              color: AppColors.onSurface,
+                              size: 22,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      // Title
+                      const SizedBox(width: 4),
+                      // Title & Subtitle
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
                             Text(
-                              'Manufacturer & Business',
+                              'Manufacturer & Business Profile',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: AppColors.brandDeepGreen,
-                                fontSize: 17,
+                                color: AppColors.onSurface,
+                                fontSize: 16.5,
                                 fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
                               ),
                             ),
                             Text(
-                              'Step 4 of 6: FSSAI license & contact',
+                              'STEP 4 OF 6 • NUTRITION PROFILE',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
-                                fontSize: 11.5,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
@@ -338,82 +343,106 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                       ),
                       // Notification Bell
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.all(6),
                         icon: const Icon(
                           Icons.notifications_none_rounded,
                           color: AppColors.brandDeepGreen,
+                          size: 22,
                         ),
                         onPressed:
                             () => SmallBusinessNotificationService
                                 .showNotificationCenter(context),
                       ),
-                      // Delete Draft Button
-                      OutlinedButton(
-                        onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 5,
+                            vertical: 6,
                           ),
-                          minimumSize: const Size(0, 0),
+                          minimumSize: const Size(0, 32),
                           side: const BorderSide(
                             color: AppColors.outlineVariant,
+                            width: 1,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
+                          foregroundColor: AppColors.onSurface,
                         ),
-                        child:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
-                                )
-                                : const Text(
-                                  'Save draft',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
                                 ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.save_outlined,
+                                    size: 14,
+                                    color: AppColors.onSurface,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Save',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(width: 4),
+                      // More PopupMenu for Delete Action
+                      PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: AppColors.onSurfaceVariant,
+                          size: 20,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _confirmDeleteDraft();
+                          } else if (value == 'save') {
+                            _saveDraft();
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'save',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.save_outlined, size: 18, color: AppColors.onSurface),
+                                SizedBox(width: 10),
+                                Text('Save Draft', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Delete Draft',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -429,18 +458,18 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Standardized Step Progress Bar (Step 4 of 6, 67%)
+            // Glassmorphism Step Progress Card (Step 4 of 6, 67%)
             const WizardStepProgressCard(
               currentStep: 4,
               totalSteps: 6,
-              stepTitle: 'Manufacturer & FSSAI Details',
+              stepTitle: 'Manufacturer & Business Profile',
               percentage: 67,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
-            // Hero Card: Business & Manufacturer (Vector Banner)
+            // Hero Card: Business & Manufacturing Facility Summary
             const BusinessHeroCard(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Card 1: Manufacturer Details
             ManufacturerDetailsCard(
@@ -453,7 +482,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                 }
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Card 2: Business Information
             BusinessInfoCard(
@@ -466,7 +495,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                 }
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Card 3: Consumer Care Details
             ConsumerCareCard(
@@ -474,7 +503,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
               emailController: _emailController,
               websiteController: _websiteController,
             ),
-            const SizedBox(height: 100), // Bottom bar padding
+            const SizedBox(height: 120), // Bottom bar padding to guarantee zero overflow
           ],
         ),
       ),

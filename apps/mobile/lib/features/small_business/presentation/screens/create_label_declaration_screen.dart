@@ -193,6 +193,8 @@ class _CreateLabelDeclarationScreenState
         type: NotificationType.info,
       );
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Attached logo: ${picked.name} (${picked.formattedSize})'),
@@ -208,14 +210,22 @@ class _CreateLabelDeclarationScreenState
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Legal Metrology Category Guidance'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: const [
+                Icon(Icons.gavel_rounded, color: AppColors.brandDeepGreen, size: 22),
+                SizedBox(width: 8),
+                Text('Legal Metrology Guidance'),
+              ],
+            ),
             content: const Text(
               'Under Legal Metrology (Packaged Commodities) Rules, 2011 and FSSAI Packaging Regulations, selecting your exact food category configures mandatory declaration rules, unit formats, and specific nutritional tolerance levels.',
+              style: TextStyle(fontSize: 13.5, height: 1.4, color: AppColors.onSurfaceVariant),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Understood'),
+                child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.brandDeepGreen)),
               ),
             ],
           ),
@@ -288,7 +298,7 @@ class _CreateLabelDeclarationScreenState
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -300,8 +310,8 @@ class _CreateLabelDeclarationScreenState
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
+                    horizontal: 12.0,
+                    vertical: 6.0,
                   ),
                   child: Row(
                     children: [
@@ -315,14 +325,14 @@ class _CreateLabelDeclarationScreenState
                           child: const Padding(
                             padding: EdgeInsets.all(8.0),
                             child: Icon(
-                              Icons.arrow_back,
+                              Icons.arrow_back_rounded,
                               color: AppColors.onSurface,
-                              size: 24,
+                              size: 22,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       // Title and Subtitle
                       Expanded(
                         child: Column(
@@ -333,65 +343,35 @@ class _CreateLabelDeclarationScreenState
                               'Create Label',
                               style: TextStyle(
                                 color: AppColors.onSurface,
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.2,
                               ),
                             ),
                             Text(
-                              'Step 1: Product Declaration',
+                              'Step 1 of 6 • Product Declaration',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
-                                fontSize: 12,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Notification Bell
+                      // Notification Bell Icon Button
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.all(6),
                         icon: const Icon(
                           Icons.notifications_none_rounded,
                           color: AppColors.brandDeepGreen,
+                          size: 22,
                         ),
                         onPressed:
                             () => SmallBusinessNotificationService
                                 .showNotificationCenter(context),
                       ),
-                      // Delete Draft Button
-                      OutlinedButton(
-                        onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
@@ -400,7 +380,7 @@ class _CreateLabelDeclarationScreenState
                             horizontal: 10,
                             vertical: 6,
                           ),
-                          minimumSize: const Size(0, 0),
+                          minimumSize: const Size(0, 32),
                           side: const BorderSide(
                             color: AppColors.outlineVariant,
                             width: 1,
@@ -410,23 +390,77 @@ class _CreateLabelDeclarationScreenState
                           ),
                           foregroundColor: AppColors.onSurface,
                         ),
-                        child:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
-                                )
-                                : const Text(
-                                  'Save draft',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
                                 ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.save_outlined,
+                                    size: 14,
+                                    color: AppColors.onSurface,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Save',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(width: 4),
+                      // More Options Menu (Delete Draft)
+                      PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: AppColors.onSurfaceVariant,
+                          size: 20,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _confirmDeleteDraft();
+                          } else if (value == 'save') {
+                            _saveDraft();
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'save',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.save_outlined, size: 18, color: AppColors.onSurface),
+                                SizedBox(width: 10),
+                                Text('Save Draft', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Delete Draft',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -449,11 +483,11 @@ class _CreateLabelDeclarationScreenState
               stepTitle: 'Product Declaration',
               percentage: 17,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Hero Section
             const DeclarationHeroCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Product Category Selector
             ProductCategorySelector(
@@ -465,7 +499,7 @@ class _CreateLabelDeclarationScreenState
               },
               onHelpTap: _onCategoryHelp,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Product Details Form with System File Manager Picker
             ProductBasicDetailsForm(
@@ -475,7 +509,7 @@ class _CreateLabelDeclarationScreenState
               uploadedLogoName: _uploadedLogoName,
               onUploadLogoTap: _uploadLogoFromSystem,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Trust Callout Card
             const TrustCalloutCard(),
