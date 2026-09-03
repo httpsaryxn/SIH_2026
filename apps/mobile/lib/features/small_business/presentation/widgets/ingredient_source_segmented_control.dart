@@ -26,7 +26,7 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Segmented Control Pill Bar
+        // Segmented Control Bar
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -38,8 +38,8 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
+                color: Colors.black.withValues(alpha: 0.025),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -49,16 +49,16 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
               // Option 1: I have a lab report / CoA
               Expanded(
                 child: _buildSegmentButton(
-                  title: 'I have a lab report / CoA',
+                  title: '✓ Lab Report / CoA',
                   isSelected: selectedSource == IngredientSourceType.labReport,
                   onTap: () => onSourceChanged(IngredientSourceType.labReport),
                 ),
               ),
               const SizedBox(width: 4),
-              // Option 2: No lab report
+              // Option 2: Manual / No lab report
               Expanded(
                 child: _buildSegmentButton(
-                  title: 'Manual / No lab report',
+                  title: 'Manual / No Report',
                   isSelected: isNoLabReport,
                   onTap: () =>
                       onSourceChanged(IngredientSourceType.noLabReport),
@@ -103,8 +103,8 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
+                        children: const [
+                          Text(
                             'Accredited Lab Report / CoA Auto-Scanner',
                             style: TextStyle(
                               color: Color(0xFF166534),
@@ -112,13 +112,22 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Upload PDF, JPG or PNG test report. Our AI engine will auto-detect formulation ingredients, percentages, allergens & CoA nutrition metrics.',
+                          SizedBox(height: 3),
+                          Text(
+                            'Upload PDF, JPG or PNG test report to extract ingredients, percentages, allergens & CoA metrics automatically.',
                             style: TextStyle(
                               color: Color(0xFF1E3A1E),
                               fontSize: 12,
                               height: 1.35,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Supported formats: PDF · JPG · PNG',
+                            style: TextStyle(
+                              color: Color(0xFF15803D),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -225,9 +234,9 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
                       onPressed: onUploadLabReportTap,
                       icon: const Icon(Icons.upload_file_rounded, size: 18),
                       label: const Text(
-                        'Upload Lab Report (PDF / Image / CoA)',
+                        'Upload Lab Report',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -298,23 +307,9 @@ class IngredientSourceSegmentedControl extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            gradient: isSelected
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.brandDeepGreen, Color(0xFF004018)],
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+            color: isSelected
+                ? AppColors.brandDeepGreen
+                : Colors.transparent,
           ),
           alignment: Alignment.center,
           child: Text(

@@ -32,7 +32,7 @@ class ProductBasicDetailsForm extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: 0.025),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -47,7 +47,7 @@ class ProductBasicDetailsForm extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.brandDeepGreen.withValues(alpha: 0.05),
+              color: AppColors.brandDeepGreen.withValues(alpha: 0.04),
               border: Border(
                 bottom: BorderSide(
                   color: AppColors.outlineVariant.withValues(alpha: 0.25),
@@ -58,11 +58,11 @@ class ProductBasicDetailsForm extends StatelessWidget {
             child: Row(
               children: const [
                 Icon(
-                  Icons.info_outline_rounded,
+                  Icons.assignment_outlined,
                   size: 18,
                   color: AppColors.brandDeepGreen,
                 ),
-                SizedBox(width: 6),
+                SizedBox(width: 8),
                 Text(
                   'Basic Details',
                   style: TextStyle(
@@ -81,11 +81,12 @@ class ProductBasicDetailsForm extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Brand Name Field
-                _buildFieldLabel('Brand Name'),
+                _buildFieldLabel('Brand Name', isRequired: true),
                 const SizedBox(height: 6),
                 _buildInputField(
                   controller: brandNameController,
-                  placeholder: 'e.g. My Label Studio',
+                  placeholder: 'e.g. Desi Harvest',
+                  icon: Icons.storefront_outlined,
                 ),
                 const SizedBox(height: 16),
 
@@ -96,11 +97,12 @@ class ProductBasicDetailsForm extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // Product Name Field
-                _buildFieldLabel('Product Name'),
+                _buildFieldLabel('Product Name', isRequired: true),
                 const SizedBox(height: 6),
                 _buildInputField(
                   controller: productNameController,
-                  placeholder: 'e.g. Mango Pickle',
+                  placeholder: 'e.g. Turmeric Powder',
+                  icon: Icons.shopping_bag_outlined,
                 ),
                 const SizedBox(height: 16),
 
@@ -109,7 +111,8 @@ class ProductBasicDetailsForm extends StatelessWidget {
                 const SizedBox(height: 6),
                 _buildInputField(
                   controller: typeFlavourController,
-                  placeholder: 'e.g. Spicy, Organic',
+                  placeholder: 'e.g. Heritage Special / Organic',
+                  icon: Icons.tune_outlined,
                 ),
               ],
             ),
@@ -119,34 +122,55 @@ class ProductBasicDetailsForm extends StatelessWidget {
     );
   }
 
-  Widget _buildFieldLabel(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        color: AppColors.onSurfaceVariant,
-        fontSize: 12.5,
-        fontWeight: FontWeight.w600,
-      ),
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.onSurface,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (isRequired) ...[
+          const SizedBox(width: 4),
+          const Text(
+            '*',
+            style: TextStyle(
+              color: AppColors.error,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
   Widget _buildInputField({
     required TextEditingController controller,
     required String placeholder,
+    required IconData icon,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outlineVariant, width: 1),
       ),
       child: TextField(
         controller: controller,
         style: const TextStyle(fontSize: 14, color: AppColors.onSurface),
         decoration: InputDecoration(
+          prefixIcon: Icon(
+            icon,
+            color: AppColors.onSurfaceVariant,
+            size: 20,
+          ),
           hintText: placeholder,
           hintStyle: TextStyle(
-            color: AppColors.outline.withValues(alpha: 0.8),
+            color: AppColors.outline.withValues(alpha: 0.7),
             fontSize: 14,
           ),
           border: InputBorder.none,
@@ -160,43 +184,50 @@ class ProductBasicDetailsForm extends StatelessWidget {
   }
 
   Widget _buildLogoUploadBox() {
+    final hasLogo = uploadedLogoName != null && uploadedLogoName!.isNotEmpty;
+
     return Material(
-      color: AppColors.surfaceBright,
-      borderRadius: BorderRadius.circular(10),
+      color: hasLogo
+          ? AppColors.brandDeepGreen.withValues(alpha: 0.04)
+          : AppColors.surfaceBright,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onUploadLogoTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.outlineVariant,
+              color: hasLogo
+                  ? AppColors.brandDeepGreen.withValues(alpha: 0.3)
+                  : AppColors.outlineVariant,
               width: 1.2,
-              strokeAlign: BorderSide.strokeAlignInside,
             ),
           ),
           child: Row(
             children: [
-              // Circle icon background or image thumbnail
+              // Logo image thumbnail or circle icon background
               if (uploadedLogoDataUrl != null && uploadedLogoDataUrl!.isNotEmpty)
                 ProductImageWidget(
                   imageUrl: uploadedLogoDataUrl,
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   borderRadius: 8,
                 )
               else
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                    color: hasLogo
+                        ? AppColors.brandDeepGreen
+                        : AppColors.brandDeepGreen.withValues(alpha: 0.1),
                   ),
-                  child: const Icon(
-                    Icons.image_outlined,
-                    color: AppColors.brandDeepGreen,
+                  child: Icon(
+                    hasLogo ? Icons.check_rounded : Icons.image_outlined,
+                    color: hasLogo ? Colors.white : AppColors.brandDeepGreen,
                     size: 20,
                   ),
                 ),
@@ -207,10 +238,10 @@ class ProductBasicDetailsForm extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      uploadedLogoName ?? 'Upload logo image',
+                      hasLogo ? uploadedLogoName! : 'Upload Brand Logo',
                       style: const TextStyle(
                         color: AppColors.onSurface,
-                        fontSize: 13,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w600,
                       ),
                       maxLines: 1,
@@ -218,12 +249,16 @@ class ProductBasicDetailsForm extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      uploadedLogoName != null
-                          ? 'Logo selected • Tap to change'
+                      hasLogo
+                          ? 'Logo attached • Tap to change'
                           : 'PNG, JPG up to 5MB',
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 11,
+                      style: TextStyle(
+                        color: hasLogo
+                            ? AppColors.brandDeepGreen
+                            : AppColors.onSurfaceVariant,
+                        fontSize: 11.5,
+                        fontWeight:
+                            hasLogo ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ],
@@ -237,14 +272,21 @@ class ProductBasicDetailsForm extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainer,
+                  color: hasLogo
+                      ? AppColors.brandDeepGreen
+                      : AppColors.surfaceContainer,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.outlineVariant, width: 1),
+                  border: Border.all(
+                    color: hasLogo
+                        ? AppColors.brandDeepGreen
+                        : AppColors.outlineVariant,
+                    width: 1,
+                  ),
                 ),
                 child: Text(
-                  uploadedLogoName != null ? 'Replace' : 'Upload',
-                  style: const TextStyle(
-                    color: AppColors.onSurface,
+                  hasLogo ? 'Replace' : 'Upload',
+                  style: TextStyle(
+                    color: hasLogo ? Colors.white : AppColors.onSurface,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),

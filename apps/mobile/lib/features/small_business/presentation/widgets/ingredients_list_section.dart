@@ -32,73 +32,69 @@ class IngredientsListSection extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Text(
-                    '🌿 INGREDIENTS',
-                    style: TextStyle(
-                      color: AppColors.brandDeepGreen,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.brandDeepGreen.withValues(alpha: 0.25),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      '${ingredients.length}',
-                      style: const TextStyle(
-                        color: AppColors.brandDeepGreen,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // Circular Add Button
-              Material(
-                color: Colors.transparent,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: onAddIngredient,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppColors.brandFreshGreen,
-                          AppColors.brandDeepGreen,
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.brandFreshGreen.withValues(
-                            alpha: 0.35,
-                          ),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Flexible(
+                      child: Text(
+                        'INGREDIENTS STATEMENT',
+                        style: TextStyle(
+                          color: AppColors.brandDeepGreen,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
                         ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.brandDeepGreen.withValues(alpha: 0.25),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        '${ingredients.length}',
+                        style: const TextStyle(
+                          color: AppColors.brandDeepGreen,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Text Add Button
+              InkWell(
+                onTap: onAddIngredient,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.add_rounded, size: 16, color: AppColors.brandDeepGreen),
+                      SizedBox(width: 2),
+                      Text(
+                        'Add Ingredient',
+                        style: TextStyle(
+                          color: AppColors.brandDeepGreen,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -120,74 +116,59 @@ class IngredientsListSection extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.65),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.brandDeepGreen.withValues(alpha: 0.3),
-          width: 1.2,
-          strokeAlign: BorderSide.strokeAlignInside,
+          color: AppColors.outlineVariant.withValues(alpha: 0.5),
+          width: 1,
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       child: Column(
         children: [
           Container(
-            width: 56,
-            height: 56,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
             ),
             child: const Icon(
-              Icons.list_alt_rounded,
+              Icons.format_list_bulleted_rounded,
               color: AppColors.brandDeepGreen,
-              size: 28,
+              size: 24,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Text(
-            'No ingredients added',
+            'No ingredients added yet',
             style: TextStyle(
               color: AppColors.onSurface,
-              fontSize: 14.5,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
-            'Search or add your first ingredient to start building the list.',
+            'Search above or add your first ingredient to start building the list.',
             style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12.5),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
             onPressed: onAddIngredient,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandDeepGreen,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text(
+              'Add Ingredient',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.add, size: 18),
-                SizedBox(width: 6),
-                Text(
-                  'Add Ingredient',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
-                ),
-              ],
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.brandDeepGreen,
+              side: const BorderSide(color: AppColors.brandDeepGreen),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
           ),
         ],
@@ -198,10 +179,10 @@ class IngredientsListSection extends StatelessWidget {
   Widget _buildIngredientsList() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.75),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.outlineVariant.withValues(alpha: 0.35),
+          color: AppColors.outlineVariant.withValues(alpha: 0.4),
           width: 1,
         ),
       ),
@@ -255,7 +236,7 @@ class IngredientsListSection extends StatelessWidget {
                     margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
-                      vertical: 2,
+                      vertical: 2.5,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceContainerHigh,

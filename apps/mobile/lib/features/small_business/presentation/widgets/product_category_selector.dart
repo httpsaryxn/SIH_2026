@@ -57,7 +57,7 @@ class ProductCategorySelector extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: 0.025),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -71,36 +71,67 @@ class ProductCategorySelector extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
-                child: Text(
-                  'Product Category *',
-                  style: TextStyle(
-                    color: AppColors.onSurface,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Flexible(
+                      child: Text(
+                        'Product Category',
+                        style: TextStyle(
+                          color: AppColors.onSurface,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      '*',
+                      style: TextStyle(
+                        color: AppColors.error,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
-                  vertical: 2.5,
+                  vertical: 3,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                  color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'FSSAI MANDATORY',
-                  style: TextStyle(
-                    color: AppColors.brandDeepGreen,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
+                  border: Border.all(
+                    color: AppColors.brandDeepGreen.withValues(alpha: 0.2),
+                    width: 1,
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(
+                      Icons.verified_outlined,
+                      size: 11,
+                      color: AppColors.brandDeepGreen,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'FSSAI MANDATORY',
+                      style: TextStyle(
+                        color: AppColors.brandDeepGreen,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -108,16 +139,18 @@ class ProductCategorySelector extends StatelessWidget {
           const SizedBox(height: 10),
           // Dropdown Input Box
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.outlineVariant, width: 1),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: effectiveValue,
                 isExpanded: true,
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
                 hint: Row(
                   children: const [
                     Icon(
@@ -131,13 +164,15 @@ class ProductCategorySelector extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.onSurfaceVariant,
                         fontSize: 14,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
                 icon: const Icon(
-                  Icons.expand_more_rounded,
+                  Icons.keyboard_arrow_down_rounded,
                   color: AppColors.onSurfaceVariant,
+                  size: 22,
                 ),
                 onChanged: onCategoryChanged,
                 items:
@@ -157,7 +192,7 @@ class ProductCategorySelector extends StatelessWidget {
                                 cat,
                                 style: const TextStyle(
                                   color: AppColors.onSurface,
-                                  fontSize: 13.5,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -172,15 +207,34 @@ class ProductCategorySelector extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           // Need help link
-          GestureDetector(
+          InkWell(
             onTap: onHelpTap,
-            child: const Text(
-              'Need help finding your category?',
-              style: TextStyle(
-                color: AppColors.brandBlue,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                decoration: TextDecoration.underline,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(
+                    Icons.help_outline_rounded,
+                    size: 14,
+                    color: AppColors.brandBlue,
+                  ),
+                  SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Need help finding your category?',
+                      style: TextStyle(
+                        color: AppColors.brandBlue,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

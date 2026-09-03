@@ -395,7 +395,7 @@ class _IngredientsAllergensScreenState
                   controller: nameController,
                   autofocus: initialName.isEmpty,
                   decoration: InputDecoration(
-                    hintText: 'e.g. Raw Mango Pieces, Mustard Oil, Iodised Salt',
+                    hintText: 'e.g. Raw Mango Pieces, Mustard Oil, Salt',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(
@@ -647,15 +647,15 @@ class _IngredientsAllergensScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FB),
+      backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: Colors.white.withValues(alpha: 0.92),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.outlineVariant.withValues(alpha: 0.3),
@@ -667,8 +667,8 @@ class _IngredientsAllergensScreenState
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 4.0,
+                    horizontal: 12.0,
+                    vertical: 6.0,
                   ),
                   child: Row(
                     children: [
@@ -682,15 +682,15 @@ class _IngredientsAllergensScreenState
                           child: const Padding(
                             padding: EdgeInsets.all(8.0),
                             child: Icon(
-                              Icons.arrow_back,
-                              color: AppColors.brandDeepGreen,
-                              size: 24,
+                              Icons.arrow_back_rounded,
+                              color: AppColors.onSurface,
+                              size: 22,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      // Title
+                      const SizedBox(width: 4),
+                      // Title & Subtitle
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,19 +698,21 @@ class _IngredientsAllergensScreenState
                           children: const [
                             Text(
                               'Formulation & Allergens',
-                              style: TextStyle(
-                                color: AppColors.brandDeepGreen,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.onSurface,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                              ),
                             ),
                             Text(
-                              'Step 2 of 6: Ingredients list',
+                              'Step 2 of 6 • Ingredients list',
                               style: TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -718,42 +720,108 @@ class _IngredientsAllergensScreenState
                           ],
                         ),
                       ),
-                      // Delete Draft Icon Button
+                      // Notification Bell Button
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.all(6),
                         icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          color: AppColors.error,
+                          Icons.notifications_none_rounded,
+                          color: AppColors.brandDeepGreen,
                           size: 22,
                         ),
-                        tooltip: 'Delete Draft',
-                        onPressed: _confirmDeleteDraft,
+                        onPressed:
+                            () => SmallBusinessNotificationService
+                                .showNotificationCenter(context),
                       ),
-                      // Save action
-                      TextButton(
+                      // Save action button
+                      OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.brandDeepGreen,
+                        style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 6,
                           ),
+                          minimumSize: const Size(0, 32),
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          foregroundColor: AppColors.onSurface,
                         ),
                         child: _isSaving
                             ? const SizedBox(
-                                width: 14,
-                                height: 14,
+                                width: 12,
+                                height: 12,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: AppColors.brandDeepGreen,
                                 ),
                               )
-                            : const Text(
-                                'Save',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.save_outlined,
+                                    size: 14,
+                                    color: AppColors.onSurface,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Save',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
+                      ),
+                      const SizedBox(width: 4),
+                      // More PopupMenu for Delete action
+                      PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: AppColors.onSurfaceVariant,
+                          size: 20,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _confirmDeleteDraft();
+                          } else if (value == 'save') {
+                            _saveDraft();
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'save',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.save_outlined, size: 18, color: AppColors.onSurface),
+                                SizedBox(width: 10),
+                                Text('Save Draft', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Delete Draft',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.error),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -776,11 +844,11 @@ class _IngredientsAllergensScreenState
               stepTitle: 'Ingredients & Allergens',
               percentage: 33,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
-            // Header Card ("STEP 02 - Ingredients")
+            // Header Card ("STEP 02 - Formulation & Ingredients")
             const IngredientsHeaderCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Nutrition/Ingredient Source Segmented Control with Lab Report Upload
             IngredientSourceSegmentedControl(
@@ -794,7 +862,7 @@ class _IngredientsAllergensScreenState
               },
               onUploadLabReportTap: _uploadLabReport,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Search Card with Instant Suggestions
             IngredientSearchCard(
@@ -807,7 +875,7 @@ class _IngredientsAllergensScreenState
               },
               onAddManually: () => _showAddIngredientDialog(),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Ingredients List Section
             IngredientsListSection(
@@ -819,7 +887,7 @@ class _IngredientsAllergensScreenState
                 });
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Food Safety: Allergen Declaration
             AllergenDeclarationSection(
@@ -831,7 +899,7 @@ class _IngredientsAllergensScreenState
               },
               onAddAllergenTap: _showAddAllergenPicker,
             ),
-            const SizedBox(height: 100), // Bottom bar padding
+            const SizedBox(height: 120), // Bottom bar padding to guarantee zero bottom overflow
           ],
         ),
       ),

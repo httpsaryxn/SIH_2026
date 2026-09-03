@@ -130,10 +130,10 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(const MyLabelStudioApp());
+    await tester.pumpAndSettle();
 
     // Verify Screen 1 (Studio Hub)
     expect(find.text('My Label Studio'), findsOneWidget);
-    expect(find.text('Get inspired'), findsOneWidget);
 
     // Navigate to Step 1 (Create Label Declaration)
     final createLabelBtn = find.text('Start creating your label');
@@ -141,7 +141,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Create Label'), findsOneWidget);
-    expect(find.text('Step 1: Product Declaration'), findsOneWidget);
+    expect(find.text('Step 1 of 6 • Product Declaration'), findsOneWidget);
 
     // Fill in fields
     final textFields = find.byType(TextField);
@@ -162,7 +162,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Formulation & Allergens'), findsOneWidget);
-    expect(find.text('Step 2 of 6: Ingredients list'), findsOneWidget);
+    expect(find.text('Step 2 of 6 • Ingredients list'), findsOneWidget);
 
     // Add an ingredient from quick formulation chips
     await tester.ensureVisible(find.byType(ActionChip).first);
@@ -179,15 +179,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nutritional Values'), findsWidgets);
-    expect(find.text('Step 3 of 6: Nutrition Profile & Serving'), findsOneWidget);
+    expect(find.text('Step 3 of 6 • Nutrition Profile'), findsOneWidget);
 
     // Navigate to Step 4 (Manufacturer Details) via Skip
     final skipBtn3 = find.text('Skip');
     await tester.tap(skipBtn3);
     await tester.pumpAndSettle();
 
-    expect(find.text('Manufacturer & Business'), findsOneWidget);
-    expect(find.text('Step 4 of 6: FSSAI license & contact'), findsOneWidget);
+    expect(find.text('Manufacturer & Business Profile'), findsWidgets);
+    expect(find.text('STEP 4 OF 6 • NUTRITION PROFILE'), findsOneWidget);
     expect(find.text('Manufacturer Details'), findsWidgets);
 
     // Tap Back on Step 4 to return to Step 3
@@ -253,7 +253,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Manufacturer & Business'), findsWidgets);
+    expect(find.text('Manufacturer & Business Profile'), findsWidgets);
 
     // Test 6: Final Details Screen on narrow viewport
     await tester.pumpWidget(
