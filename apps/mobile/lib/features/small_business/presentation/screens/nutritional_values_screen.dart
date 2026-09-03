@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
 import '../../data/repositories/small_business_label_repository.dart';
+import '../../data/services/file_upload_service.dart';
 import '../../data/services/notification_service.dart';
 import '../widgets/nutrition_bottom_bar.dart';
 import '../widgets/nutrition_format_settings_card.dart';
@@ -243,7 +244,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
         });
 
         _notificationService.notify(
-          title: 'Nutritional Values Saved',
+          title: 'Draft Saved',
           message:
               'Saved nutrition table (${_nutrients.length} parameters) and serving dimensions.',
           type: NotificationType.success,
@@ -251,10 +252,15 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Nutritional values saved to draft'),
+            content: Text('Draft saved. You can continue anytime from drafts.'),
             backgroundColor: AppColors.brandDeepGreen,
             duration: Duration(seconds: 2),
           ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -268,6 +274,60 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _uploadLabReport() async {
+    final pickedFile = await FileUploadService.pickLabReportChooser(context);
+    if (pickedFile == null) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final detected = await FileUploadService.parseLabReport(pickedFile);
+      if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+        // Populate existing nutrient rows or add new ones
+        for (final entry in detected.nutrients.entries) {
+          final existing = _nutrients.where(
+            (n) => n.label.toLowerCase().contains(entry.key.toLowerCase()) || entry.key.toLowerCase().contains(n.label.toLowerCase()),
+          ).toList();
+
+          if (existing.isNotEmpty) {
+            existing.first.controller.text = entry.value;
+          } else {
+            _nutrients.add(
+              NutrientRowData(
+                label: entry.key,
+                unit: entry.key == 'Calories' ? 'kcal' : (entry.key.contains('Sodium') || entry.key.contains('Iron') || entry.key.contains('Vitamin') ? 'mg' : 'g'),
+                isRequired: false,
+                isSubNutrient: false,
+                controller: TextEditingController(text: entry.value),
+              ),
+            );
+          }
+        }
+      });
+
+      _notificationService.notify(
+        title: 'Nutrition CoA Extracted',
+        message: 'Auto-populated ${detected.nutrients.length} nutritional parameters from ${pickedFile.name}.',
+        type: NotificationType.compliance,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Auto-filled ${detected.nutrients.length} nutrients from ${pickedFile.name}!'),
+          backgroundColor: AppColors.brandDeepGreen,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error analyzing lab report: $e')),
+      );
     }
   }
 
@@ -717,6 +777,54 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
               onAgeGroupChanged: (grp) {
                 if (grp != null) setState(() => _ageGroup = grp);
               },
+            ),
+            const SizedBox(height: 18),
+
+            // CoA Quick Auto-Fill Banner
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.science_outlined, color: Color(0xFF15803D), size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Have a Laboratory Test Report (CoA)?',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          'Auto-fill all nutrient rows directly from test results',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _uploadLabReport,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF15803D),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      minimumSize: const Size(0, 0),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Auto-Fill', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 18),
 

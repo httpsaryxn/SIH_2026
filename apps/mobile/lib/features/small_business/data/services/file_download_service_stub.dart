@@ -11,6 +11,9 @@ Future<String> _getDownloadDirectoryPath() async {
     try {
       final androidDownloadDir = Directory('/storage/emulated/0/Download');
       if (await androidDownloadDir.exists()) {
+        final testFile = File('${androidDownloadDir.path}/.test_probe_${DateTime.now().millisecondsSinceEpoch}');
+        await testFile.writeAsString('test', flush: true);
+        await testFile.delete();
         return androidDownloadDir.path;
       }
     } catch (_) {}
@@ -18,11 +21,35 @@ Future<String> _getDownloadDirectoryPath() async {
 
   try {
     final downloadsDir = await getDownloadsDirectory();
-    if (downloadsDir != null) return downloadsDir.path;
+    if (downloadsDir != null && await downloadsDir.exists()) {
+      return downloadsDir.path;
+    }
   } catch (_) {}
 
-  final appDocDir = await getApplicationDocumentsDirectory();
-  return appDocDir.path;
+  try {
+    final extDirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+    if (extDirs != null && extDirs.isNotEmpty) {
+      final dir = extDirs.first;
+      if (!await dir.exists()) await dir.create(recursive: true);
+      return dir.path;
+    }
+  } catch (_) {}
+
+  try {
+    final extDir = await getExternalStorageDirectory();
+    if (extDir != null) {
+      if (!await extDir.exists()) await extDir.create(recursive: true);
+      return extDir.path;
+    }
+  } catch (_) {}
+
+  try {
+    final appDocDir = await getApplicationDocumentsDirectory();
+    if (!await appDocDir.exists()) await appDocDir.create(recursive: true);
+    return appDocDir.path;
+  } catch (_) {}
+
+  return Directory.systemTemp.path;
 }
 
 Future<String?> triggerDownload({
@@ -33,12 +60,19 @@ Future<String?> triggerDownload({
   try {
     final dirPath = await _getDownloadDirectoryPath();
     final file = File('$dirPath/$fileName');
-    await file.writeAsString(content, encoding: utf8);
+    await file.writeAsString(content, encoding: utf8, flush: true);
     debugPrint('File saved directly to: ${file.path}');
     return file.path;
   } catch (e) {
-    debugPrint('Error writing file on device: $e');
-    return null;
+    debugPrint('Error writing file on device, falling back to temp: $e');
+    try {
+      final fallbackFile = File('${Directory.systemTemp.path}/$fileName');
+      await fallbackFile.writeAsString(content, encoding: utf8, flush: true);
+      return fallbackFile.path;
+    } catch (e2) {
+      debugPrint('Fallback write error: $e2');
+      return null;
+    }
   }
 }
 
@@ -54,8 +88,15 @@ Future<String?> triggerBytesDownload({
     debugPrint('Bytes saved directly to: ${file.path}');
     return file.path;
   } catch (e) {
-    debugPrint('Error writing bytes to device: $e');
-    return null;
+    debugPrint('Error writing bytes to device, falling back to temp: $e');
+    try {
+      final fallbackFile = File('${Directory.systemTemp.path}/$fileName');
+      await fallbackFile.writeAsBytes(bytes, flush: true);
+      return fallbackFile.path;
+    } catch (e2) {
+      debugPrint('Fallback bytes write error: $e2');
+      return null;
+    }
   }
 }
 

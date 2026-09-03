@@ -124,7 +124,7 @@ class _IngredientsAllergensScreenState
         });
 
         _notificationService.notify(
-          title: 'Ingredients Draft Saved',
+          title: 'Draft Saved',
           message:
               'Saved ${_ingredients.length} ingredients and ${_selectedAllergens.length} declared allergens.',
           type: NotificationType.success,
@@ -132,10 +132,15 @@ class _IngredientsAllergensScreenState
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Ingredients & allergens saved to draft'),
+            content: Text('Draft saved. You can continue anytime from drafts.'),
             backgroundColor: AppColors.brandDeepGreen,
             duration: Duration(seconds: 2),
           ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -179,13 +184,6 @@ class _IngredientsAllergensScreenState
               if (_currentModel.id != null) {
                 await _repository.deleteLabel(_currentModel.id!);
               }
-
-              _notificationService.notify(
-                title: 'Draft Discarded',
-                message: 'Deleted draft for "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "New Label"}".',
-                type: NotificationType.warning,
-              );
-
               if (mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
@@ -196,8 +194,9 @@ class _IngredientsAllergensScreenState
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
+              elevation: 0,
             ),
-            child: const Text('Delete Draft'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -206,7 +205,7 @@ class _IngredientsAllergensScreenState
 
   /// Opens system file manager to upload Lab Report and triggers AI auto-detection
   Future<void> _uploadLabReport() async {
-    final pickedFile = await FileUploadService.pickLabReportDocument();
+    final pickedFile = await FileUploadService.pickLabReportChooser(context);
     if (pickedFile == null) return;
 
     setState(() {

@@ -106,10 +106,15 @@ class _CreateLabelDeclarationScreenState
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Draft saved to Supabase cloud'),
+            content: Text('Draft saved. You can continue anytime from drafts.'),
             backgroundColor: AppColors.brandDeepGreen,
             duration: Duration(seconds: 2),
           ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -117,7 +122,7 @@ class _CreateLabelDeclarationScreenState
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Saved locally (Offline): $e'),
+            content: Text('Saved locally: $e'),
             backgroundColor: AppColors.brandDeepGreen,
             duration: const Duration(seconds: 2),
           ),

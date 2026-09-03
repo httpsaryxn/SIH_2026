@@ -7,14 +7,12 @@ class ReviewExportBottomBar extends StatelessWidget {
     super.key,
     this.onBack,
     this.onHome,
-    this.onShare,
     this.onExport,
     this.isExporting = false,
   });
 
   final VoidCallback? onBack;
   final VoidCallback? onHome;
-  final VoidCallback? onShare;
   final VoidCallback? onExport;
   final bool isExporting;
 
@@ -109,41 +107,6 @@ class ReviewExportBottomBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                   ],
-
-                  // Share Button
-                  SizedBox(
-                    height: 46,
-                    child: OutlinedButton(
-                      onPressed: onShare,
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        foregroundColor: AppColors.onSurface,
-                        side: const BorderSide(
-                          color: Color(0xFFCBD5E1),
-                          width: 1,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.share_outlined, size: 16),
-                          SizedBox(width: 4),
-                          Text(
-                            'Share',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
 
                   // Primary Export Button
                   Expanded(

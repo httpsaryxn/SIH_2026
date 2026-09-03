@@ -1,5 +1,6 @@
-import 'dart:ui';
+﻿import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
@@ -50,6 +51,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       SmallBusinessLabelRepository();
   final SmallBusinessNotificationService _notificationService =
       SmallBusinessNotificationService();
+  final GlobalKey _labelRepaintKey = GlobalKey();
 
   ExportFormat _selectedFormat = ExportFormat.png;
   String _selectedDimension = 'Standard Pouch (100 × 150 mm)';
@@ -99,45 +101,48 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
   void _onNavigateToEdit(Widget screen) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => screen),
-    ).then((_) async {
-      // Reload updated active draft if any
-      final draft = await _repository.fetchActiveDraft();
-      if (draft != null && mounted) {
-        setState(() {
-          _currentModel = draft;
-        });
-      }
-    });
+    );
   }
 
-  void _onExport() async {
+  Future<void> _onExport() async {
     setState(() => _isExporting = true);
 
     try {
-      final healthReport = ComplianceStatusBanner.analyzeNutritionalQuality(_currentModel);
-      final auditChecks = ComplianceStatusBanner.evaluateCompliance(_currentModel);
-      final liveScore = ComplianceStatusBanner.calculateScore(auditChecks, healthReport);
-
       final modelToPublish = _currentModel.copyWith(
+        status: 'published',
+        currentStep: 6,
+        completionPercentage: 100,
         exportFormat: _selectedFormat.name,
         labelDimension: _selectedDimension,
-        complianceScore: liveScore,
-        complianceStatus: liveScore >= 85 ? 'Verified Compliant' : 'Needs Review',
-        status: 'ready',
       );
 
-      // 1. Save / Publish to Supabase
+      // 1. Save and publish label to repository
       await _repository.publishLabel(modelToPublish);
 
       // 2. Direct Browser / OS File Download to Downloads folder
       String? savedFilePath;
       switch (_selectedFormat) {
         case ExportFormat.png:
+          List<int>? pngBytes;
+          try {
+            final boundary = _labelRepaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+            if (boundary != null) {
+              final image = await boundary.toImage(pixelRatio: 3.0);
+              final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+              if (byteData != null) {
+                pngBytes = byteData.buffer.asUint8List();
+              }
+            }
+          } catch (e) {
+            debugPrint('RepaintBoundary capture error: $e');
+          }
+
           savedFilePath = await FileDownloadService.downloadPngLabel(
             model: modelToPublish,
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
+            preRenderedBytes: pngBytes,
           );
           break;
         case ExportFormat.svg:
@@ -166,7 +171,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       _notificationService.notify(
         title: 'Label Downloaded to Device',
         message:
-            'Downloaded "${modelToPublish.productName}" packaging artwork (${_selectedFormat.title}) directly to your Downloads folder.',
+            'Downloaded "${modelToPublish.productName}" packaging artwork (${_selectedFormat.name.toUpperCase()}) directly to your Downloads folder.',
         type: NotificationType.compliance,
       );
 
@@ -181,7 +186,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                 : 'Artwork downloaded to your device Downloads folder!',
           ),
           backgroundColor: AppColors.brandDeepGreen,
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 3),
         ),
       );
 
@@ -189,37 +194,86 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isExporting = false);
-
-      // Fallback direct download
-      await FileDownloadService.downloadSvgLabel(
-        model: _currentModel,
-        dimension: _selectedDimension,
-        widthMm: _customWidthMm,
-        heightMm: _customHeightMm,
-      );
-
+      
       _notificationService.notify(
-        title: 'Label Downloaded',
-        message: 'Saved artwork file to your Downloads folder.',
-        type: NotificationType.success,
+        title: 'Download Error',
+        message: 'Could not export file. Please try again.',
+        type: NotificationType.warning,
       );
-
-      _showExportSuccessDialog();
     }
   }
 
+  void _confirmDeleteLabel() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Label?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete "${_currentModel.productName.isNotEmpty ? _currentModel.productName : "this label"}"? This action will permanently remove it from your studio.',
+          style: const TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              if (_currentModel.id != null) {
+                await _repository.deleteLabel(_currentModel.id!);
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Label deleted from studio'),
+                    backgroundColor: AppColors.error,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Delete Label'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onShare() {
+    final bName = _currentModel.brandName.isNotEmpty ? _currentModel.brandName : 'Brand';
+    final pName = _currentModel.productName.isNotEmpty ? _currentModel.productName : 'Product';
+    final mrpVal = _currentModel.mrp.isNotEmpty ? _currentModel.mrp : '0.00';
+    final netQty = '${_currentModel.netQuantity} ${_currentModel.netQuantityUnit}';
+    final fssai = _currentModel.fssaiLicenseNumber.isNotEmpty ? _currentModel.fssaiLicenseNumber : 'N/A';
+
+    final shareText =
+        'Packaged Commodity Label for "$bName $pName".\n'
+        'MRP: ₹$mrpVal (Net Qty: $netQty)\n'
+        'FSSAI License: $fssai\n'
+        'Compliant with Legal Metrology (Packaged Commodities) Rules 2011 & FSSAI Packaging Regulations.';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final shareText =
-            'Packaged Commodity Label for "${_currentModel.brandName} ${_currentModel.productName}".\n'
-            'MRP: ₹${_currentModel.mrp} (Net Qty: ${_currentModel.netQuantity} ${_currentModel.netQuantityUnit})\n'
-            'FSSAI License: ${_currentModel.fssaiLicenseNumber}\n'
-            'Compliant with Legal Metrology (Packaged Commodities) Rules 2011.';
-
         return SafeArea(
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -249,73 +303,76 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+
+                // Option 1: Native System Share Sheet to Apps (WhatsApp, Gmail, Messages, etc.)
                 ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.share_rounded, color: AppColors.brandDeepGreen),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE0F2FE),
+                    child: Icon(Icons.share_rounded, color: Color(0xFF0284C7)),
                   ),
-                  title: const Text('Open System Share Sheet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                  subtitle: const Text('Share packaging file & specs to WhatsApp, Drive, Gmail, or Bluetooth', style: TextStyle(fontSize: 12)),
+                  title: const Text('Share to Apps (WhatsApp, Gmail, etc.)'),
+                  subtitle: const Text('Open Android system share sheet with all apps', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    FileDownloadService.shareLabel(
+                      title: '$bName $pName Packaging Specification',
+                      text: shareText,
+                    );
+                  },
+                ),
+
+                // Option 2: Share Artwork Image / File
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFEF3C7),
+                    child: Icon(Icons.image_outlined, color: Color(0xFFD97706)),
+                  ),
+                  title: const Text('Share Artwork File'),
+                  subtitle: const Text('Export and share high-res artwork image', style: TextStyle(fontSize: 12)),
                   onTap: () async {
                     Navigator.of(ctx).pop();
-                    final path = await FileDownloadService.downloadSvgLabel(
+                    List<int>? pngBytes;
+                    try {
+                      final boundary = _labelRepaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+                      if (boundary != null) {
+                        final image = await boundary.toImage(pixelRatio: 3.0);
+                        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                        if (byteData != null) {
+                          pngBytes = byteData.buffer.asUint8List();
+                        }
+                      }
+                    } catch (_) {}
+
+                    final savedPath = await FileDownloadService.downloadPngLabel(
                       model: _currentModel,
                       dimension: _selectedDimension,
                       widthMm: _customWidthMm,
                       heightMm: _customHeightMm,
+                      preRenderedBytes: pngBytes,
                     );
-                    await FileDownloadService.shareLabel(
-                      title: '${_currentModel.brandName} Packaging Artwork',
+
+                    FileDownloadService.shareLabel(
+                      title: '$bName $pName Artwork',
                       text: shareText,
-                      filePath: path,
+                      filePath: savedPath,
                     );
                   },
                 ),
-                const Divider(),
+
+                // Option 3: Copy Declaration Summary
                 ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF25D366).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFDCFCE7),
+                    child: Icon(Icons.file_copy_outlined, color: Color(0xFF16A34A)),
                   ),
-                  title: const Text('Share Specification Summary', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Send regulatory specifications to printer or client', style: TextStyle(fontSize: 12)),
-                  onTap: () async {
-                    Navigator.of(ctx).pop();
-                    await FileDownloadService.shareLabel(
-                      title: '${_currentModel.brandName} Packaging Label',
-                      text: shareText,
-                    );
-                  },
-                ),
-                const Divider(),
-                ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.copy_rounded, color: AppColors.brandDeepGreen),
-                  ),
-                  title: const Text('Copy Specification Text', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  title: const Text('Copy Declaration Summary'),
                   subtitle: const Text('Copy full FSSAI declaration text to clipboard', style: TextStyle(fontSize: 12)),
                   onTap: () {
                     Navigator.of(ctx).pop();
                     Clipboard.setData(ClipboardData(text: shareText));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Copied packaging specifications to clipboard!'),
+                        content: Text('Declaration copied to clipboard!'),
                         backgroundColor: AppColors.brandDeepGreen,
                       ),
                     );
@@ -334,17 +391,14 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: Colors.white,
         title: Row(
           children: const [
             Icon(Icons.check_circle_rounded, color: AppColors.brandDeepGreen, size: 28),
             SizedBox(width: 10),
-            Text(
-              'Downloaded Successfully',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+            Expanded(
+              child: Text(
+                'Artwork Exported!',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -354,24 +408,24 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your high-resolution ${_selectedFormat.title} (${_customWidthMm.toInt()} × ${_customHeightMm.toInt()} mm) has been generated and saved directly to your device\'s Downloads folder.',
-              style: const TextStyle(fontSize: 13.5, height: 1.4, color: AppColors.onSurfaceVariant),
+              'Your print-ready ${_selectedFormat.name.toUpperCase()} file for "${_currentModel.productName}" has been saved directly to your device Downloads folder.',
+              style: const TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
-                children: const [
-                  Icon(Icons.verified_outlined, size: 18, color: AppColors.brandDeepGreen),
-                  SizedBox(width: 8),
+                children: [
+                  const Icon(Icons.folder_open_rounded, size: 18, color: AppColors.brandDeepGreen),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Legal Metrology Compliance: 100% Verified',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                      'Format: ${_selectedFormat.name.toUpperCase()} • Spec: $_selectedDimension',
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                     ),
                   ),
                 ],
@@ -382,7 +436,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: const Text('Keep Editing'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -395,9 +449,9 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brandDeepGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
             ),
-            child: const Text('Back to Studio Hub'),
+            child: const Text('Back to Studio'),
           ),
         ],
       ),
@@ -407,119 +461,39 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FB),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
-                border: Border(
-                  bottom: BorderSide(
-                    color: AppColors.outlineVariant.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 4.0,
-                  ),
-                  child: Row(
-                    children: [
-                      // Back Button
-                      Material(
-                        color: Colors.transparent,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          customBorder: const CircleBorder(),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Icon(
-                              Icons.arrow_back,
-                              color: AppColors.brandDeepGreen,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Title and Subtitle
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text(
-                              'Review & Export',
-                              style: TextStyle(
-                                color: AppColors.brandDeepGreen,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'Final compliance audit & label export',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
-                                fontSize: 11.5,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Notification Bell
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.brandDeepGreen,
-                        ),
-                        onPressed:
-                            () => SmallBusinessNotificationService
-                                .showNotificationCenter(context),
-                      ),
-                      // Home Button in Top Header
-                      IconButton(
-                        icon: const Icon(
-                          Icons.home_outlined,
-                          color: AppColors.brandDeepGreen,
-                        ),
-                        tooltip: 'Studio Home',
-                        onPressed: () {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
-                            (route) => false,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text(
+          'Export Print Artwork',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+            color: Color(0xFF0F172A),
           ),
         ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+            tooltip: 'Delete Label',
+            onPressed: _confirmDeleteLabel,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Share',
+            onPressed: _onShare,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-          vertical: 16.0,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Standardized Step Progress Indicator (Step 6 of 6, 100%)
+            // Standardized Progress Marker (Step 6 of 6, 100%)
             const WizardStepProgressCard(
               currentStep: 6,
               totalSteps: 6,
@@ -532,30 +506,33 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             ComplianceStatusBanner(labelModel: _currentModel),
             const SizedBox(height: 16),
 
-            // Live Label Preview (With Uploaded Logo, Complete Contents & GS1 Barcode)
-            LiveLabelPreviewCard(
-              brandName: _currentModel.brandName.isNotEmpty ? _currentModel.brandName : 'Brand Name',
-              logoUrl: _currentModel.logoUrl,
-              productName: _currentModel.productName.isNotEmpty ? _currentModel.productName : 'Product Name',
-              productCategory: _currentModel.productCategory.isNotEmpty ? _currentModel.productCategory : 'General Food',
-              typeFlavour: _currentModel.typeFlavour,
-              netQuantity: '${_currentModel.netQuantity.isNotEmpty ? _currentModel.netQuantity : "100"} ${_currentModel.netQuantityUnit}',
-              mrp: _currentModel.mrp.isNotEmpty ? (_currentModel.mrp.startsWith('₹') ? _currentModel.mrp : '₹ ${_currentModel.mrp}') : '₹ 0.00',
-              unitSalePrice: _currentModel.usp,
-              batchNumber: _currentModel.batchNumber,
-              mfgDate: _currentModel.mfgDate,
-              bestBefore: _currentModel.bestBefore,
-              storageInstructions: _currentModel.storageInstructions,
-              fssaiNumber: _currentModel.fssaiLicenseNumber,
-              manufacturerName: _currentModel.manufacturerName,
-              manufacturerAddress: _currentModel.manufacturerAddress,
-              consumerCarePhone: _currentModel.consumerCarePhone,
-              consumerCareEmail: _currentModel.consumerCareEmail,
-              isVegetarian: _currentModel.isVegetarian,
-              selectedClaims: widget.selectedClaims,
-              widthMm: _customWidthMm,
-              heightMm: _customHeightMm,
-              labelModel: _currentModel,
+            // Live Label Preview (With Uploaded Logo, Complete Contents & GS1 Barcode wrapped in RepaintBoundary)
+            RepaintBoundary(
+              key: _labelRepaintKey,
+              child: LiveLabelPreviewCard(
+                brandName: _currentModel.brandName.isNotEmpty ? _currentModel.brandName : 'Brand Name',
+                logoUrl: _currentModel.logoUrl,
+                productName: _currentModel.productName.isNotEmpty ? _currentModel.productName : 'Product Name',
+                productCategory: _currentModel.productCategory.isNotEmpty ? _currentModel.productCategory : 'General Food',
+                typeFlavour: _currentModel.typeFlavour,
+                netQuantity: '${_currentModel.netQuantity.isNotEmpty ? _currentModel.netQuantity : "100"} ${_currentModel.netQuantityUnit}',
+                mrp: _currentModel.mrp.isNotEmpty ? (_currentModel.mrp.startsWith('₹') ? _currentModel.mrp : '₹ ${_currentModel.mrp}') : '₹ 0.00',
+                unitSalePrice: _currentModel.usp,
+                batchNumber: _currentModel.batchNumber,
+                mfgDate: _currentModel.mfgDate,
+                bestBefore: _currentModel.bestBefore,
+                storageInstructions: _currentModel.storageInstructions,
+                fssaiNumber: _currentModel.fssaiLicenseNumber,
+                manufacturerName: _currentModel.manufacturerName,
+                manufacturerAddress: _currentModel.manufacturerAddress,
+                consumerCarePhone: _currentModel.consumerCarePhone,
+                consumerCareEmail: _currentModel.consumerCareEmail,
+                isVegetarian: _currentModel.isVegetarian,
+                selectedClaims: widget.selectedClaims,
+                widthMm: _customWidthMm,
+                heightMm: _customHeightMm,
+                labelModel: _currentModel,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -609,6 +586,50 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Delete Created Label Button
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _confirmDeleteLabel,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Delete Created Label',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.error,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Reassurance Regulatory Notice
             Container(
               padding: const EdgeInsets.all(14),
@@ -653,7 +674,6 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             (route) => false,
           );
         },
-        onShare: _onShare,
         onExport: _onExport,
         isExporting: _isExporting,
       ),

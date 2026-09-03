@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
 import '../../data/repositories/small_business_label_repository.dart';
@@ -26,6 +26,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
       SmallBusinessLabelRepository();
 
   SmallBusinessLabelModel? _activeDraft;
+  List<SmallBusinessLabelModel> _allLabels = [];
   List<SmallBusinessLabelModel> _labels = [];
   bool _isLoading = true;
 
@@ -61,21 +62,62 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
   }
 
   void _onSearchChanged() {
-    _loadStudioData(searchQuery: _searchController.text);
+    _applyFilters();
   }
 
-  Future<void> _loadStudioData({String? searchQuery}) async {
-    setState(() => _isLoading = true);
+  void _applyFilters() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      _labels = _allLabels.where((label) {
+        // Status filter
+        if (_selectedStatusFilter == 'Ready' && label.status != 'ready') {
+          return false;
+        } else if (_selectedStatusFilter == 'Needs Review' &&
+            label.status != 'needs_review') {
+          return false;
+        } else if (_selectedStatusFilter == 'Drafts' &&
+            label.status != 'draft') {
+          return false;
+        }
 
+        // Category filter
+        if (_selectedCategoryFilter != null &&
+            _selectedCategoryFilter != 'All Categories' &&
+            label.productCategory.toLowerCase() !=
+                _selectedCategoryFilter!.toLowerCase()) {
+          return false;
+        }
+
+        // Search query
+        if (query.isNotEmpty) {
+          final pName = label.productName.toLowerCase();
+          final bName = label.brandName.toLowerCase();
+          final cat = label.productCategory.toLowerCase();
+          final claims = label.claims.join(' ').toLowerCase();
+          final batch = label.batchNumber.toLowerCase();
+          if (!pName.contains(query) &&
+              !bName.contains(query) &&
+              !cat.contains(query) &&
+              !claims.contains(query) &&
+              !batch.contains(query)) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
+    });
+  }
+
+  Future<void> _loadStudioData() async {
     try {
       final results = await Future.wait([
         _repository.fetchActiveDraft().timeout(
               const Duration(seconds: 5),
               onTimeout: () => _repository.getCachedActiveDraft(),
             ),
-        _repository.fetchLabels(searchQuery: searchQuery).timeout(
+        _repository.fetchLabels().timeout(
               const Duration(seconds: 5),
-              onTimeout: () => _repository.getCachedLabels(searchQuery: searchQuery),
+              onTimeout: () => _repository.getCachedLabels(),
             ),
       ]);
 
@@ -85,22 +127,23 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
       if (mounted) {
         setState(() {
           _activeDraft = draft;
-          _labels = labels;
+          _allLabels = labels;
           _isLoading = false;
         });
+        _applyFilters();
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _labels = _repository.getCachedLabels(searchQuery: searchQuery);
+          _allLabels = _repository.getCachedLabels();
           _isLoading = false;
         });
+        _applyFilters();
       }
     }
   }
 
   void _onStartCreatingLabel() {
-    // Start with completely fresh empty label
     Navigator.of(context)
         .push(
           MaterialPageRoute(
@@ -117,36 +160,35 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
       Navigator.of(context)
           .push(
             MaterialPageRoute(
-              builder:
-                  (context) =>
-                      CreateLabelDeclarationScreen(initialLabel: _activeDraft),
+              builder: (context) =>
+                  CreateLabelDeclarationScreen(initialLabel: _activeDraft),
             ),
           )
           .then((_) => _loadStudioData());
-    } else {
-      _onStartCreatingLabel();
     }
   }
 
   void _onLabelTap(LabelItemData item) {
-    if (item.rawModel != null) {
-      final model = item.rawModel!;
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder:
-                  (context) => LabelReviewExportScreen(
-                    brandName: model.brandName,
-                    productName: model.productName,
-                    productCategory: model.productCategory,
-                    netQuantity: '${model.netQuantity} ${model.netQuantityUnit}',
-                    mrp: model.mrp.startsWith('₹') ? model.mrp : '₹ ${model.mrp}',
-                    labelModel: model,
-                  ),
+    final label = item.rawModel ??
+        _allLabels.firstWhere(
+          (l) => l.productName == item.title,
+          orElse: () => SmallBusinessLabelModel(productName: item.title),
+        );
+
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => LabelReviewExportScreen(
+              labelModel: label,
+              brandName: label.brandName,
+              productName: label.productName,
+              productCategory: label.productCategory,
+              netQuantity: '${label.netQuantity} ${label.netQuantityUnit}',
+              mrp: label.mrp,
             ),
-          )
-          .then((_) => _loadStudioData());
-    }
+          ),
+        )
+        .then((_) => _loadStudioData());
   }
 
   void _deleteDraftFromStudio() {
@@ -218,7 +260,6 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top drag handle pill
                 Center(
                   child: Container(
                     width: 36,
@@ -269,6 +310,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                               setState(() {
                                 _selectedCategoryFilter = cat == 'All Categories' ? null : cat;
                               });
+                              _applyFilters();
                               Navigator.of(ctx).pop();
                             },
                             selectedColor: AppColors.brandDeepGreen,
@@ -281,6 +323,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                               borderRadius: BorderRadius.circular(20),
                               side: BorderSide(
                                 color: isSelected ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                                width: 1,
                               ),
                             ),
                           );
@@ -299,22 +342,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Apply active status and category filters to labels
-    var filteredLabels = _labels;
-
-    if (_selectedStatusFilter == 'Ready') {
-      filteredLabels = filteredLabels.where((l) => l.status == 'ready').toList();
-    } else if (_selectedStatusFilter == 'Needs Review') {
-      filteredLabels = filteredLabels.where((l) => l.status == 'needs_review').toList();
-    } else if (_selectedStatusFilter == 'Drafts') {
-      filteredLabels = filteredLabels.where((l) => l.status == 'draft').toList();
-    }
-
-    if (_selectedCategoryFilter != null && _selectedCategoryFilter!.isNotEmpty) {
-      filteredLabels = filteredLabels.where((l) => l.productCategory == _selectedCategoryFilter).toList();
-    }
-
-    final labelItems = filteredLabels
+    final labelItems = _labels
         .map((model) => LabelItemData.fromModel(model))
         .toList();
 
@@ -385,22 +413,25 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                 else
                   YourLabelsSection(
                     labels: labelItems,
-                    totalCount: _labels.length,
-                    readyCount: _labels.where((l) => l.status == 'ready').length,
-                    needsReviewCount: _labels.where((l) => l.status == 'needs_review').length,
+                    totalCount: _allLabels.length,
+                    readyCount: _allLabels.where((l) => l.status == 'ready').length,
+                    needsReviewCount: _allLabels.where((l) => l.status == 'needs_review').length,
                     selectedStatusFilter: _selectedStatusFilter,
                     selectedCategoryFilter: _selectedCategoryFilter,
                     onStatusFilterChanged: (filter) {
                       setState(() => _selectedStatusFilter = filter);
+                      _applyFilters();
                     },
                     onClearCategoryFilter: () {
                       setState(() => _selectedCategoryFilter = null);
+                      _applyFilters();
                     },
                     onSeeAll: () {
                       setState(() {
                         _selectedStatusFilter = 'All';
                         _selectedCategoryFilter = null;
                       });
+                      _applyFilters();
                     },
                     onLabelTap: _onLabelTap,
                   ),

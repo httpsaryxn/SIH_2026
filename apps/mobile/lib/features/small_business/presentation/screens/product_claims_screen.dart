@@ -274,10 +274,15 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Product claims saved to draft'),
+            content: Text('Draft saved. You can continue anytime from drafts.'),
             backgroundColor: AppColors.brandDeepGreen,
             duration: Duration(seconds: 2),
           ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+          (route) => false,
         );
       }
     } catch (e) {

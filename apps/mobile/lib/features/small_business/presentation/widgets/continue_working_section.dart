@@ -121,7 +121,7 @@ class ContinueWorkingSection extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Tag and time
+                        // Tag
                         Row(
                           children: [
                             Container(
@@ -141,17 +141,6 @@ class ContinueWorkingSection extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.4,
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Expanded(
-                              child: Text(
-                                'Synced with Supabase Cloud',
-                                style: TextStyle(
-                                  color: AppColors.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 // Conditional import for web HTML vs non-web
@@ -131,14 +132,153 @@ class FileUploadService {
     }
   }
 
+  /// Opens the system file manager or chooser modal for Lab Reports / CoA
+  static Future<UploadedFilePayload?> pickLabReportChooser(BuildContext context) async {
+    final selected = await showModalBottomSheet<UploadedFilePayload>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Upload Lab Report / CoA',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Choose a file from device or load a verified NABL Certificate of Analysis:',
+                style: TextStyle(fontSize: 12.5, color: Colors.grey),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFDCFCE7),
+                  child: Icon(Icons.upload_file_rounded, color: Color(0xFF16A34A)),
+                ),
+                title: const Text('Browse File / Scan from Device', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                subtitle: const Text('Upload PDF, JPG, PNG from device', style: TextStyle(fontSize: 11.5)),
+                onTap: () async {
+                  Navigator.of(ctx).pop(await pickLabReportDocument());
+                },
+              ),
+              const Divider(height: 10),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFFEF3C7),
+                  child: Icon(Icons.science_outlined, color: Color(0xFFD97706)),
+                ),
+                title: const Text('Sample: Mango Pickle CoA (NABL Certified)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                subtitle: const Text('8 ingredients, mustard allergen & full nutritional profile', style: TextStyle(fontSize: 11.5)),
+                onTap: () {
+                  Navigator.of(ctx).pop(
+                    UploadedFilePayload(
+                      name: 'NABL_Pickle_Lab_Report.pdf',
+                      sizeInBytes: 245000,
+                      dataUrl: '',
+                      extension: '.pdf',
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE0E7FF),
+                  child: Icon(Icons.science_outlined, color: Color(0xFF4F46E5)),
+                ),
+                title: const Text('Sample: Potato Chips / Snack CoA', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                subtitle: const Text('Potato formulation, energy 536 kcal, fat & sodium profile', style: TextStyle(fontSize: 11.5)),
+                onTap: () {
+                  Navigator.of(ctx).pop(
+                    UploadedFilePayload(
+                      name: 'Potato_Chips_Analysis_CoA.pdf',
+                      sizeInBytes: 312000,
+                      dataUrl: '',
+                      extension: '.pdf',
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFFCE7F3),
+                  child: Icon(Icons.science_outlined, color: Color(0xFFDB2777)),
+                ),
+                title: const Text('Sample: Raw Organic Honey CoA', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                subtitle: const Text('Forest honey test with carbohydrates & trace pollen', style: TextStyle(fontSize: 11.5)),
+                onTap: () {
+                  Navigator.of(ctx).pop(
+                    UploadedFilePayload(
+                      name: 'Organic_Honey_NABL_CoA.pdf',
+                      sizeInBytes: 189000,
+                      dataUrl: '',
+                      extension: '.pdf',
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return selected;
+  }
+
   /// AI / OCR Simulation parser for Certificate of Analysis (CoA) & Accredited Lab Reports
   static Future<DetectedLabReportData> parseLabReport(UploadedFilePayload file) async {
     // Simulate brief OCR analysis delay
-    await Future.delayed(const Duration(milliseconds: 900));
+    await Future.delayed(const Duration(milliseconds: 600));
 
     final nameLower = file.name.toLowerCase();
 
-    if (nameLower.contains('honey') || nameLower.contains('sweet')) {
+    if (nameLower.contains('chip') || nameLower.contains('snack') || nameLower.contains('potato')) {
+      return DetectedLabReportData(
+        fileName: file.name,
+        laboratoryName: 'NABL Accredited Food Quality Assurance Lab',
+        reportDate: 'Aug 2026',
+        sampleDescription: 'Crispy Potato Chips CoA',
+        ingredients: const [
+          DetectedIngredient(name: 'Potato', percentage: 81.0),
+          DetectedIngredient(name: 'Edible Vegetable Oil (Palmolein)', percentage: 14.0),
+          DetectedIngredient(name: 'Seasoning (Milk Solids, Spices, Iodised Salt)', percentage: 5.0),
+        ],
+        allergens: const ['Milk Solids'],
+        nutrients: const {
+          'Calories': '536',
+          'Total Fat': '33.7',
+          'Saturated Fat': '15.0',
+          'Trans Fat': '0.1',
+          'Sodium': '512',
+          'Carbohydrates': '54.2',
+          'Dietary Fiber': '4.1',
+          'Total Sugars': '1.2',
+          'Added Sugars': '0',
+          'Protein': '6.8',
+        },
+      );
+    } else if (nameLower.contains('honey') || nameLower.contains('sweet')) {
       return DetectedLabReportData(
         fileName: file.name,
         laboratoryName: 'NABL Accredited Testing Laboratory (ISO 17025)',
@@ -218,7 +358,7 @@ class FileUploadService {
           'Dietary Fiber': '3.2',
           'Total Sugars': '2.1',
           'Added Sugars': '0',
-          'Protein': '2.2',
+          'Protein': '2.4',
           'Vitamin C (Ascorbic Acid)': '18.5',
           'Iron (Fe)': '1.4',
         },

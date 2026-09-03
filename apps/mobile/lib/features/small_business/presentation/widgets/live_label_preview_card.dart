@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
+import '../../data/services/gs1_ean13_encoder.dart';
 import 'claim_item_card.dart';
 import 'product_image_widget.dart';
 
@@ -259,7 +260,7 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
           // Label Body Canvas
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 14.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -291,23 +292,21 @@ class LiveLabelPreviewCard extends StatelessWidget {
                           Text(
                             productName,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
                               letterSpacing: -0.3,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
                           ),
                           Text(
                             typeFlavour.isNotEmpty ? '$productCategory • $typeFlavour' : productCategory,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 10.5,
                               color: AppColors.onSurfaceVariant,
                               fontWeight: FontWeight.w500,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
                           ),
                         ],
                       ),
@@ -316,8 +315,8 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
                     // Indian Veg Symbol
                     Container(
-                      width: 26,
-                      height: 26,
+                      width: 24,
+                      height: 24,
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
@@ -328,8 +327,8 @@ class LiveLabelPreviewCard extends StatelessWidget {
                       ),
                       child: Center(
                         child: Container(
-                          width: 12,
-                          height: 12,
+                          width: 10,
+                          height: 10,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
@@ -370,19 +369,17 @@ class LiveLabelPreviewCard extends StatelessWidget {
                             Text(
                               netQuantity,
                               style: const TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF0F172A),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              softWrap: true,
                             ),
                             if (unitSalePrice.isNotEmpty)
                               Text(
                                 'USP: $unitSalePrice',
-                                style: const TextStyle(fontSize: 9, color: AppColors.onSurfaceVariant),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 8.5, color: AppColors.onSurfaceVariant),
+                                softWrap: true,
                               ),
                           ],
                         ),
@@ -406,18 +403,15 @@ class LiveLabelPreviewCard extends StatelessWidget {
                             Text(
                               mrp,
                               style: const TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.brandDeepGreen,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              softWrap: true,
                             ),
                             const Text(
                               '(Incl. of all taxes)',
-                              style: TextStyle(fontSize: 8.5, color: AppColors.onSurfaceVariant),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 8, color: AppColors.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -427,194 +421,162 @@ class LiveLabelPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // Ingredients Formulation List
+                // Packaging Body: Back of Pack Regulatory Layout matching real standard
+                // 1. Manufacturer & Packer Lic No. block
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'INGREDIENTS LIST (DESCENDING ORDER OF % WEIGHT)',
-                        style: TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.onSurfaceVariant,
-                          letterSpacing: 0.4,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mfd. By: ',
+                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.black87),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '$manufacturerName, $manufacturerAddress',
+                              style: const TextStyle(fontSize: 9.5, color: Colors.black87, height: 1.25),
+                              softWrap: true,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
-                        ingredientsList,
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF334155), height: 1.3),
+                        'Lic. No. ${fssaiNumber.isNotEmpty ? fssaiNumber : "10012031000120"}',
+                        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Colors.black87),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
 
-                // Allergen Warning Strip
+                // 2. Proprietary Food Title
+                Text(
+                  'PROPRIETARY FOOD - ${productCategory.toUpperCase()}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black,
+                    letterSpacing: 0.2,
+                  ),
+                  softWrap: true,
+                ),
+                const SizedBox(height: 5),
+
+                // 3. Ingredients Statement in regulatory style
+                Text.rich(
+                  TextSpan(
+                    style: const TextStyle(fontSize: 9.5, color: Colors.black87, height: 1.3),
+                    children: [
+                      const TextSpan(
+                        text: 'INGREDIENTS: ',
+                        style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black),
+                      ),
+                      TextSpan(text: ingredientsList),
+                    ],
+                  ),
+                  softWrap: true,
+                ),
+                const SizedBox(height: 6),
+
+                // 4. Allergen Advice Strip
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFFECACA), width: 0.8),
                   ),
-                  child: Text(
-                    'ALLERGEN ADVICE: Contains $allergensList. Processed in a clean facility.',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF991B1B),
+                  child: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF991B1B), height: 1.25),
+                      children: [
+                        const TextSpan(
+                          text: 'ALLERGEN ADVICE: ',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        TextSpan(
+                          text: 'Contains $allergensList.',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     ),
+                    softWrap: true,
                   ),
                 ),
+                const SizedBox(height: 8),
+
+                // 5. Authentic 3-Column Bordered Nutrition Information Table Grid
+                _buildPackagedNutritionTable(nutrients),
                 const SizedBox(height: 10),
 
-                // Nutritional Facts Table Grid
+                // 6. Dates, Batch & Instructions Box
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Expanded(
-                            child: Text(
-                              'NUTRITIONAL FACTS TABLE',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                                letterSpacing: 0.4,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          Expanded(
+                            flex: 5,
+                            child: _MiniSpecItem('Batch No.', batchNumber),
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              'Per 100g / ${labelModel?.servingSize ?? 30}${labelModel?.servingSizeUnit ?? 'g'}',
-                              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w600, color: AppColors.brandDeepGreen),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 4,
+                            child: _MiniSpecItem('Mfg Date', mfgDate),
                           ),
-                        ],
-                      ),
-                      const Divider(height: 10, color: Color(0xFFCBD5E1)),
-                      if (nutrients.isNotEmpty)
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
-                          children: nutrients.take(8).map((n) {
-                            return Text(
-                              '${n.label}: ${n.value} ${n.unit}',
-                              style: const TextStyle(fontSize: 10, color: Color(0xFF334155)),
-                            );
-                          }).toList(),
-                        )
-                      else
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
-                          children: const [
-                            Text('Energy: 410 kcal', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                            Text('Protein: 6.5 g', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                            Text('Carbs: 48.0 g', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                            Text('Added Sugar: 0 g', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                            Text('Total Fat: 22.0 g', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                            Text('Sodium: 920 mg', style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Product Claims Badges
-                if (selectedClaims.isNotEmpty) ...[
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: selectedClaims.take(4).map((claim) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFF86EFAC)),
-                        ),
-                        child: Text(
-                          claim.title,
-                          style: const TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF15803D),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 5,
+                            child: _MiniSpecItem('Best Before', bestBefore),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-                // Dates, Batch & Licensing Section
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: _MiniSpecItem('Batch No.', batchNumber)),
-                          const SizedBox(width: 4),
-                          Expanded(child: _MiniSpecItem('Mfg Date', mfgDate)),
-                          const SizedBox(width: 4),
-                          Expanded(child: _MiniSpecItem('Best Before', bestBefore)),
-                        ],
-                      ),
-                      const Divider(height: 10, color: Color(0xFFE2E8F0)),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: _MiniSpecItem('FSSAI Lic. No.', fssaiNumber)),
-                          const SizedBox(width: 4),
-                          Expanded(child: _MiniSpecItem('Customer Care', consumerCarePhone)),
                         ],
                       ),
                       if (storageInstructions.isNotEmpty) ...[
-                        const Divider(height: 10, color: Color(0xFFE2E8F0)),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'STORAGE: $storageInstructions',
-                            style: const TextStyle(fontSize: 9, color: Color(0xFF475569), fontWeight: FontWeight.w600),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                        Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                              fontSize: 8.5,
+                              color: Color(0xFF475569),
+                              height: 1.25,
+                            ),
+                            children: [
+                              const TextSpan(
+                                text: 'STORAGE: ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              TextSpan(
+                                text: storageInstructions,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
+                          softWrap: true,
                         ),
                       ],
                     ],
@@ -622,52 +584,13 @@ class LiveLabelPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // Manufacturer Details
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'MANUFACTURED & PACKED BY',
-                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        manufacturerName,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        manufacturerAddress,
-                        style: const TextStyle(fontSize: 10, color: Color(0xFF475569)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (consumerCareEmail.isNotEmpty)
-                        Text(
-                          'Email: $consumerCareEmail • Country of Origin: INDIA',
-                          style: const TextStyle(fontSize: 9.5, color: Color(0xFF475569)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Scannable GS1 Barcode Section
+                // 7. Scannable GS1 Barcode & Authentic FSSAI Logo Row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Tappable Standard Scannable Barcode Card
                     Expanded(
+                      flex: 5,
                       child: InkWell(
                         onTap: () => _showBarcodeDetails(context),
                         borderRadius: BorderRadius.circular(8),
@@ -680,18 +603,14 @@ class LiveLabelPreviewCard extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              Flexible(
-                                flex: 4,
-                                child: CustomPaint(
-                                  size: const Size(52, 28),
-                                  painter: _GS1Ean13BarcodePainter(
-                                    barcodeDigits: GS1Ean13Encoder.normalizeEan13(formattedBarcode),
-                                  ),
+                              CustomPaint(
+                                size: const Size(48, 26),
+                                painter: _GS1Ean13BarcodePainter(
+                                  barcodeDigits: GS1Ean13Encoder.normalizeEan13(formattedBarcode),
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Flexible(
-                                flex: 5,
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
@@ -725,10 +644,13 @@ class LiveLabelPreviewCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
 
-                    // Official Industry Standard FSSAI Emblem Badge
-                    _OfficialFssaiBadge(licenseNumber: fssaiNumber),
+                    // Official Industry Standard FSSAI Emblem Badge with PNG Logo
+                    Flexible(
+                      flex: 4,
+                      child: _OfficialFssaiBadge(licenseNumber: fssaiNumber),
+                    ),
                   ],
                 ),
               ],
@@ -738,6 +660,175 @@ class LiveLabelPreviewCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildPackagedNutritionTable(List<SmallBusinessNutrientModel> nutrientList) {
+    final sSize = labelModel?.servingSize.isNotEmpty == true ? labelModel!.servingSize : '20';
+    final sUnit = labelModel?.servingSizeUnit.isNotEmpty == true ? labelModel!.servingSizeUnit : 'g';
+    final serveGrams = double.tryParse(sSize) ?? 20.0;
+
+    // Build standard rows
+    final rowsData = <_NutritionRowItem>[];
+
+    void addRow(String name, String fallbackVal, String unit, double? rdaDaily) {
+      final found = nutrientList.firstWhere(
+        (n) => n.label.toLowerCase().contains(name.toLowerCase()) || name.toLowerCase().contains(n.label.toLowerCase()),
+        orElse: () => SmallBusinessNutrientModel(label: name, value: fallbackVal, unit: unit),
+      );
+      final valStr = found.value.isNotEmpty ? found.value : fallbackVal;
+      final valNum = double.tryParse(valStr) ?? 0.0;
+      String rdaStr = '';
+      if (rdaDaily != null && rdaDaily > 0) {
+        final rdaPct = ((valNum * (serveGrams / 100.0)) / rdaDaily) * 100.0;
+        rdaStr = '${rdaPct.round()}%';
+      }
+      rowsData.add(_NutritionRowItem(name: name, per100g: '$valStr $unit', rdaPerServe: rdaStr));
+    }
+
+    addRow('Energy', '536', 'kcal', 2000);
+    addRow('Protein', '6.8', 'g', null);
+    addRow('Carbohydrate', '54.2', 'g', null);
+    addRow('Total Sugars', '1.2', 'g', null);
+    addRow('Added Sugars', '0.0', 'g', 50);
+    addRow('Total Fat', '33.7', 'g', 67);
+    addRow('Saturated Fat', '15.0', 'g', 22);
+    addRow('Trans Fat', '0.1', 'g', 2);
+    addRow('Sodium', '512', 'mg', 2000);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.black, width: 1.2),
+      ),
+      child: Column(
+        children: [
+          // Table Title Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 1.2)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'NUTRITIONAL INFORMATION^',
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: 0.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'SERVE SIZE $sSize $sUnit**',
+                    style: const TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Column Headers Row
+          Table(
+            border: const TableBorder(
+              horizontalInside: BorderSide(color: Colors.black, width: 0.8),
+              verticalInside: BorderSide(color: Colors.black, width: 0.8),
+              bottom: BorderSide(color: Colors.black, width: 1.2),
+            ),
+            columnWidths: const {
+              0: FlexColumnWidth(4.2),
+              1: FlexColumnWidth(2.8),
+              2: FlexColumnWidth(3.4),
+            },
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                    child: Text(
+                      'Nutrients',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                    child: Text(
+                      'Per 100 g',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                    child: Text(
+                      '%RDA Per Serve',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              ...rowsData.map((item) {
+                return TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
+                      child: Text(
+                        item.name,
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: (item.name == 'Energy' || item.name == 'Total Fat' || item.name == 'Protein')
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                        softWrap: true,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
+                      child: Text(
+                        item.per100g,
+                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
+                      child: Text(
+                        item.rdaPerServe.isNotEmpty ? item.rdaPerServe : '—',
+                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NutritionRowItem {
+  const _NutritionRowItem({required this.name, required this.per100g, required this.rdaPerServe});
+  final String name;
+  final String per100g;
+  final String rdaPerServe;
 }
 
 class _OfficialFssaiBadge extends StatelessWidget {
@@ -747,14 +838,14 @@ class _OfficialFssaiBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -764,77 +855,28 @@ class _OfficialFssaiBadge extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Official FSSAI emblem banner
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Stylized FSSAI Tri-color Swoosh Icon
-              CustomPaint(
-                size: const Size(14, 14),
-                painter: _FssaiLogoIconPainter(),
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                'fssai',
-                style: TextStyle(
-                  fontFamily: 'Arial',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF0B3B60),
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
+          Image.asset(
+            'assets/images/fssai_logo.png',
+            width: 52,
+            height: 22,
+            fit: BoxFit.contain,
           ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 2),
           Text(
             'Lic. No. ${licenseNumber.isNotEmpty ? licenseNumber : "12345678901234"}',
             style: const TextStyle(
               fontSize: 7.5,
               fontWeight: FontWeight.w800,
               color: Color(0xFF0F172A),
+              letterSpacing: 0.2,
             ),
+            softWrap: true,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
-}
-
-class _FssaiLogoIconPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final orangePaint = Paint()
-      ..color = const Color(0xFFF97316)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    final greenPaint = Paint()
-      ..color = const Color(0xFF16A34A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Top Orange Arc
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      3.14 * 1.1,
-      3.14 * 0.8,
-      false,
-      orangePaint,
-    );
-
-    // Bottom Green Arc
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      3.14 * 0.1,
-      3.14 * 0.8,
-      false,
-      greenPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MiniSpecItem extends StatelessWidget {
@@ -846,6 +888,7 @@ class _MiniSpecItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label.toUpperCase(),
@@ -853,149 +896,23 @@ class _MiniSpecItem extends StatelessWidget {
             fontSize: 7.5,
             fontWeight: FontWeight.w700,
             color: AppColors.onSurfaceVariant,
+            letterSpacing: 0.2,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          softWrap: true,
         ),
+        const SizedBox(height: 2),
         Text(
           val.isNotEmpty ? val : '—',
           style: const TextStyle(
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: FontWeight.w700,
             color: Color(0xFF0F172A),
+            height: 1.2,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          softWrap: true,
         ),
       ],
     );
-  }
-}
-
-/// GS1 EAN-13 Standard Barcode Binary Encoder
-class GS1Ean13Encoder {
-  static const List<String> _parityTable = [
-    'LLLLLL', // 0
-    'LLGLGG', // 1
-    'LLGGLG', // 2
-    'LLGGGL', // 3
-    'LGLLGG', // 4
-    'LGGLLG', // 5
-    'LGGGLL', // 6
-    'LGLGLG', // 7
-    'LGLGGL', // 8
-    'LGGLGL', // 9
-  ];
-
-  static const List<String> _lCode = [
-    '0001101', // 0
-    '0011001', // 1
-    '0010011', // 2
-    '0111101', // 3
-    '0100011', // 4
-    '0110001', // 5
-    '0101111', // 6
-    '0111011', // 7
-    '0110111', // 8
-    '0001011', // 9
-  ];
-
-  static const List<String> _gCode = [
-    '0100111', // 0
-    '0110011', // 1
-    '0011011', // 2
-    '0100001', // 3
-    '0011101', // 4
-    '0111001', // 5
-    '0000101', // 6
-    '0010001', // 7
-    '0001001', // 8
-    '0010111', // 9
-  ];
-
-  static const List<String> _rCode = [
-    '1110010', // 0
-    '1100110', // 1
-    '1101100', // 2
-    '1000010', // 3
-    '1011100', // 4
-    '1001110', // 5
-    '1010000', // 6
-    '1000100', // 7
-    '1001000', // 8
-    '1110100', // 9
-  ];
-
-  static int computeChecksum(String twelveDigits) {
-    int sumOdd = 0;
-    int sumEven = 0;
-    for (int i = 0; i < 12; i++) {
-      final d = int.tryParse(twelveDigits[i]) ?? 0;
-      if (i % 2 == 0) {
-        sumOdd += d;
-      } else {
-        sumEven += d;
-      }
-    }
-    final total = sumOdd + (sumEven * 3);
-    final mod = total % 10;
-    return mod == 0 ? 0 : 10 - mod;
-  }
-
-  static String normalizeEan13(String input) {
-    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) digits = '890123456789';
-    if (digits.length < 12) {
-      digits = digits.padRight(12, '0');
-    } else if (digits.length > 13) {
-      digits = digits.substring(0, 13);
-    }
-    if (digits.length == 12) {
-      digits = '$digits${computeChecksum(digits)}';
-    } else if (digits.length == 13) {
-      final base = digits.substring(0, 12);
-      final cs = computeChecksum(base);
-      digits = '$base$cs';
-    }
-    return digits;
-  }
-
-  static List<bool> encodeModules(String ean13) {
-    final validEan = normalizeEan13(ean13);
-    final firstDigit = int.parse(validEan[0]);
-    final parity = _parityTable[firstDigit];
-
-    final modules = <bool>[];
-
-    // 1. Start Guard: 101
-    modules.addAll([true, false, true]);
-
-    // 2. Left 6 Digits
-    for (int i = 0; i < 6; i++) {
-      final digit = int.parse(validEan[i + 1]);
-      final isL = parity[i] == 'L';
-      final pattern = isL ? _lCode[digit] : _gCode[digit];
-      for (int b = 0; b < pattern.length; b++) {
-        modules.add(pattern[b] == '1');
-      }
-    }
-
-    // 3. Center Guard: 01010
-    modules.addAll([false, true, false, true, false]);
-
-    // 4. Right 6 Digits
-    for (int i = 7; i < 13; i++) {
-      final digit = int.parse(validEan[i]);
-      final pattern = _rCode[digit];
-      for (int b = 0; b < pattern.length; b++) {
-        modules.add(pattern[b] == '1');
-      }
-    }
-
-    // 5. End Guard: 101
-    modules.addAll([true, false, true]);
-
-    return modules;
   }
 }
 

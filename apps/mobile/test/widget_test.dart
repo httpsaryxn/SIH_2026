@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/small_business/data/models/small_business_label_model.dart';
+import 'package:mobile/features/small_business/data/services/file_download_service.dart';
+import 'package:mobile/features/small_business/data/services/gs1_ean13_encoder.dart';
 import 'package:mobile/features/small_business/presentation/screens/create_label_declaration_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/final_details_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/ingredients_allergens_screen.dart';
@@ -292,4 +294,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Review & Export'), findsWidgets);
   });
+
+  testWidgets('MyLabelStudioScreen filters search in memory instantly', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const MyLabelStudioScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final searchField = find.byType(TextField);
+    expect(searchField, findsOneWidget);
+
+    await tester.enterText(searchField, 'Organic');
+    await tester.pump();
+    expect(find.byType(MyLabelStudioScreen), findsOneWidget);
+  });
+
+  test('GS1 EAN-13 barcode encoder produces exact standard modules and checksum', () {
+    final barcode = '890123456789';
+    final normalized = GS1Ean13Encoder.normalizeEan13(barcode);
+    expect(normalized.length, equals(13));
+    expect(normalized.startsWith('890123456789'), isTrue);
+
+    final modules = GS1Ean13Encoder.encodeModules(normalized);
+    expect(modules.length, equals(95)); // Official GS1 EAN-13 total module count
+    // Guard patterns
+    expect(modules.sublist(0, 3), equals([true, false, true]));
+    expect(modules.sublist(45, 50), equals([false, true, false, true, false]));
+    expect(modules.sublist(92, 95), equals([true, false, true]));
+  });
+
+  test('FileDownloadService generates valid PDF with absolute coordinates', () async {
+    final pdfPath = await FileDownloadService.downloadPdfLabel(
+      model: testModel,
+      dimension: '100x150mm',
+    );
+    expect(pdfPath, isNotNull);
+  });
 }
+

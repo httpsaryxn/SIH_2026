@@ -149,19 +149,23 @@ class BusinessHeroCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 64,
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.factory_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                      child: Image.asset(
+                        'assets/images/fssai_logo.png',
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ],
