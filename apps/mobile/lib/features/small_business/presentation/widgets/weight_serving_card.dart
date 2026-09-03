@@ -50,12 +50,16 @@ class WeightServingCard extends StatelessWidget {
                 size: 20,
               ),
               SizedBox(width: 8),
-              Text(
-                'Weight, Pricing & Serving',
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Weight, Pricing & Serving',
+                  style: TextStyle(
+                    color: AppColors.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

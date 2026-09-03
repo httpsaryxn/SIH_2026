@@ -118,14 +118,19 @@ class _IngredientSearchCardState extends State<IngredientSearchCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Search & Quick-Add Ingredients',
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              const Expanded(
+                child: Text(
+                  'Search & Quick-Add Ingredients',
+                  style: TextStyle(
+                    color: AppColors.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: widget.onAddManually,
                 borderRadius: BorderRadius.circular(6),

@@ -118,26 +118,31 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Export & Production Formats',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Export & Production Formats',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    'Choose output format & packaging print size',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.onSurfaceVariant,
+                    Text(
+                      'Choose output format & packaging print size',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -225,15 +230,20 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text(
-                'LABEL PRINT DIMENSIONS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurfaceVariant,
-                  letterSpacing: 0.8,
+              Expanded(
+                child: Text(
+                  'LABEL PRINT DIMENSIONS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurfaceVariant,
+                    letterSpacing: 0.6,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              SizedBox(width: 8),
               Text(
                 '10+ Presets',
                 style: TextStyle(

@@ -649,7 +649,7 @@ class _IngredientsAllergensScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+        preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -668,7 +668,7 @@ class _IngredientsAllergensScreenState
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 8.0,
+                    vertical: 4.0,
                   ),
                   child: Row(
                     children: [
@@ -703,6 +703,8 @@ class _IngredientsAllergensScreenState
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Step 2 of 6: Ingredients list',
@@ -710,54 +712,22 @@ class _IngredientsAllergensScreenState
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                      // Notification Bell
+                      // Delete Draft Icon Button
                       IconButton(
                         icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.brandDeepGreen,
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 22,
                         ),
-                        onPressed:
-                            () => SmallBusinessNotificationService
-                                .showNotificationCenter(context),
-                      ),
-                      // Delete Draft Button
-                      OutlinedButton(
+                        tooltip: 'Delete Draft',
                         onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(width: 6),
                       // Save action
                       TextButton(
                         onPressed: _isSaving ? null : _saveDraft,
@@ -768,23 +738,22 @@ class _IngredientsAllergensScreenState
                             vertical: 6,
                           ),
                         ),
-                        child:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
-                                )
-                                : const Text(
-                                  'Save',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
                                 ),
+                              )
+                            : const Text(
+                                'Save',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
                     ],
                   ),

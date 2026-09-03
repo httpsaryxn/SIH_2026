@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'product_image_widget.dart';
 
 class ProductBasicDetailsForm extends StatelessWidget {
   const ProductBasicDetailsForm({
@@ -8,6 +9,7 @@ class ProductBasicDetailsForm extends StatelessWidget {
     required this.productNameController,
     required this.typeFlavourController,
     this.uploadedLogoName,
+    this.uploadedLogoDataUrl,
     this.onUploadLogoTap,
   });
 
@@ -15,6 +17,7 @@ class ProductBasicDetailsForm extends StatelessWidget {
   final TextEditingController productNameController;
   final TextEditingController typeFlavourController;
   final String? uploadedLogoName;
+  final String? uploadedLogoDataUrl;
   final VoidCallback? onUploadLogoTap;
 
   @override
@@ -175,20 +178,28 @@ class ProductBasicDetailsForm extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Circle icon background
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+              // Circle icon background or image thumbnail
+              if (uploadedLogoDataUrl != null && uploadedLogoDataUrl!.isNotEmpty)
+                ProductImageWidget(
+                  imageUrl: uploadedLogoDataUrl,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                )
+              else
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                  ),
+                  child: const Icon(
+                    Icons.image_outlined,
+                    color: AppColors.brandDeepGreen,
+                    size: 20,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.image_outlined,
-                  color: AppColors.brandDeepGreen,
-                  size: 20,
-                ),
-              ),
               const SizedBox(width: 12),
               // Text description or selected file
               Expanded(

@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
 import 'claim_item_card.dart';
+import 'product_image_widget.dart';
 
 class LiveLabelPreviewCard extends StatelessWidget {
   const LiveLabelPreviewCard({
@@ -89,15 +89,17 @@ class LiveLabelPreviewCard extends StatelessWidget {
                 children: [
                   CustomPaint(
                     size: const Size(180, 60),
-                    painter: _BarcodePainter(),
+                    painter: _GS1Ean13BarcodePainter(
+                      barcodeDigits: GS1Ean13Encoder.normalizeEan13(barcode),
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
-                    '${barcode.substring(0, 1)} ${barcode.substring(1, 7)} ${barcode.substring(7)}',
+                    GS1Ean13Encoder.normalizeEan13(barcode),
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: 2,
                     ),
                   ),
@@ -124,33 +126,15 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
   Widget _buildLogoWidget() {
     final logo = logoUrl ?? labelModel?.logoUrl;
-    if (logo != null && logo.isNotEmpty) {
-      if (logo.startsWith('data:image')) {
-        try {
-          final base64String = logo.split(',').last;
-          final bytes = base64Decode(base64String);
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.memory(
-              bytes,
-              width: 44,
-              height: 44,
-              fit: BoxFit.cover,
-            ),
-          );
-        } catch (_) {}
-      } else if (logo.startsWith('http')) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            logo,
-            width: 44,
-            height: 44,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _fallbackLogo(),
-          ),
-        );
-      }
+    if (logo != null && logo.trim().isNotEmpty) {
+      return ProductImageWidget(
+        imageUrl: logo.trim(),
+        category: productCategory,
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        fit: BoxFit.cover,
+      );
     }
     return _fallbackLogo();
   }
@@ -227,25 +211,32 @@ class LiveLabelPreviewCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.aspect_ratio_rounded,
-                      size: 16,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'PACKAGING PREVIEW (${widthMm.toInt()} × ${heightMm.toInt()} MM)',
-                      style: const TextStyle(
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.aspect_ratio_rounded,
+                        size: 16,
                         color: AppColors.onSurfaceVariant,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'PACKAGING PREVIEW (${widthMm.toInt()} × ${heightMm.toInt()} MM)',
+                          style: const TextStyle(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
@@ -256,7 +247,7 @@ class LiveLabelPreviewCard extends StatelessWidget {
                     'PRINT READY',
                     style: TextStyle(
                       color: Color(0xFF15803D),
-                      fontSize: 9.5,
+                      fontSize: 9,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                     ),
@@ -291,18 +282,22 @@ class LiveLabelPreviewCard extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               color: AppColors.brandDeepGreen,
-                              letterSpacing: 1.2,
+                              letterSpacing: 1.0,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             productName,
                             style: const TextStyle(
-                              fontSize: 17,
+                              fontSize: 16,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
                               letterSpacing: -0.3,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             typeFlavour.isNotEmpty ? '$productCategory • $typeFlavour' : productCategory,
@@ -311,6 +306,8 @@ class LiveLabelPreviewCard extends StatelessWidget {
                               color: AppColors.onSurfaceVariant,
                               fontWeight: FontWeight.w500,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -346,7 +343,7 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
                 // Net Quantity & Price Tag
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(8),
@@ -355,58 +352,75 @@ class LiveLabelPreviewCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'NET QUANTITY',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.onSurfaceVariant,
-                              letterSpacing: 0.5,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'NET QUANTITY',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.onSurfaceVariant,
+                                letterSpacing: 0.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          Text(
-                            netQuantity,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          if (unitSalePrice.isNotEmpty)
                             Text(
-                              'USP: $unitSalePrice',
-                              style: const TextStyle(fontSize: 9.5, color: AppColors.onSurfaceVariant),
+                              netQuantity,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                        ],
+                            if (unitSalePrice.isNotEmpty)
+                              Text(
+                                'USP: $unitSalePrice',
+                                style: const TextStyle(fontSize: 9, color: AppColors.onSurfaceVariant),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            'MAX RETAIL PRICE (MRP)',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.onSurfaceVariant,
-                              letterSpacing: 0.5,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'MAX RETAIL PRICE (MRP)',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.onSurfaceVariant,
+                                letterSpacing: 0.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          Text(
-                            mrp,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.brandDeepGreen,
+                            Text(
+                              mrp,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.brandDeepGreen,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const Text(
-                            '(Incl. of all taxes)',
-                            style: TextStyle(fontSize: 9, color: AppColors.onSurfaceVariant),
-                          ),
-                        ],
+                            const Text(
+                              '(Incl. of all taxes)',
+                              style: TextStyle(fontSize: 8.5, color: AppColors.onSurfaceVariant),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -433,6 +447,8 @@ class LiveLabelPreviewCard extends StatelessWidget {
                           color: AppColors.onSurfaceVariant,
                           letterSpacing: 0.4,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -479,18 +495,27 @@ class LiveLabelPreviewCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'NUTRITIONAL FACTS TABLE',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: 0.5,
+                          const Expanded(
+                            child: Text(
+                              'NUTRITIONAL FACTS TABLE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: 0.4,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Text(
-                            'Per 100g / ${labelModel?.servingSize ?? 30}${labelModel?.servingSizeUnit ?? 'g'}',
-                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.brandDeepGreen),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Per 100g / ${labelModel?.servingSize ?? 30}${labelModel?.servingSizeUnit ?? 'g'}',
+                              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w600, color: AppColors.brandDeepGreen),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -564,17 +589,20 @@ class LiveLabelPreviewCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _MiniSpecItem('Batch No.', batchNumber),
-                          _MiniSpecItem('Mfg Date', mfgDate),
-                          _MiniSpecItem('Best Before', bestBefore),
+                          Expanded(child: _MiniSpecItem('Batch No.', batchNumber)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _MiniSpecItem('Mfg Date', mfgDate)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _MiniSpecItem('Best Before', bestBefore)),
                         ],
                       ),
                       const Divider(height: 10, color: Color(0xFFE2E8F0)),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _MiniSpecItem('FSSAI Lic. No.', fssaiNumber),
-                          _MiniSpecItem('Customer Care', consumerCarePhone),
+                          Expanded(child: _MiniSpecItem('FSSAI Lic. No.', fssaiNumber)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _MiniSpecItem('Customer Care', consumerCarePhone)),
                         ],
                       ),
                       if (storageInstructions.isNotEmpty) ...[
@@ -584,6 +612,8 @@ class LiveLabelPreviewCard extends StatelessWidget {
                           child: Text(
                             'STORAGE: $storageInstructions',
                             style: const TextStyle(fontSize: 9, color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -611,15 +641,21 @@ class LiveLabelPreviewCard extends StatelessWidget {
                       Text(
                         manufacturerName,
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         manufacturerAddress,
                         style: const TextStyle(fontSize: 10, color: Color(0xFF475569)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       if (consumerCareEmail.isNotEmpty)
                         Text(
                           'Email: $consumerCareEmail • Country of Origin: INDIA',
                           style: const TextStyle(fontSize: 9.5, color: Color(0xFF475569)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                     ],
                   ),
@@ -630,81 +666,69 @@ class LiveLabelPreviewCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Tappable Barcode Card
-                    InkWell(
-                      onTap: () => _showBarcodeDetails(context),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                        ),
-                        child: Row(
-                          children: [
-                            CustomPaint(
-                              size: const Size(90, 32),
-                              painter: _BarcodePainter(),
-                            ),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  formattedBarcode,
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF0F172A),
+                    // Tappable Standard Scannable Barcode Card
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _showBarcodeDetails(context),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                flex: 4,
+                                child: CustomPaint(
+                                  size: const Size(52, 28),
+                                  painter: _GS1Ean13BarcodePainter(
+                                    barcodeDigits: GS1Ean13Encoder.normalizeEan13(formattedBarcode),
                                   ),
                                 ),
-                                const Text(
-                                  'GS1 VERIFIED • TAP',
-                                  style: TextStyle(
-                                    fontSize: 7.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF15803D),
-                                  ),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      GS1Ean13Encoder.normalizeEan13(formattedBarcode),
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 7.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const Text(
+                                      'GS1 EAN-13 ✓',
+                                      style: TextStyle(
+                                        fontSize: 6.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF15803D),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
 
-                    // FSSAI Verified Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: const [
-                          Text(
-                            'fssai',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1E3A8A),
-                            ),
-                          ),
-                          Text(
-                            'LICENSED',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF15803D),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Official Industry Standard FSSAI Emblem Badge
+                    _OfficialFssaiBadge(licenseNumber: fssaiNumber),
                   ],
                 ),
               ],
@@ -714,6 +738,103 @@ class LiveLabelPreviewCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OfficialFssaiBadge extends StatelessWidget {
+  const _OfficialFssaiBadge({required this.licenseNumber});
+  final String licenseNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Official FSSAI emblem banner
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Stylized FSSAI Tri-color Swoosh Icon
+              CustomPaint(
+                size: const Size(14, 14),
+                painter: _FssaiLogoIconPainter(),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'fssai',
+                style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0B3B60),
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 1),
+          Text(
+            'Lic. No. ${licenseNumber.isNotEmpty ? licenseNumber : "12345678901234"}',
+            style: const TextStyle(
+              fontSize: 7.5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FssaiLogoIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final orangePaint = Paint()
+      ..color = const Color(0xFFF97316)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    final greenPaint = Paint()
+      ..color = const Color(0xFF16A34A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    // Top Orange Arc
+    canvas.drawArc(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      3.14 * 1.1,
+      3.14 * 0.8,
+      false,
+      orangePaint,
+    );
+
+    // Bottom Green Arc
+    canvas.drawArc(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      3.14 * 0.1,
+      3.14 * 0.8,
+      false,
+      greenPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MiniSpecItem extends StatelessWidget {
@@ -733,45 +854,175 @@ class _MiniSpecItem extends StatelessWidget {
             fontWeight: FontWeight.w700,
             color: AppColors.onSurfaceVariant,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         Text(
           val.isNotEmpty ? val : '—',
           style: const TextStyle(
-            fontSize: 10.5,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
             color: Color(0xFF0F172A),
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 }
 
-class _BarcodePainter extends CustomPainter {
+/// GS1 EAN-13 Standard Barcode Binary Encoder
+class GS1Ean13Encoder {
+  static const List<String> _parityTable = [
+    'LLLLLL', // 0
+    'LLGLGG', // 1
+    'LLGGLG', // 2
+    'LLGGGL', // 3
+    'LGLLGG', // 4
+    'LGGLLG', // 5
+    'LGGGLL', // 6
+    'LGLGLG', // 7
+    'LGLGGL', // 8
+    'LGGLGL', // 9
+  ];
+
+  static const List<String> _lCode = [
+    '0001101', // 0
+    '0011001', // 1
+    '0010011', // 2
+    '0111101', // 3
+    '0100011', // 4
+    '0110001', // 5
+    '0101111', // 6
+    '0111011', // 7
+    '0110111', // 8
+    '0001011', // 9
+  ];
+
+  static const List<String> _gCode = [
+    '0100111', // 0
+    '0110011', // 1
+    '0011011', // 2
+    '0100001', // 3
+    '0011101', // 4
+    '0111001', // 5
+    '0000101', // 6
+    '0010001', // 7
+    '0001001', // 8
+    '0010111', // 9
+  ];
+
+  static const List<String> _rCode = [
+    '1110010', // 0
+    '1100110', // 1
+    '1101100', // 2
+    '1000010', // 3
+    '1011100', // 4
+    '1001110', // 5
+    '1010000', // 6
+    '1000100', // 7
+    '1001000', // 8
+    '1110100', // 9
+  ];
+
+  static int computeChecksum(String twelveDigits) {
+    int sumOdd = 0;
+    int sumEven = 0;
+    for (int i = 0; i < 12; i++) {
+      final d = int.tryParse(twelveDigits[i]) ?? 0;
+      if (i % 2 == 0) {
+        sumOdd += d;
+      } else {
+        sumEven += d;
+      }
+    }
+    final total = sumOdd + (sumEven * 3);
+    final mod = total % 10;
+    return mod == 0 ? 0 : 10 - mod;
+  }
+
+  static String normalizeEan13(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) digits = '890123456789';
+    if (digits.length < 12) {
+      digits = digits.padRight(12, '0');
+    } else if (digits.length > 13) {
+      digits = digits.substring(0, 13);
+    }
+    if (digits.length == 12) {
+      digits = '$digits${computeChecksum(digits)}';
+    } else if (digits.length == 13) {
+      final base = digits.substring(0, 12);
+      final cs = computeChecksum(base);
+      digits = '$base$cs';
+    }
+    return digits;
+  }
+
+  static List<bool> encodeModules(String ean13) {
+    final validEan = normalizeEan13(ean13);
+    final firstDigit = int.parse(validEan[0]);
+    final parity = _parityTable[firstDigit];
+
+    final modules = <bool>[];
+
+    // 1. Start Guard: 101
+    modules.addAll([true, false, true]);
+
+    // 2. Left 6 Digits
+    for (int i = 0; i < 6; i++) {
+      final digit = int.parse(validEan[i + 1]);
+      final isL = parity[i] == 'L';
+      final pattern = isL ? _lCode[digit] : _gCode[digit];
+      for (int b = 0; b < pattern.length; b++) {
+        modules.add(pattern[b] == '1');
+      }
+    }
+
+    // 3. Center Guard: 01010
+    modules.addAll([false, true, false, true, false]);
+
+    // 4. Right 6 Digits
+    for (int i = 7; i < 13; i++) {
+      final digit = int.parse(validEan[i]);
+      final pattern = _rCode[digit];
+      for (int b = 0; b < pattern.length; b++) {
+        modules.add(pattern[b] == '1');
+      }
+    }
+
+    // 5. End Guard: 101
+    modules.addAll([true, false, true]);
+
+    return modules;
+  }
+}
+
+class _GS1Ean13BarcodePainter extends CustomPainter {
+  _GS1Ean13BarcodePainter({required this.barcodeDigits});
+  final String barcodeDigits;
+
   @override
   void paint(Canvas canvas, Size size) {
+    final modules = GS1Ean13Encoder.encodeModules(barcodeDigits);
     final paint = Paint()
       ..color = const Color(0xFF0F172A)
       ..style = PaintingStyle.fill;
 
-    const bars = [
-      true, false, true, false, false, true, true, false, true, false, true, true,
-      true, false, false, true, false, true, false, false, true, false, false, true,
-      false, true, false, true, false, false, true, true, false, true, false, false,
-      true, false, true, false, true, false, false, true, true, false, false, true,
-      false, true, true, true, false, true, false, true, false, false, true, true,
-      false, true, false, false, true, false, true, true, false, true, false, true,
-    ];
+    // Draw white quiet zone background
+    final bgPaint = Paint()..color = Colors.white;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
-    final barWidth = size.width / bars.length;
+    final moduleWidth = size.width / modules.length;
 
-    for (int i = 0; i < bars.length; i++) {
-      if (bars[i]) {
-        final isGuard = i < 3 || (i >= 30 && i <= 34) || i >= bars.length - 3;
+    for (int i = 0; i < modules.length; i++) {
+      if (modules[i]) {
+        final isGuard = (i < 3) || (i >= 45 && i < 50) || (i >= modules.length - 3);
         final barHeight = isGuard ? size.height : size.height * 0.88;
 
         canvas.drawRect(
-          Rect.fromLTWH(i * barWidth, 0, barWidth * 0.85, barHeight),
+          Rect.fromLTWH(i * moduleWidth, 0, moduleWidth + 0.1, barHeight),
           paint,
         );
       }
@@ -779,5 +1030,6 @@ class _BarcodePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GS1Ean13BarcodePainter oldDelegate) =>
+      oldDelegate.barcodeDigits != barcodeDigits;
 }

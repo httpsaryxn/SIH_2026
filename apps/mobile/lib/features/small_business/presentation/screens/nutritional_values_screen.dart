@@ -424,6 +424,33 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     );
   }
 
+  void _onSkip() {
+    if (_netQuantityController.text.trim().isEmpty) {
+      _netQuantityController.text = '250';
+    }
+    if (_servingSizeController.text.trim().isEmpty) {
+      _servingSizeController.text = '30';
+    }
+    for (final n in _nutrients) {
+      if (n.controller.text.trim().isEmpty) {
+        if (n.label.toLowerCase() == 'calories') {
+          n.controller.text = '420';
+        } else if (n.label.toLowerCase() == 'total fat') {
+          n.controller.text = '18.0';
+        } else if (n.label.toLowerCase() == 'carbohydrates') {
+          n.controller.text = '55.0';
+        } else if (n.label.toLowerCase() == 'protein') {
+          n.controller.text = '7.5';
+        } else if (n.label.toLowerCase() == 'sodium') {
+          n.controller.text = '850';
+        } else {
+          n.controller.text = '0';
+        }
+      }
+    }
+    _onNext();
+  }
+
   String _getNutrientValue(String label) {
     final item = _nutrients.firstWhere(
       (n) => n.label.toLowerCase() == label.toLowerCase(),
@@ -458,7 +485,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+        preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -477,7 +504,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 8.0,
+                    vertical: 4.0,
                   ),
                   child: Row(
                     children: [
@@ -512,6 +539,8 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Step 3 of 6: Nutrition Profile & Serving',
@@ -519,6 +548,8 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -533,40 +564,16 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                             () => SmallBusinessNotificationService
                                 .showNotificationCenter(context),
                       ),
-                      // Delete Draft Button
-                      OutlinedButton(
+                      // Delete Draft Icon Button
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 22,
+                        ),
+                        tooltip: 'Delete Draft',
                         onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
@@ -583,24 +590,23 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
-                                )
-                                : const Text(
-                                  'Save',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
                                 ),
+                              )
+                            : const Text(
+                                'Save',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.brandDeepGreen,
+                                ),
+                              ),
                       ),
                     ],
                   ),
@@ -678,7 +684,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
       ),
       bottomNavigationBar: NutritionBottomBar(
         onBack: () => Navigator.of(context).maybePop(),
-        onSkip: _onNext,
+        onSkip: _onSkip,
         onNext: _onNext,
       ),
     );

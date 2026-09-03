@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
+import 'product_image_widget.dart';
 
 class LabelItemData {
   final String title;
@@ -20,16 +21,23 @@ class LabelItemData {
   });
 
   factory LabelItemData.fromModel(SmallBusinessLabelModel model) {
-    final title = model.productName.isNotEmpty
-        ? model.productName
-        : model.brandName;
-    final subtitle = '${model.brandName} • ${model.productCategory}';
+    final title = model.productName.trim().isNotEmpty
+        ? model.productName.trim()
+        : (model.brandName.trim().isNotEmpty
+            ? model.brandName.trim()
+            : 'Custom Product Label');
+    final brandDisplay = model.brandName.trim().isNotEmpty
+        ? model.brandName.trim()
+        : 'Small Business';
+    final catDisplay = model.productCategory.trim().isNotEmpty
+        ? model.productCategory.trim()
+        : 'General Food';
+    final subtitle = '$brandDisplay • $catDisplay';
     final isReady = model.status == 'ready';
     final statusText = isReady
         ? 'Ready'
         : (model.status == 'needs_review' ? 'Needs review' : 'Draft');
-    final imageUrl = model.logoUrl ??
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuDnCr3KXRKxzPyTldCE9V128qLCdnYDaOARm0rd1SbRCE29NYegL9cVPCOyKz2NlBIqLE4Z36GoXiskgUmkAQUEzJf9QBXbPHNsMvRSRW6kLbQ4u240gBrPnoeRANs2b6AG4D1vaEE7z7bvZGkQtf2yIRjHLqb80QQ8Si2rhFYNf0wCZ1_XZLP0xwqXXhzFcQLfv_pI6hmjt8cETOA4OO2PRliBJQvTqIMTf_uU_6sF4AOV4WPdQHpvUQ';
+    final imageUrl = model.logoUrl ?? '';
 
     return LabelItemData(
       title: title,
@@ -57,7 +65,44 @@ class YourLabelsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (labels.isEmpty) {
-      return const SizedBox.shrink();
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.outlineVariant.withValues(alpha: 0.35),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: const [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 32,
+              color: AppColors.onSurfaceVariant,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'No labels found for this filter',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onSurface,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Tap "Start creating your label" above to create one.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return Column(
@@ -67,14 +112,19 @@ class YourLabelsSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Your labels (${labels.length})',
-              style: const TextStyle(
-                color: AppColors.onBackground,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                'Your labels (${labels.length})',
+                style: const TextStyle(
+                  color: AppColors.onBackground,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             TextButton(
               onPressed: onSeeAll,
               style: TextButton.styleFrom(
@@ -136,26 +186,12 @@ class YourLabelsSection extends StatelessWidget {
                     child: Row(
                       children: [
                         // Label Image Preview
-                        Container(
+                        ProductImageWidget(
+                          imageUrl: label.imageUrl,
+                          category: label.rawModel?.productCategory,
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Image.network(
-                            label.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Center(
-                                  child: Icon(
-                                    Icons.image_outlined,
-                                    color: AppColors.onSurfaceVariant,
-                                    size: 22,
-                                  ),
-                                ),
-                          ),
+                          borderRadius: 8,
                         ),
                         const SizedBox(width: 12),
                         // Label Info

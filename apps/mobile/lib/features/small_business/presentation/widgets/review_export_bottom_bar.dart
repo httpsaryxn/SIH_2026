@@ -113,16 +113,8 @@ class ReviewExportBottomBar extends StatelessWidget {
                   // Share Button
                   SizedBox(
                     height: 46,
-                    child: OutlinedButton.icon(
+                    child: OutlinedButton(
                       onPressed: onShare,
-                      icon: const Icon(Icons.share_outlined, size: 16),
-                      label: const Text(
-                        'Share',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                       style: OutlinedButton.styleFrom(
                         backgroundColor: const Color(0xFFF1F5F9),
                         foregroundColor: AppColors.onSurface,
@@ -133,7 +125,21 @@ class ReviewExportBottomBar extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.share_outlined, size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            'Share',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -170,11 +176,15 @@ class ReviewExportBottomBar extends StatelessWidget {
                                     ),
                                   ),
                                   SizedBox(width: 6),
-                                  Text(
-                                    'Generating...',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
+                                  Flexible(
+                                    child: Text(
+                                      'Exporting...',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -184,11 +194,15 @@ class ReviewExportBottomBar extends StatelessWidget {
                                 children: const [
                                   Icon(Icons.download_rounded, size: 18),
                                   SizedBox(width: 4),
-                                  Text(
-                                    'Download Label',
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
+                                  Flexible(
+                                    child: Text(
+                                      'Export',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],

@@ -67,9 +67,8 @@ class BusinessHeroCard extends StatelessWidget {
 
           // High-Fidelity Vector Illustrated Facility Banner
           Container(
-            height: 130,
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF0F3D24), Color(0xFF1E6F43), Color(0xFF0284C7)],
@@ -103,26 +102,30 @@ class BusinessHeroCard extends StatelessWidget {
                           children: const [
                             Icon(Icons.verified_user_rounded, color: Colors.white, size: 12),
                             SizedBox(width: 4),
-                            Text(
-                              'FSSAI LICENSED FACILITY',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
+                            Flexible(
+                              child: Text(
+                                'FSSAI LICENSED FACILITY',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       const Text(
                         'Packaged Commodity\nDeclaration Standards',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          height: 1.25,
+                          height: 1.2,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -130,15 +133,16 @@ class BusinessHeroCard extends StatelessWidget {
                         'Legal Metrology (PC) Rules, 2011 Verified',
                         style: TextStyle(
                           color: Colors.white70,
-                          fontSize: 10.5,
+                          fontSize: 9.5,
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  width: 76,
-                  height: 76,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
@@ -148,7 +152,7 @@ class BusinessHeroCard extends StatelessWidget {
                     child: Icon(
                       Icons.factory_rounded,
                       color: Colors.white,
-                      size: 38,
+                      size: 32,
                     ),
                   ),
                 ),

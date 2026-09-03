@@ -44,12 +44,16 @@ class ConsumerCareCard extends StatelessWidget {
                 size: 20,
               ),
               SizedBox(width: 8),
-              Text(
-                'Consumer Care Details',
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Consumer Care Details',
+                  style: TextStyle(
+                    color: AppColors.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

@@ -48,12 +48,16 @@ class ManufacturerDetailsCard extends StatelessWidget {
                     size: 20,
                   ),
                   SizedBox(width: 8),
-                  Text(
-                    'Manufacturer Details',
-                    style: TextStyle(
-                      color: AppColors.onSurface,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      'Manufacturer Details',
+                      style: TextStyle(
+                        color: AppColors.onSurface,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -103,14 +107,19 @@ class ManufacturerDetailsCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Complete Address *',
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
+                  const Expanded(
+                    child: Text(
+                      'Complete Address *',
+                      style: TextStyle(
+                        color: AppColors.onSurfaceVariant,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 6),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: addressController,
                     builder: (context, value, child) {

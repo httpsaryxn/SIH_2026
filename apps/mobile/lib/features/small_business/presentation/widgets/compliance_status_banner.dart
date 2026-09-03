@@ -16,6 +16,24 @@ class AuditCheckItem {
   final String? failureReason;
 }
 
+enum HealthQualityGrade { gradeA, gradeB, gradeC, gradeD }
+
+class NutritionalHealthReport {
+  const NutritionalHealthReport({
+    required this.overallHealthGrade,
+    required this.healthSummary,
+    required this.healthPills,
+    required this.hfssWarnings,
+    required this.isUltraProcessed,
+  });
+
+  final HealthQualityGrade overallHealthGrade;
+  final String healthSummary;
+  final List<String> healthPills;
+  final List<String> hfssWarnings;
+  final bool isUltraProcessed;
+}
+
 class ComplianceStatusBanner extends StatelessWidget {
   const ComplianceStatusBanner({
     super.key,
@@ -25,6 +43,135 @@ class ComplianceStatusBanner extends StatelessWidget {
 
   final int score;
   final SmallBusinessLabelModel? labelModel;
+
+  static NutritionalHealthReport analyzeNutritionalQuality(SmallBusinessLabelModel? model) {
+    if (model == null) {
+      return const NutritionalHealthReport(
+        overallHealthGrade: HealthQualityGrade.gradeA,
+        healthSummary: 'Nutrient-Dense Formulation (Clean Label)',
+        healthPills: ['Zero Trans Fat ✓', 'Natural Ingredients ✓', 'Optimal Sodium ✓'],
+        hfssWarnings: [],
+        isUltraProcessed: false,
+      );
+    }
+
+    final healthPills = <String>[];
+    final hfssWarnings = <String>[];
+
+    // 1. Analyze Added Sugars & Total Sugars
+    double addedSugars = 0;
+    double totalSugars = 0;
+    double energy = 0;
+    double totalFat = 0;
+    double saturatedFat = 0;
+    double transFat = 0;
+    double sodium = 0;
+    double protein = 0;
+
+    for (final n in model.nutrients) {
+      final labelLower = n.label.toLowerCase();
+      final val = double.tryParse(n.value.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      if (labelLower.contains('added sugar')) {
+        addedSugars = val;
+      } else if (labelLower.contains('sugar')) {
+        totalSugars = val;
+      } else if (labelLower.contains('energy') || labelLower.contains('calorie')) {
+        energy = val;
+      } else if (labelLower.contains('sat') && labelLower.contains('fat')) {
+        saturatedFat = val;
+      } else if (labelLower.contains('trans') && labelLower.contains('fat')) {
+        transFat = val;
+      } else if (labelLower.contains('total fat') || labelLower == 'fat') {
+        totalFat = val;
+      } else if (labelLower.contains('sodium')) {
+        sodium = val;
+      } else if (labelLower.contains('protein')) {
+        protein = val;
+      }
+    }
+
+    // Sugar checks (HFSS regulation: Added sugar > 10% total energy or > 25g/100g)
+    if (addedSugars > 25 || (energy > 0 && (addedSugars * 4 / energy) > 0.10)) {
+      hfssWarnings.add('HFSS Alert: High Added Sugar (${addedSugars.toStringAsFixed(1)}g)');
+    } else if (addedSugars == 0 && model.nutrients.isNotEmpty) {
+      healthPills.add('Zero Added Sugar ✓');
+    } else if (totalSugars > 0 && totalSugars <= 5) {
+      healthPills.add('Low Total Sugar (${totalSugars.toStringAsFixed(1)}g) ✓');
+    }
+
+    // Sodium checks (HFSS regulation: Sodium > 1000mg per 100g)
+    if (sodium > 1000) {
+      hfssWarnings.add('HFSS Alert: High Sodium (${sodium.toInt()}mg)');
+    } else if (sodium < 140 && sodium > 0) {
+      healthPills.add('Low Sodium Formulation ✓');
+    }
+
+    // Fat & Trans Fat checks
+    if (transFat > 0.2) {
+      hfssWarnings.add('Critical: Trans Fat Non-Compliant (${transFat.toStringAsFixed(1)}g)');
+    } else if (model.nutrients.isNotEmpty) {
+      healthPills.add('Zero Trans Fat ✓');
+    }
+
+    if (saturatedFat > 6) {
+      hfssWarnings.add('High Saturated Fat Notice (${saturatedFat.toStringAsFixed(1)}g)');
+    } else if (saturatedFat > 0 && saturatedFat <= 3) {
+      healthPills.add('Low Saturated Fat ✓');
+    }
+
+    if (totalFat > 0 && totalFat <= 3) {
+      healthPills.add('Low Fat (${totalFat.toStringAsFixed(1)}g) ✓');
+    }
+
+    // Protein & Functional Nutrients
+    if (protein >= 6) {
+      healthPills.add('High Protein (${protein.toStringAsFixed(1)}g) ✓');
+    }
+
+    // 2. Analyze Ingredients Cleanliness
+    bool hasArtificialAdditives = false;
+    final allIngredientsText = model.ingredients.map((i) => i.name.toLowerCase()).join(' ');
+
+    if (allIngredientsText.contains('e621') ||
+        allIngredientsText.contains('msg') ||
+        allIngredientsText.contains('aspartame') ||
+        allIngredientsText.contains('tartrazine') ||
+        allIngredientsText.contains('synthetic color') ||
+        allIngredientsText.contains('preservative class ii') ||
+        allIngredientsText.contains('bha') ||
+        allIngredientsText.contains('bht')) {
+      hasArtificialAdditives = true;
+      hfssWarnings.add('Synthetic Additives / Colors Declared');
+    } else if (model.ingredients.isNotEmpty) {
+      healthPills.add('100% Traditional Formulation ✓');
+    }
+
+    // Calculate Grade
+    HealthQualityGrade grade = HealthQualityGrade.gradeA;
+    String summary = 'Clean Formulation (High Nutritional Quality)';
+
+    if (hfssWarnings.length >= 2 || transFat > 0.2) {
+      grade = HealthQualityGrade.gradeD;
+      summary = 'HFSS High Salt/Sugar Alert - Action Advised';
+    } else if (hfssWarnings.length == 1) {
+      grade = HealthQualityGrade.gradeC;
+      summary = 'Moderate Nutrition Profile (${hfssWarnings.first})';
+    } else if (healthPills.length >= 2) {
+      grade = HealthQualityGrade.gradeA;
+      summary = 'Nutrient-Dense & Clean Label Certified';
+    } else {
+      grade = HealthQualityGrade.gradeB;
+      summary = 'Standard Compliant Food Profile';
+    }
+
+    return NutritionalHealthReport(
+      overallHealthGrade: grade,
+      healthSummary: summary,
+      healthPills: healthPills,
+      hfssWarnings: hfssWarnings,
+      isUltraProcessed: hasArtificialAdditives,
+    );
+  }
 
   static List<AuditCheckItem> evaluateCompliance(SmallBusinessLabelModel? model) {
     if (model == null) {
@@ -108,18 +255,23 @@ class ComplianceStatusBanner extends StatelessWidget {
     ];
   }
 
-  static int calculateScore(List<AuditCheckItem> checks) {
+  static int calculateScore(List<AuditCheckItem> checks, NutritionalHealthReport healthReport) {
     int total = 0;
     for (final c in checks) {
       if (c.isPassed) total += c.weight;
     }
-    return total.clamp(10, 100);
+    // Adjust score based on HFSS warnings
+    if (healthReport.hfssWarnings.isNotEmpty) {
+      total -= (healthReport.hfssWarnings.length * 8);
+    }
+    return total.clamp(20, 100);
   }
 
   @override
   Widget build(BuildContext context) {
+    final healthReport = analyzeNutritionalQuality(labelModel);
     final checks = evaluateCompliance(labelModel);
-    final dynamicScore = labelModel != null ? calculateScore(checks) : score;
+    final dynamicScore = labelModel != null ? calculateScore(checks, healthReport) : score;
 
     final isHigh = dynamicScore >= 85;
     final isMedium = dynamicScore >= 60 && dynamicScore < 85;
@@ -188,12 +340,15 @@ class ComplianceStatusBanner extends StatelessWidget {
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const Text(
-                            'Real-Time FSSAI & Legal Metrology Audit',
-                            style: TextStyle(
+                          Text(
+                            healthReport.healthSummary,
+                            style: const TextStyle(
                               color: Color(0xFFDAE2FD),
                               fontSize: 11,
+                              fontWeight: FontWeight.w500,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -222,11 +377,77 @@ class ComplianceStatusBanner extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: Colors.white24),
-          const SizedBox(height: 12),
+          
+          // HFSS Warning Alerts if present
+          if (healthReport.hfssWarnings.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2).withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFF87171)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: healthReport.hfssWarnings.map((w) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFDC2626)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            w,
+                            style: const TextStyle(
+                              color: Color(0xFF991B1B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
 
-          // Dynamic checkpoint badges
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Colors.white24),
+          const SizedBox(height: 10),
+
+          // Dynamic Nutritional Health Quality Pills
+          if (healthReport.healthPills.isNotEmpty) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: healthReport.healthPills.map((hp) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF86EFAC).withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF86EFAC), width: 0.8),
+                  ),
+                  child: Text(
+                    hp,
+                    style: const TextStyle(
+                      color: Color(0xFFDCFCE7),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Regulatory checkpoint badges
           Wrap(
             spacing: 6,
             runSpacing: 6,

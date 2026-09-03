@@ -92,12 +92,16 @@ class CreateLabelBottomBar extends StatelessWidget {
                               size: 18,
                               color: AppColors.onSurface,
                             ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Save',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                            SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Save',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -124,19 +128,23 @@ class CreateLabelBottomBar extends StatelessWidget {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Text(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                'Continue',
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            SizedBox(width: 6),
+                            SizedBox(width: 4),
                             Icon(
                               Icons.arrow_forward_rounded,
                               size: 18,

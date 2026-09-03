@@ -60,26 +60,31 @@ class StorageUsageCard extends StatelessWidget {
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Storage & Usage Instructions',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Storage & Usage Instructions',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    'Shelf-life preservation & consumer safety guidelines',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.onSurfaceVariant,
+                    Text(
+                      'Shelf-life preservation & consumer safety guidelines',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

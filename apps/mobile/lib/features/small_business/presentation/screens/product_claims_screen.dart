@@ -390,7 +390,7 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+        preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -409,7 +409,7 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 8.0,
+                    vertical: 4.0,
                   ),
                   child: Row(
                     children: [
@@ -444,6 +444,8 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Step 6 of 6: Front-of-pack claims',
@@ -451,60 +453,28 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                      // Notification Bell
+                      // Delete Draft Icon Button
                       IconButton(
                         icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.brandDeepGreen,
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 22,
                         ),
-                        onPressed:
-                            () => SmallBusinessNotificationService
-                                .showNotificationCenter(context),
-                      ),
-                      // Delete Draft Button
-                      OutlinedButton(
+                        tooltip: 'Delete Draft',
                         onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
+                            horizontal: 10,
                             vertical: 6,
                           ),
                           minimumSize: const Size(0, 0),
@@ -624,16 +594,21 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _selectedCategory == null
-                      ? 'Available Claims (${filteredClaims.length})'
-                      : '${_selectedCategory!.label} (${filteredClaims.length})',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+                Expanded(
+                  child: Text(
+                    _selectedCategory == null
+                        ? 'Available Claims (${filteredClaims.length})'
+                        : '${_selectedCategory!.label} (${filteredClaims.length})',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '${_selectedClaimIds.length} Selected',
                   style: const TextStyle(

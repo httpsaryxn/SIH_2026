@@ -69,8 +69,19 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final draft = await _repository.fetchActiveDraft();
-      final labels = await _repository.fetchLabels(searchQuery: searchQuery);
+      final results = await Future.wait([
+        _repository.fetchActiveDraft().timeout(
+              const Duration(seconds: 5),
+              onTimeout: () => _repository.getCachedActiveDraft(),
+            ),
+        _repository.fetchLabels(searchQuery: searchQuery).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () => _repository.getCachedLabels(searchQuery: searchQuery),
+            ),
+      ]);
+
+      final draft = results[0] as SmallBusinessLabelModel?;
+      final labels = results[1] as List<SmallBusinessLabelModel>;
 
       if (mounted) {
         setState(() {
@@ -81,7 +92,10 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _labels = _repository.getCachedLabels(searchQuery: searchQuery);
+          _isLoading = false;
+        });
       }
     }
   }
@@ -208,69 +222,96 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
   void _showCategoryFilterDialog() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Filter by Product Category',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top drag handle pill
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _filterCategories.map((cat) {
-                  final isSelected =
-                      (cat == 'All Categories' && _selectedCategoryFilter == null) ||
-                      _selectedCategoryFilter == cat;
-                  return ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedCategoryFilter = cat == 'All Categories' ? null : cat;
-                      });
-                      Navigator.of(ctx).pop();
-                    },
-                    selectedColor: AppColors.brandDeepGreen,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-                      fontSize: 12.5,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Filter by Product Category',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-            ],
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _filterCategories.map((cat) {
+                          final isSelected =
+                              (cat == 'All Categories' && _selectedCategoryFilter == null) ||
+                              _selectedCategoryFilter == cat;
+                          return ChoiceChip(
+                            label: Text(cat),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedCategoryFilter = cat == 'All Categories' ? null : cat;
+                              });
+                              Navigator.of(ctx).pop();
+                            },
+                            selectedColor: AppColors.brandDeepGreen,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -335,40 +376,50 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
                 const SizedBox(height: 12),
 
                 // 3. Interactive Filter Tabs (All, Ready, Needs Review, Drafts)
-                Row(
-                  children: [
-                    _FilterChip(
-                      label: 'All (${_labels.length})',
-                      isSelected: _selectedStatusFilter == 'All',
-                      onTap: () => setState(() => _selectedStatusFilter = 'All'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Ready',
-                      isSelected: _selectedStatusFilter == 'Ready',
-                      onTap: () => setState(() => _selectedStatusFilter = 'Ready'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Needs Review',
-                      isSelected: _selectedStatusFilter == 'Needs Review',
-                      onTap: () => setState(() => _selectedStatusFilter = 'Needs Review'),
-                    ),
-                    if (_selectedCategoryFilter != null) ...[
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(_selectedCategoryFilter!),
-                        onDeleted: () => setState(() => _selectedCategoryFilter = null),
-                        deleteIcon: const Icon(Icons.close_rounded, size: 14),
-                        backgroundColor: AppColors.brandDeepGreen.withValues(alpha: 0.1),
-                        labelStyle: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.brandDeepGreen,
-                        ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      _FilterChip(
+                        label: 'All (${_labels.length})',
+                        isSelected: _selectedStatusFilter == 'All',
+                        onTap: () => setState(() => _selectedStatusFilter = 'All'),
                       ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Ready',
+                        isSelected: _selectedStatusFilter == 'Ready',
+                        onTap: () => setState(() => _selectedStatusFilter = 'Ready'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Needs Review',
+                        isSelected: _selectedStatusFilter == 'Needs Review',
+                        onTap: () => setState(() => _selectedStatusFilter = 'Needs Review'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Drafts',
+                        isSelected: _selectedStatusFilter == 'Drafts',
+                        onTap: () => setState(() => _selectedStatusFilter = 'Drafts'),
+                      ),
+                      if (_selectedCategoryFilter != null) ...[
+                        const SizedBox(width: 8),
+                        Chip(
+                          label: Text(_selectedCategoryFilter!),
+                          onDeleted: () => setState(() => _selectedCategoryFilter = null),
+                          deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                          backgroundColor: AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                          labelStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.brandDeepGreen,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -426,7 +477,12 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
         onTap: (index) {
           setState(() {
             _currentNavIndex = index;
+            if (index == 0) {
+              _selectedStatusFilter = 'All';
+              _selectedCategoryFilter = null;
+            }
           });
+          _loadStudioData();
         },
       ),
     );

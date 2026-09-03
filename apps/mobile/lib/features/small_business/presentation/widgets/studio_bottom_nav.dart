@@ -33,29 +33,37 @@ class StudioBottomNav extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildNavItem(
-                    index: 0,
-                    icon: Icons.label_rounded,
-                    inactiveIcon: Icons.label_outline_rounded,
-                    label: 'Labels',
+                  Expanded(
+                    child: _buildNavItem(
+                      index: 0,
+                      icon: Icons.label_rounded,
+                      inactiveIcon: Icons.label_outline_rounded,
+                      label: 'Labels',
+                    ),
                   ),
-                  _buildNavItem(
-                    index: 1,
-                    icon: Icons.home_rounded,
-                    inactiveIcon: Icons.home_outlined,
-                    label: 'Home',
+                  Expanded(
+                    child: _buildNavItem(
+                      index: 1,
+                      icon: Icons.home_rounded,
+                      inactiveIcon: Icons.home_outlined,
+                      label: 'Home',
+                    ),
                   ),
-                  _buildNavItem(
-                    index: 2,
-                    icon: Icons.dashboard_customize_rounded,
-                    inactiveIcon: Icons.dashboard_customize_outlined,
-                    label: 'Samples',
+                  Expanded(
+                    child: _buildNavItem(
+                      index: 2,
+                      icon: Icons.dashboard_customize_rounded,
+                      inactiveIcon: Icons.dashboard_customize_outlined,
+                      label: 'Samples',
+                    ),
                   ),
-                  _buildNavItem(
-                    index: 3,
-                    icon: Icons.settings_rounded,
-                    inactiveIcon: Icons.settings_outlined,
-                    label: 'Settings',
+                  Expanded(
+                    child: _buildNavItem(
+                      index: 3,
+                      icon: Icons.settings_rounded,
+                      inactiveIcon: Icons.settings_outlined,
+                      label: 'Settings',
+                    ),
                   ),
                 ],
               ),
@@ -78,12 +86,12 @@ class StudioBottomNav extends StatelessWidget {
       onTap: () => onTap?.call(index),
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppColors.primary.withValues(alpha: 0.12)
@@ -95,7 +103,7 @@ class StudioBottomNav extends StatelessWidget {
                 color: isSelected
                     ? AppColors.primary
                     : AppColors.onSurfaceVariant,
-                size: 22,
+                size: 20,
               ),
             ),
             const SizedBox(height: 2),
@@ -105,9 +113,11 @@ class StudioBottomNav extends StatelessWidget {
                 color: isSelected
                     ? AppColors.primary
                     : AppColors.onSurfaceVariant,
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

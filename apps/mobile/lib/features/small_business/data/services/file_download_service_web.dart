@@ -1,6 +1,5 @@
-// ignore: avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:async';
-import 'dart:convert';
 import 'dart:html' as html;
 
 void triggerDownload({
@@ -91,12 +90,10 @@ void triggerNativeShare({
   String? url,
 }) {
   try {
-    if (html.window.navigator.share != null) {
-      html.window.navigator.share({
-        'title': title,
-        'text': text,
-        'url': url ?? html.window.location.href,
-      });
-    }
+    html.window.navigator.share({
+      'title': title,
+      'text': text,
+      'url': url ?? html.window.location.href,
+    });
   } catch (_) {}
 }

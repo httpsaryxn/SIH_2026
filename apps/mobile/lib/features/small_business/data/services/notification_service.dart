@@ -44,7 +44,6 @@ class AppNotificationItem {
       case NotificationType.compliance:
         return Icons.verified_user_rounded;
       case NotificationType.info:
-      default:
         return Icons.info_outline_rounded;
     }
   }
@@ -58,7 +57,6 @@ class AppNotificationItem {
       case NotificationType.compliance:
         return const Color(0xFF0284C7);
       case NotificationType.info:
-      default:
         return AppColors.brandDeepGreen;
     }
   }

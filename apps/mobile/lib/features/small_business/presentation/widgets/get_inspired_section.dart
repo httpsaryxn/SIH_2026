@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'product_image_widget.dart';
 
 class SampleLabelData {
   final String title;
@@ -20,27 +21,27 @@ class GetInspiredSection extends StatelessWidget {
     this.samples = const [
       SampleLabelData(
         title: 'Mango Pickle',
-        category: 'Food & Beverages',
+        category: 'Pickles & Condiments',
         imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuCcXmKu-wXmgXHUL5_LZniBRP74NBCPIhTAAvsKJfxmo3mihAzv043V2RhzLgyEnkCVJYnbd27YnQ1vrHJ7muyko9HwbphR0koy3KC7QlTPZMsItrhGG8_cDXy_ZAvUuHn4ZPtAOYMZFxqGU4oLw9ESPumLi-1XLuuBfxVvLLu0DqwvxmY_a8j8TCcNbtSE1fDPcZ7Hp9E8mK9o47xRpxLcFGNQ7TeFZBCrVc_s5Bg_D-nPjru3FQdZ_Q',
+            'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?auto=format&fit=crop&w=400&q=80',
       ),
       SampleLabelData(
         title: 'Garam Masala',
-        category: 'Spices',
+        category: 'Spices & Masalas',
         imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuCB-2bXyhoIjf6kUT7_-X_q_3vNf_k3tNcVPHgl07HuwsaNAlgiXH5BLHlwY7ZnWMvhin6tiTUeKxZVU_owLVGN-1tCG8rRpGF9kd2_s9_KBjV4IoJcTwlOgi1UzjRRDdtSMzEPhWbgqwKbl0KrBS7mn0IGzmDhY6guTn23bCIpKJm0oiQJUjdA5qmuzpQp6y5slyCZ0X6GePGgyBNIGdHFHIiYpiy2XYnzy7wHP0v9dzE5VH9IYKo8nw',
+            'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=400&q=80',
       ),
       SampleLabelData(
         title: 'Pure Wild Honey',
-        category: 'Natural Foods',
+        category: 'Honey & Natural Foods',
         imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuAbJgISdT2NBAhmhQ9EBcbZNYKVh1s9VDUo47GQvOiYDcEaVuIM4Be4qVa0j-3ZNLEmiAlKlVGt55Xi05LYIKtbQ3R7OPE0cKL7eWE1HjbQ_pqjN-Xk8hzsMe4-LAC0RbE6kMMy1xw3j8Cy24yoQ5fFNimXAtTnSR8kzCFS0DXXhENpkupHAUFV8ovidTMAkov3cj8NxXyDt3jrPaOf98m67dZMQO6wi4kHncM2ZcHP0il2VKHHKUKUPw',
+            'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80',
       ),
       SampleLabelData(
         title: 'Banana Chips',
-        category: 'Snacks',
+        category: 'Snacks & Namkeen',
         imageUrl:
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuB5zeZS_n_7Ej-iwqd8_k_bH-5-qmT68lv5CIYuwivIcG38WNi_aHQGyxA2YXHXWKUxf2lL_3CStX2rGP94h4flwZZ_vrI5mjbWhUdnf-nROeufic9ycjBsgGCZ1MAqjMk9EIfDoUpgivTpCi7qOfOvg1J85wyDoc25XG8DbDIBu5GwrSa7CKwH9Pm2Z88shtGh3MDf0iyP1kLCJTe4ZFHo68u0nc9dwa7TCKEz_qcA_dMLgFrCj0Vh_Q',
+            'https://images.unsplash.com/photo-1621996346565-e3d5d6281033?auto=format&fit=crop&w=400&q=80',
       ),
     ],
   });
@@ -68,7 +69,7 @@ class GetInspiredSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 190,
+          height: 205,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -107,25 +108,13 @@ class GetInspiredSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Image Container
-          Container(
+          ProductImageWidget(
+            imageUrl: item.imageUrl,
+            category: item.category,
             width: double.infinity,
             height: 90,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: const EdgeInsets.all(6),
-            child: Image.network(
-              item.imageUrl,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  color: AppColors.onSurfaceVariant,
-                  size: 26,
-                ),
-              ),
-            ),
+            fit: BoxFit.contain,
+            borderRadius: 10,
           ),
           const SizedBox(height: 8),
           // Title

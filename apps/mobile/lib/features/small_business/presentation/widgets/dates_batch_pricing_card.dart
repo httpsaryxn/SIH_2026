@@ -69,26 +69,31 @@ class DatesBatchPricingCard extends StatelessWidget {
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Pricing, Batch & Date Codes',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Pricing, Batch & Date Codes',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    'Legal Metrology mandatory retail declarations',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.onSurfaceVariant,
+                    Text(
+                      'Legal Metrology mandatory retail declarations',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -105,11 +110,13 @@ class DatesBatchPricingCard extends StatelessWidget {
                     const Text(
                       'MAX RETAIL PRICE (MRP) *',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                         color: AppColors.onSurfaceVariant,
-                        letterSpacing: 0.6,
+                        letterSpacing: 0.4,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -168,15 +175,20 @@ class DatesBatchPricingCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'UNIT SALE PRICE (USP) *',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.onSurfaceVariant,
-                            letterSpacing: 0.6,
+                        const Expanded(
+                          child: Text(
+                            'UNIT SALE PRICE (USP) *',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.onSurfaceVariant,
+                              letterSpacing: 0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 4),
                         InkWell(
                           onTap: onAutoCalculateUSP,
                           child: const Text(
@@ -245,15 +257,20 @@ class DatesBatchPricingCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'BATCH / LOT NO. *',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.onSurfaceVariant,
-                            letterSpacing: 0.6,
+                        const Expanded(
+                          child: Text(
+                            'BATCH / LOT NO. *',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.onSurfaceVariant,
+                              letterSpacing: 0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 4),
                         InkWell(
                           onTap: onGenerateBatchCode,
                           child: const Text(
@@ -315,11 +332,13 @@ class DatesBatchPricingCard extends StatelessWidget {
                     const Text(
                       'MFG / PKGD DATE *',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                         color: AppColors.onSurfaceVariant,
-                        letterSpacing: 0.6,
+                        letterSpacing: 0.4,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     TextField(

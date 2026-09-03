@@ -1,10 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/small_business/data/models/small_business_label_model.dart';
+import 'package:mobile/features/small_business/presentation/screens/create_label_declaration_screen.dart';
+import 'package:mobile/features/small_business/presentation/screens/final_details_screen.dart';
+import 'package:mobile/features/small_business/presentation/screens/ingredients_allergens_screen.dart';
+import 'package:mobile/features/small_business/presentation/screens/label_review_export_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/manufacturer_details_screen.dart';
+import 'package:mobile/features/small_business/presentation/screens/my_label_studio_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/nutritional_values_screen.dart';
+import 'package:mobile/features/small_business/presentation/screens/product_claims_screen.dart';
 import 'package:mobile/main.dart';
 
 class MockHttpOverrides extends HttpOverrides {
@@ -17,10 +24,7 @@ class MockHttpOverrides extends HttpOverrides {
 class _MockHttpClient implements HttpClient {
   @override
   noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #getUrl) {
-      return Future.value(_MockHttpClientRequest());
-    }
-    if (invocation.memberName == #openUrl) {
+    if (invocation.memberName == #getUrl || invocation.memberName == #openUrl) {
       return Future.value(_MockHttpClientRequest());
     }
     return super.noSuchMethod(invocation);
@@ -47,7 +51,6 @@ class _MockHttpHeaders implements HttpHeaders {
 
 class _MockHttpClientResponse extends Stream<List<int>>
     implements HttpClientResponse {
-  // A tiny 1x1 transparent PNG image data
   static const List<int> _transparentImage = [
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
     0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
@@ -95,8 +98,32 @@ void main() {
     HttpOverrides.global = MockHttpOverrides();
   });
 
+  const testModel = SmallBusinessLabelModel(
+    brandName: 'Annapurna Foods',
+    productName: 'Organic Mango Pickle',
+    productCategory: 'Pickles & Condiments',
+    typeFlavour: 'Traditional Spicy Mustard',
+    netQuantity: '500',
+    netQuantityUnit: 'g',
+    mrp: '199.00',
+    servingSize: '15',
+    servingSizeUnit: 'g',
+    manufacturerName: 'Annapurna Agro Industries',
+    manufacturerAddress: 'Plot 42, Industrial Area, Varanasi, UP, 221001',
+    fssaiLicenseNumber: '12345678901234',
+    consumerCarePhone: '+91 98765 43210',
+    consumerCareEmail: 'care@annapurnafoods.in',
+    ingredients: [
+      SmallBusinessIngredientModel(name: 'Raw Mango Pieces', percentage: 65.0),
+      SmallBusinessIngredientModel(name: 'Mustard Oil', percentage: 20.0),
+      SmallBusinessIngredientModel(name: 'Iodized Salt', percentage: 10.0),
+      SmallBusinessIngredientModel(name: 'Red Chilli Powder', percentage: 5.0),
+    ],
+    allergens: ['Mustard'],
+  );
+
   testWidgets(
-      'Screen 1 to Screen 2 to Screen 3 to Screen 4 to Screen 5 full navigation flow',
+      'Full End-to-End Navigation Flow Across Studio and Steps 1 through 5',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -104,73 +131,165 @@ void main() {
 
     await tester.pumpWidget(const MyLabelStudioApp());
 
-    // Verify Screen 1
+    // Verify Screen 1 (Studio Hub)
     expect(find.text('My Label Studio'), findsOneWidget);
+    expect(find.text('Get inspired'), findsOneWidget);
 
-    // Navigate to Screen 2
+    // Navigate to Step 1 (Create Label Declaration)
     final createLabelBtn = find.text('Start creating your label');
     await tester.tap(createLabelBtn);
     await tester.pumpAndSettle();
 
-    // Fill in fields and navigate to Screen 3
-    final textFields2 = find.byType(TextField);
-    await tester.enterText(textFields2.at(0), 'Annapurna');
-    await tester.enterText(textFields2.at(1), 'Mango Pickle');
+    expect(find.text('Create Label'), findsOneWidget);
+    expect(find.text('Step 1: Product Declaration'), findsOneWidget);
+
+    // Fill in fields
+    final textFields = find.byType(TextField);
+    await tester.enterText(textFields.at(0), 'Annapurna');
+    await tester.enterText(textFields.at(1), 'Mango Pickle');
     await tester.pumpAndSettle();
 
-    final continueBtnScreen2 = find.text('Continue');
-    await tester.tap(continueBtnScreen2);
+    // Select category from dropdown
+    await tester.ensureVisible(find.byType(DropdownButton<String>));
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pickles & Condiments').last);
     await tester.pumpAndSettle();
 
-    // Navigate to Screen 4
-    final continueBtnScreen3 = find.text('Continue');
-    await tester.tap(continueBtnScreen3);
+    // Navigate to Step 2 (Ingredients & Allergens)
+    final continueBtn1 = find.text('Continue');
+    await tester.tap(continueBtn1);
     await tester.pumpAndSettle();
 
-    // Verify Screen 4 & Tap Next to navigate to Screen 5
-    expect(find.text('Step 3 of 6'), findsOneWidget);
-    final nextBtnScreen4 = find.text('Next');
-    await tester.tap(nextBtnScreen4);
+    expect(find.text('Formulation & Allergens'), findsOneWidget);
+    expect(find.text('Step 2 of 6: Ingredients list'), findsOneWidget);
+
+    // Add an ingredient from quick formulation chips
+    await tester.ensureVisible(find.byType(ActionChip).first);
+    await tester.tap(find.byType(ActionChip).first);
     await tester.pumpAndSettle();
 
-    // Verify Screen 5 (Business & Manufacturer)
-    expect(find.text('LabelStudio'), findsOneWidget);
-    expect(find.text('Step 4 of 6'), findsOneWidget);
+    // Confirm addition in bottom sheet
+    await tester.tap(find.text('Save Ingredient'));
+    await tester.pumpAndSettle();
+
+    // Navigate to Step 3 (Nutritional Values)
+    final continueBtn2 = find.text('Continue');
+    await tester.tap(continueBtn2);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nutritional Values'), findsWidgets);
+    expect(find.text('Step 3 of 6: Nutrition Profile & Serving'), findsOneWidget);
+
+    // Navigate to Step 4 (Manufacturer Details) via Skip
+    final skipBtn3 = find.text('Skip');
+    await tester.tap(skipBtn3);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Manufacturer & Business'), findsOneWidget);
+    expect(find.text('Step 4 of 6: FSSAI license & contact'), findsOneWidget);
     expect(find.text('Manufacturer Details'), findsWidgets);
-    expect(find.text('Business Information'), findsOneWidget);
-    expect(find.text('Consumer Care Details'), findsOneWidget);
-    expect(find.text('Packer address same as manufacturer'), findsOneWidget);
 
-    // Tap Back on Screen 5 to return to Screen 4
-    final backBtnScreen5 = find.text('Back');
-    await tester.tap(backBtnScreen5);
+    // Tap Back on Step 4 to return to Step 3
+    final backBtn4 = find.text('Back');
+    await tester.tap(backBtn4);
     await tester.pumpAndSettle();
 
-    // Verify back on Screen 4
-    expect(find.text('Step 3 of 6'), findsOneWidget);
+    expect(find.text('Nutritional Values'), findsWidgets);
   });
 
-  testWidgets('Screen 5 direct test with input interaction', (
-    WidgetTester tester,
-  ) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 2.0;
+  testWidgets(
+      'Responsive Narrow Screen Overflow Test on All Screens (360x640)',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
+    // Test 1: Studio Screen on narrow viewport
     await tester.pumpWidget(
-      const MaterialApp(home: ManufacturerDetailsScreen()),
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const MyLabelStudioScreen(),
+      ),
     );
+    await tester.pumpAndSettle();
+    expect(find.text('My Label Studio'), findsOneWidget);
 
-    // Verify layout elements
-    expect(find.text('LabelStudio'), findsOneWidget);
-    expect(find.text('Step 4 of 6'), findsOneWidget);
-    expect(find.text('Manufacturer Details'), findsWidgets);
+    // Test 2: Declaration Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const CreateLabelDeclarationScreen(initialLabel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Create Label'), findsWidgets);
 
-    // Verify pre-filled inputs
-    expect(find.text('Desi Harvest'), findsOneWidget);
-    expect(find.text('India'), findsOneWidget);
+    // Test 3: Ingredients Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const IngredientsAllergensScreen(labelModel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Formulation & Allergens'), findsWidgets);
 
-    // Verify Next button
-    expect(find.text('Next'), findsOneWidget);
+    // Test 4: Nutrition Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const NutritionalValuesScreen(labelModel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Nutritional Values'), findsWidgets);
+
+    // Test 5: Manufacturer Details Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const ManufacturerDetailsScreen(labelModel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Manufacturer & Business'), findsWidgets);
+
+    // Test 6: Final Details Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const FinalDetailsScreen(labelModel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Finishing Details'), findsWidgets);
+
+    // Test 7: Product Claims Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const ProductClaimsScreen(labelModel: testModel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Product Claims'), findsWidgets);
+
+    // Test 8: Review & Export Screen on narrow viewport
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: LabelReviewExportScreen(
+          brandName: testModel.brandName,
+          productName: testModel.productName,
+          productCategory: testModel.productCategory,
+          netQuantity: '${testModel.netQuantity} ${testModel.netQuantityUnit}',
+          mrp: '₹ ${testModel.mrp}',
+          labelModel: testModel,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Review & Export'), findsWidgets);
   });
 }

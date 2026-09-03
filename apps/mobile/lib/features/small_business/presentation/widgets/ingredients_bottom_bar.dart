@@ -66,11 +66,15 @@ class IngredientsBottomBar extends StatelessWidget {
                           children: const [
                             Icon(Icons.chevron_left_rounded, size: 20),
                             SizedBox(width: 4),
-                            Text(
-                              'Back',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
+                            Flexible(
+                              child: Text(
+                                'Back',
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -96,18 +100,23 @@ class IngredientsBottomBar extends StatelessWidget {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Text(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                'Continue',
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            SizedBox(width: 6),
+                            SizedBox(width: 4),
                             Icon(Icons.arrow_forward_rounded, size: 18),
                           ],
                         ),

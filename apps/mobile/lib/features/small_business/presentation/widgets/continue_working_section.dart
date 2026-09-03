@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
+import 'product_image_widget.dart';
 
 class ContinueWorkingSection extends StatelessWidget {
   const ContinueWorkingSection({
@@ -27,8 +28,7 @@ class ContinueWorkingSection extends StatelessWidget {
         ? '${currentDraft.brandName} ${currentDraft.productName}'
         : (currentDraft.brandName.isNotEmpty ? currentDraft.brandName : 'Untitled Draft');
     final percentage = currentDraft.completionPercentage.clamp(0, 100);
-    final imageUrl = currentDraft.logoUrl ??
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCkULLvU1u_zh9bb1xjyt0ZBfPgrBKk92xykR2LHfI8VoTB_l6JDfIuTQ5X79CUZJhtwowCYuOC56sE4_vtTVbNw1riKWKmMfw5BE50_b5-XpX8EGwXJ6kDc11OT2wyDl5MZSIJ8S5IZIsnw_87MJVi9hf2H716UU3YtM4Ae2VoG3AizLPNoIMfuiXBp-FtqKNQ1dMUpHZFKd4enROv-82G9XroFpejyn8GRC9py7d9qm-nVqOQBA8-Zg';
+    final imageUrl = currentDraft.logoUrl ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,26 +108,12 @@ class ContinueWorkingSection extends StatelessWidget {
               child: Row(
                 children: [
                   // Draft Thumbnail Image
-                  Container(
+                  ProductImageWidget(
+                    imageUrl: imageUrl,
+                    category: draft?.productCategory,
                     width: 64,
                     height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
-                            child: Icon(
-                              Icons.image_outlined,
-                              color: AppColors.onSurfaceVariant,
-                              size: 28,
-                            ),
-                          ),
-                    ),
+                    borderRadius: 10,
                   ),
                   const SizedBox(width: 12),
                   // Draft Details
@@ -205,7 +191,7 @@ class ContinueWorkingSection extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Details $percentage% complete',
+                              '$percentage% complete',
                               style: const TextStyle(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 10.5,

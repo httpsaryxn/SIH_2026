@@ -110,21 +110,58 @@ class DeclarationHeroCard extends StatelessWidget {
                   child: Container(
                     height: 120,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.network(
-                      'https://lh3.googleusercontent.com/aida-public/AB6AXuCLmR4T8NhYRyOxtozjaMp4e7VyMiZVspHHwGfg5mwGYof7_yeMLJuAgTXA60eCBk3QHEHr5N9QTv2s_FwxB1YjJ5ctdp_zJNPjyyREoioS8cbLXX4yJ-3c4-dUW658Pnwzi2K8aNDsEls_mM_VqI9D4nX5qrfr1U2osZeIi48JTMv5lyKfb766eURnHLlQyZFxaNE8OwnaTkkvNwlOmU2leV3XsCq-hDd7Q4JvxsQrPixohZdxoL56JQ',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
-                            child: Icon(
-                              Icons.inventory_2_outlined,
-                              color: Colors.white70,
-                              size: 36,
+                    child: Center(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.15),
                             ),
                           ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.assignment_turned_in_rounded,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'FSSAI READY',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

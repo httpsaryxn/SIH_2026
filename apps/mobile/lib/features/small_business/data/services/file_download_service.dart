@@ -5,12 +5,12 @@ import 'file_download_service_stub.dart'
 
 class FileDownloadService {
   /// Generates and triggers direct download of standalone, valid SVG packaging artwork
-  static void downloadSvgLabel({
+  static Future<String?> downloadSvgLabel({
     required SmallBusinessLabelModel model,
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
-  }) {
+  }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_artwork_${widthMm.toInt()}x${heightMm.toInt()}mm.svg';
 
@@ -21,7 +21,7 @@ class FileDownloadService {
       heightMm: heightMm,
     );
 
-    platform_downloader.triggerDownload(
+    return await platform_downloader.triggerDownload(
       fileName: fileName,
       content: svgContent,
       mimeType: 'image/svg+xml;charset=utf-8',
@@ -29,7 +29,7 @@ class FileDownloadService {
   }
 
   /// Generates and triggers direct download of genuine, high-resolution PNG bitmap
-  static Future<void> downloadPngLabel({
+  static Future<String?> downloadPngLabel({
     required SmallBusinessLabelModel model,
     required String dimension,
     double widthMm = 100,
@@ -45,7 +45,7 @@ class FileDownloadService {
       heightMm: heightMm,
     );
 
-    await platform_downloader.triggerSvgToPngDownload(
+    return await platform_downloader.triggerSvgToPngDownload(
       fileName: fileName,
       svgContent: svgContent,
       width: (widthMm * 12).toInt().clamp(800, 2400),
@@ -54,18 +54,18 @@ class FileDownloadService {
   }
 
   /// Generates and triggers direct download of a 100% valid PDF 1.4 document
-  static void downloadPdfLabel({
+  static Future<String?> downloadPdfLabel({
     required SmallBusinessLabelModel model,
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
-  }) {
+  }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_print_spec_300dpi.pdf';
 
     final pdfBytes = _generateValidPdfBytes(model: model, dimension: dimension, widthMm: widthMm, heightMm: heightMm);
 
-    platform_downloader.triggerBytesDownload(
+    return await platform_downloader.triggerBytesDownload(
       fileName: fileName,
       bytes: pdfBytes,
       mimeType: 'application/pdf',
@@ -73,25 +73,26 @@ class FileDownloadService {
   }
 
   /// Generates and triggers direct download of Legal Metrology JSON metadata
-  static void downloadJsonMetadata({required SmallBusinessLabelModel model}) {
+  static Future<String?> downloadJsonMetadata({required SmallBusinessLabelModel model}) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_compliance_metadata.json';
 
     final jsonContent = const JsonEncoder.withIndent('  ').convert(model.toMap());
 
-    platform_downloader.triggerDownload(
+    return await platform_downloader.triggerDownload(
       fileName: fileName,
       content: jsonContent,
       mimeType: 'application/json;charset=utf-8',
     );
   }
 
-  static void shareLabel({
+  static Future<void> shareLabel({
     required String title,
     required String text,
     String? url,
-  }) {
-    platform_downloader.triggerNativeShare(title: title, text: text, url: url);
+    String? filePath,
+  }) async {
+    await platform_downloader.triggerNativeShare(title: title, text: text, url: url, filePath: filePath);
   }
 
   static String _cleanFileName(String name) {

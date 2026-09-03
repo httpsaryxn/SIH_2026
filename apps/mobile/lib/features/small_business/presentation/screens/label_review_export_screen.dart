@@ -14,7 +14,6 @@ import '../widgets/review_accordion_section.dart';
 import '../widgets/review_export_bottom_bar.dart';
 import '../widgets/wizard_step_progress_card.dart';
 import 'create_label_declaration_screen.dart';
-import 'final_details_screen.dart';
 import 'ingredients_allergens_screen.dart';
 import 'manufacturer_details_screen.dart';
 import 'my_label_studio_screen.dart';
@@ -115,8 +114,9 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     setState(() => _isExporting = true);
 
     try {
+      final healthReport = ComplianceStatusBanner.analyzeNutritionalQuality(_currentModel);
       final auditChecks = ComplianceStatusBanner.evaluateCompliance(_currentModel);
-      final liveScore = ComplianceStatusBanner.calculateScore(auditChecks);
+      final liveScore = ComplianceStatusBanner.calculateScore(auditChecks, healthReport);
 
       final modelToPublish = _currentModel.copyWith(
         exportFormat: _selectedFormat.name,
@@ -130,9 +130,10 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       await _repository.publishLabel(modelToPublish);
 
       // 2. Direct Browser / OS File Download to Downloads folder
+      String? savedFilePath;
       switch (_selectedFormat) {
         case ExportFormat.png:
-          await FileDownloadService.downloadPngLabel(
+          savedFilePath = await FileDownloadService.downloadPngLabel(
             model: modelToPublish,
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
@@ -140,7 +141,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           );
           break;
         case ExportFormat.svg:
-          FileDownloadService.downloadSvgLabel(
+          savedFilePath = await FileDownloadService.downloadSvgLabel(
             model: modelToPublish,
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
@@ -148,7 +149,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           );
           break;
         case ExportFormat.pdf:
-          FileDownloadService.downloadPdfLabel(
+          savedFilePath = await FileDownloadService.downloadPdfLabel(
             model: modelToPublish,
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
@@ -156,7 +157,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           );
           break;
         case ExportFormat.json:
-          FileDownloadService.downloadJsonMetadata(
+          savedFilePath = await FileDownloadService.downloadJsonMetadata(
             model: modelToPublish,
           );
           break;
@@ -172,13 +173,25 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       if (!mounted) return;
       setState(() => _isExporting = false);
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            savedFilePath != null
+                ? 'Saved to Downloads: ${savedFilePath.split(r'/').last.split(r'\').last}'
+                : 'Artwork downloaded to your device Downloads folder!',
+          ),
+          backgroundColor: AppColors.brandDeepGreen,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
       _showExportSuccessDialog();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isExporting = false);
 
       // Fallback direct download
-      FileDownloadService.downloadSvgLabel(
+      await FileDownloadService.downloadSvgLabel(
         model: _currentModel,
         dimension: _selectedDimension,
         widthMm: _customWidthMm,
@@ -198,6 +211,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
   void _onShare() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final shareText =
@@ -206,85 +220,109 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             'FSSAI License: ${_currentModel.fssaiLicenseNumber}\n'
             'Compliant with Legal Metrology (Packaged Commodities) Rules 2011.';
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Share Packaging Artwork',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Share Packaging Artwork',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF25D366).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
-                ),
-                title: const Text('Share to WhatsApp / Messaging', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Send packaging specifications & declaration to printer or client', style: TextStyle(fontSize: 12)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  FileDownloadService.shareLabel(
-                    title: '${_currentModel.brandName} Packaging Label',
-                    text: shareText,
-                  );
-                  _notificationService.notify(
-                    title: 'Sharing initiated',
-                    message: 'Shared label summary to messaging apps.',
-                    type: NotificationType.info,
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.brandDeepGreen.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.copy_rounded, color: AppColors.brandDeepGreen),
-                ),
-                title: const Text('Copy Specification Text', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Copy full FSSAI declaration text to clipboard', style: TextStyle(fontSize: 12)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  Clipboard.setData(ClipboardData(text: shareText));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Copied packaging specifications to clipboard!'),
-                      backgroundColor: AppColors.brandDeepGreen,
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.brandDeepGreen.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.share_rounded, color: AppColors.brandDeepGreen),
+                  ),
+                  title: const Text('Open System Share Sheet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: const Text('Share packaging file & specs to WhatsApp, Drive, Gmail, or Bluetooth', style: TextStyle(fontSize: 12)),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    final path = await FileDownloadService.downloadSvgLabel(
+                      model: _currentModel,
+                      dimension: _selectedDimension,
+                      widthMm: _customWidthMm,
+                      heightMm: _customHeightMm,
+                    );
+                    await FileDownloadService.shareLabel(
+                      title: '${_currentModel.brandName} Packaging Artwork',
+                      text: shareText,
+                      filePath: path,
+                    );
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25D366).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+                  ),
+                  title: const Text('Share Specification Summary', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Send regulatory specifications to printer or client', style: TextStyle(fontSize: 12)),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await FileDownloadService.shareLabel(
+                      title: '${_currentModel.brandName} Packaging Label',
+                      text: shareText,
+                    );
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.brandDeepGreen.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.copy_rounded, color: AppColors.brandDeepGreen),
+                  ),
+                  title: const Text('Copy Specification Text', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Copy full FSSAI declaration text to clipboard', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Clipboard.setData(ClipboardData(text: shareText));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied packaging specifications to clipboard!'),
+                        backgroundColor: AppColors.brandDeepGreen,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -371,7 +409,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+        preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -390,7 +428,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 8.0,
+                    vertical: 4.0,
                   ),
                   child: Row(
                     children: [
@@ -425,6 +463,8 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Final compliance audit & label export',
@@ -432,6 +472,8 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),

@@ -271,7 +271,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+        preferredSize: const Size.fromHeight(70),
         child: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -290,7 +290,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 8.0,
+                    vertical: 4.0,
                   ),
                   child: Row(
                     children: [
@@ -325,6 +325,8 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Step 4 of 6: FSSAI license & contact',
@@ -332,6 +334,8 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -346,40 +350,16 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                             () => SmallBusinessNotificationService
                                 .showNotificationCenter(context),
                       ),
-                      // Delete Draft Button
-                      OutlinedButton(
+                      // Delete Draft Icon Button
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.error,
+                          size: 22,
+                        ),
+                        tooltip: 'Delete Draft',
                         onPressed: _confirmDeleteDraft,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          minimumSize: const Size(0, 0),
-                          side: const BorderSide(
-                            color: Color(0xFFFCA5A5),
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          foregroundColor: AppColors.error,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
-                            SizedBox(width: 2),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(width: 6),
                       // Save Draft Button
                       OutlinedButton(
                         onPressed: _isSaving ? null : _saveDraft,
@@ -396,24 +376,23 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
-                                )
-                                : const Text(
-                                  'Save draft',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.brandDeepGreen,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandDeepGreen,
                                 ),
+                              )
+                            : const Text(
+                                'Save draft',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.brandDeepGreen,
+                                ),
+                              ),
                       ),
                     ],
                   ),

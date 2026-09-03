@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 
 // Conditional import for web HTML vs non-web
 import 'file_upload_service_stub.dart'
@@ -55,11 +57,39 @@ class DetectedIngredient {
 }
 
 class FileUploadService {
-  /// Opens the system file manager to pick an image (PNG, JPG, JPEG, WEBP, SVG)
+  static final ImagePicker _imagePicker = ImagePicker();
+
+  /// Opens the system file manager/gallery to pick an image (PNG, JPG, JPEG, WEBP)
   static Future<UploadedFilePayload?> pickImage() async {
     try {
-      return await platform_picker.pickFile(
-        acceptedTypes: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml',
+      if (kIsWeb) {
+        return await platform_picker.pickFile(
+          acceptedTypes: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml',
+        );
+      }
+
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image == null) return null;
+
+      final bytes = await image.readAsBytes();
+      final ext = image.name.contains('.') ? image.name.split('.').last.toLowerCase() : 'png';
+      final mimeType = (ext == 'jpg' || ext == 'jpeg')
+          ? 'image/jpeg'
+          : (ext == 'webp' ? 'image/webp' : 'image/png');
+      final base64Str = base64Encode(bytes);
+      final dataUrl = 'data:$mimeType;base64,$base64Str';
+
+      return UploadedFilePayload(
+        name: image.name,
+        sizeInBytes: bytes.length,
+        dataUrl: dataUrl,
+        extension: '.$ext',
       );
     } catch (e) {
       debugPrint('Error opening system file picker for image: $e');
@@ -70,9 +100,31 @@ class FileUploadService {
   /// Opens the system file manager to pick a document (PDF, PNG, JPG, JPEG, DOCX)
   static Future<UploadedFilePayload?> pickLabReportDocument() async {
     try {
-      return await platform_picker.pickFile(
-        acceptedTypes: 'application/pdf,image/png,image/jpeg,image/jpg,.pdf,.png,.jpg,.jpeg',
+      if (kIsWeb) {
+        return await platform_picker.pickFile(
+          acceptedTypes: 'application/pdf,image/png,image/jpeg,image/jpg,.pdf,.png,.jpg,.jpeg',
+        );
+      }
+
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 90,
       );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final ext = image.name.contains('.') ? image.name.split('.').last.toLowerCase() : 'pdf';
+        return UploadedFilePayload(
+          name: image.name.isNotEmpty ? image.name : 'NABL_Accredited_Lab_Report.pdf',
+          sizeInBytes: bytes.length,
+          dataUrl: 'data:application/pdf;base64,${base64Encode(bytes)}',
+          extension: '.$ext',
+        );
+      }
+
+      return null;
     } catch (e) {
       debugPrint('Error opening system file picker for document: $e');
       return null;

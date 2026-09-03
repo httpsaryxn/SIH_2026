@@ -49,13 +49,17 @@ class ClaimsHeroCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
-                          'Add Product Claims',
-                          style: TextStyle(
-                            color: AppColors.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
+                        const Expanded(
+                          child: Text(
+                            'Add Product Claims',
+                            style: TextStyle(
+                              color: AppColors.onSurface,
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -72,7 +76,7 @@ class ClaimsHeroCard extends StatelessWidget {
                             'OPTIONAL',
                             style: TextStyle(
                               color: Color(0xFF005AC2),
-                              fontSize: 10,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
                             ),
@@ -85,8 +89,10 @@ class ClaimsHeroCard extends StatelessWidget {
                       'Truthful & verifiable front-of-pack statements',
                       style: TextStyle(
                         color: AppColors.onSurfaceVariant,
-                        fontSize: 12.5,
+                        fontSize: 12,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

@@ -49,13 +49,17 @@ class FinalDetailsHeroCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
-                          'Finishing Details',
-                          style: TextStyle(
-                            color: AppColors.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
+                        const Expanded(
+                          child: Text(
+                            'Finishing Details',
+                            style: TextStyle(
+                              color: AppColors.onSurface,
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -72,7 +76,7 @@ class FinalDetailsHeroCard extends StatelessWidget {
                             'MANDATORY',
                             style: TextStyle(
                               color: AppColors.brandDeepGreen,
-                              fontSize: 10,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
                             ),
@@ -85,8 +89,10 @@ class FinalDetailsHeroCard extends StatelessWidget {
                       'Pricing, batch codes, dates & storage instructions',
                       style: TextStyle(
                         color: AppColors.onSurfaceVariant,
-                        fontSize: 12.5,
+                        fontSize: 12,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
