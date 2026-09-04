@@ -40,6 +40,12 @@ dependencies:
   path_provider: ^2.1.5
   intl: ^0.19.0
 
+  # On-device Legal Metrology (Packaged Commodities) Rules 2011 audit.
+  # Pulls in google_mlkit_barcode_scanning / google_mlkit_text_recognition /
+  # http / connectivity_plus transitively.
+  legal_metrology:
+    path: packages/legal_metrology
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
