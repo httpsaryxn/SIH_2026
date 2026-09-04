@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:legal_metrology/legal_metrology.dart';
 
 import '../models/multi_capture_payload.dart';
@@ -102,11 +103,19 @@ class LegalMetrologyService {
   }) async {
     try {
       final isUp = await MlScannerClient.isAvailable();
-      if (!isUp) return null;
+      if (!isUp) {
+        debugPrint('[LegalMetrologyService] ML Scanner service is not reachable at ${MlScannerClient.baseUrl}');
+        return null;
+      }
 
       final frontPath = multiCapture?.frontLabel?.localPath ?? capture.localPath;
       final backPath = multiCapture?.curvedSurface?.localPath;
       final rulerPath = multiCapture?.scaleReference?.localPath;
+
+      debugPrint('[LegalMetrologyService] Transmitting 3 captured samples to ML Scanner:');
+      debugPrint('  - Front: $frontPath');
+      debugPrint('  - Back/Side: $backPath');
+      debugPrint('  - Ruler/Scale: $rulerPath');
 
       return await MlScannerClient.analyzeLabels(
         frontImagePath: frontPath,
@@ -114,8 +123,8 @@ class LegalMetrologyService {
         rulerImagePath: rulerPath,
         geminiApiKey: geminiApiKey,
       );
-    } catch (_) {
-      // Service unavailable or error — caller should fall back to on-device
+    } catch (e, st) {
+      debugPrint('[LegalMetrologyService] auditCaptureRemote failed: $e\n$st');
       return null;
     }
   }

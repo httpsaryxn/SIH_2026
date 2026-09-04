@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Response from the ML Scanner `/analyze` endpoint.
 class MlScannerResult {
@@ -207,53 +209,101 @@ class MlScannerRules {
 /// HTTP client for the ML Scanner FastAPI service.
 ///
 /// Sends captured label images to the server for real compliance analysis.
-/// Defaults to `http://10.0.2.2:8000` (Android emulator → host loopback).
 class MlScannerClient {
   MlScannerClient._();
 
-  /// Base URL of the ML Scanner service. Override via environment or config.
+  static const String prefKey = 'ml_scanner_base_url';
+
+  /// Active base URL of the ML Scanner service.
   static String _baseUrl = _defaultBaseUrl();
 
+  /// Returns the current active base URL.
+  static String get baseUrl => _baseUrl;
+
   static String _defaultBaseUrl() {
-    // Android emulator maps 10.0.2.2 → host machine's localhost
-    if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    return 'http://localhost:8000';
+    // Android emulator maps 10.0.2.2 → host machine's localhost.
+    // However, on physical devices, the host LAN IP or adb reverse is used.
+    if (Platform.isAndroid) return 'http://192.168.0.116:8000';
+    return 'http://127.0.0.1:8000';
   }
 
-  /// Allow overriding the base URL (e.g., from a settings screen or env).
-  static void setBaseUrl(String url) {
-    _baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  /// Allow overriding the base URL and persisting it to SharedPreferences.
+  static Future<void> setBaseUrl(String url) async {
+    final cleanUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+    _baseUrl = cleanUrl;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(prefKey, cleanUrl);
+    } catch (_) {}
+  }
+
+  /// Ping a specific candidate URL's `/health` endpoint.
+  static Future<bool> testConnection(String url) async {
+    final cleanUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+    try {
+      final res = await http
+          .get(Uri.parse('$cleanUrl/health'))
+          .timeout(const Duration(milliseconds: 2000));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Check if the ML scanner service is reachable, auto-detecting between
-  /// current configured URL, physical device reverse proxy, and Android emulator loopback.
+  /// stored URL, host LAN IP, physical device reverse proxy, and Android emulator loopback.
   static Future<bool> isAvailable() async {
-    final candidates = [
+    // Try to read saved user preference first
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(prefKey);
+      if (saved != null && saved.trim().isNotEmpty) {
+        _baseUrl = saved.trim();
+      }
+    } catch (_) {}
+
+    final candidates = <String>[
       _baseUrl,
+      'http://192.168.0.116:8000', // Workstation LAN IP (reachable by physical phone on same Wi-Fi)
       if (Platform.isAndroid) ...[
         'http://127.0.0.1:8000', // Physical Android phone via `adb reverse tcp:8000 tcp:8000`
         'http://10.0.2.2:8000',  // Android emulator loopback
       ],
+      'http://127.0.0.1:8000',
       'http://localhost:8000',
     ];
 
+    debugPrint('[MlScannerClient] Probing ML Scanner health across candidate URLs: $candidates');
+
     for (final url in candidates.toSet()) {
       try {
+        final uri = Uri.parse('$url/health');
         final response = await http
-            .get(Uri.parse('$url/health'))
-            .timeout(const Duration(milliseconds: 1500));
+            .get(uri)
+            .timeout(const Duration(milliseconds: 1800));
         if (response.statusCode == 200) {
+          debugPrint('[MlScannerClient] ✓ Connected to ML Scanner service at $url');
           _baseUrl = url;
+          // Persist working URL
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(prefKey, url);
+          } catch (_) {}
           return true;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[MlScannerClient] ✗ Candidate $url unreachable: $e');
+      }
     }
+
+    debugPrint('[MlScannerClient] Could not reach ML Scanner at any candidate URL.');
     return false;
   }
 
   /// Analyze label images via the ML scanner service.
   ///
-  /// Returns an [MlScannerResult] on success, or throws on network/server error.
+  /// Sends all provided images (`front`, `back`, `ruler`) directly to FastAPI `/analyze`.
+  /// Returns an [MlScannerResult] on success, or throws an [MlScannerException].
   static Future<MlScannerResult> analyzeLabels({
     required String frontImagePath,
     String? backImagePath,
@@ -262,50 +312,101 @@ class MlScannerClient {
     String? geminiApiKey,
   }) async {
     final uri = Uri.parse('$_baseUrl/analyze');
+    debugPrint('[MlScannerClient] POST $uri — uploading captured evidence...');
     final request = http.MultipartRequest('POST', uri);
 
-    // Attach front image (required)
+    // 1. Attach front image (required)
+    final frontFile = File(frontImagePath);
+    if (!frontFile.existsSync()) {
+      throw MlScannerException(
+        statusCode: 400,
+        message: 'Front image does not exist on disk: $frontImagePath',
+      );
+    }
+    final frontSizeKb = (frontFile.lengthSync() / 1024).toStringAsFixed(1);
+    debugPrint('  → Front Image: $frontImagePath ($frontSizeKb KB)');
     request.files.add(
       await http.MultipartFile.fromPath('front', frontImagePath),
     );
 
-    // Attach optional images
+    // 2. Attach back / curved surface image (optional)
     if (backImagePath != null && backImagePath.isNotEmpty) {
-      request.files.add(
-        await http.MultipartFile.fromPath('back', backImagePath),
-      );
+      final backFile = File(backImagePath);
+      if (backFile.existsSync()) {
+        final backSizeKb = (backFile.lengthSync() / 1024).toStringAsFixed(1);
+        debugPrint('  → Back Image: $backImagePath ($backSizeKb KB)');
+        request.files.add(
+          await http.MultipartFile.fromPath('back', backImagePath),
+        );
+      } else {
+        debugPrint('  → Back Image provided but file not found on disk: $backImagePath');
+      }
     }
+
+    // 3. Attach scale / ruler image (optional)
     if (rulerImagePath != null && rulerImagePath.isNotEmpty) {
-      request.files.add(
-        await http.MultipartFile.fromPath('ruler', rulerImagePath),
-      );
+      final rulerFile = File(rulerImagePath);
+      if (rulerFile.existsSync()) {
+        final rulerSizeKb = (rulerFile.lengthSync() / 1024).toStringAsFixed(1);
+        debugPrint('  → Ruler Image: $rulerImagePath ($rulerSizeKb KB)');
+        request.files.add(
+          await http.MultipartFile.fromPath('ruler', rulerImagePath),
+        );
+      } else {
+        debugPrint('  → Ruler Image provided but file not found on disk: $rulerImagePath');
+      }
     }
 
     // Form fields
     if (barcodeNumber != null && barcodeNumber.isNotEmpty) {
       request.fields['barcode_number'] = barcodeNumber;
+      debugPrint('  → Barcode Number: $barcodeNumber');
     }
 
-    // API key via header (not in form field for security)
+    // API key via header
     if (geminiApiKey != null && geminiApiKey.isNotEmpty) {
       request.headers['X-Gemini-Api-Key'] = geminiApiKey;
     }
 
-    final streamedResponse = await request.send().timeout(
-          const Duration(seconds: 90),
-        );
+    final stopwatch = Stopwatch()..start();
+    final http.StreamedResponse streamedResponse;
+    try {
+      streamedResponse = await request.send().timeout(
+            const Duration(seconds: 120),
+          );
+    } catch (e) {
+      debugPrint('[MlScannerClient] Network error during upload to $uri: $e');
+      throw MlScannerException(
+        statusCode: 503,
+        message: 'Failed to connect to ML Scanner service at $_baseUrl ($e)',
+      );
+    }
+
     final response = await http.Response.fromStream(streamedResponse);
+    stopwatch.stop();
+    debugPrint('[MlScannerClient] Received HTTP ${response.statusCode} in ${stopwatch.elapsedMilliseconds}ms');
 
     if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      String errorMessage = 'Server returned HTTP ${response.statusCode}';
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        errorMessage = body['error'] as String? ?? errorMessage;
+      } catch (_) {}
       throw MlScannerException(
         statusCode: response.statusCode,
-        message: body['error'] as String? ?? 'Unknown error',
+        message: errorMessage,
       );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return MlScannerResult.fromJson(json);
+    final result = MlScannerResult.fromJson(json);
+    debugPrint(
+      '[MlScannerClient] ML Analysis Parsed Successfully: '
+      'Score: ${result.score.finalScore}% (${result.score.starLabel}), '
+      'Passed: ${result.rules.passed.length}, Failed: ${result.rules.failed.length}, '
+      'Warnings: ${result.rules.warnings.length}',
+    );
+    return result;
   }
 
   /// Verify a barcode number via the ML scanner service.
@@ -333,6 +434,7 @@ class MlScannerClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 }
+
 
 /// Exception thrown when the ML Scanner service returns an error.
 class MlScannerException implements Exception {
