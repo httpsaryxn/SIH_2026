@@ -7,6 +7,7 @@ import '../../core/models/regulator_violation.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
 import 'regulator_notice_generator_screen.dart';
+import 'regulator_company_tracking_screen.dart';
 
 class RegulatorViolationReviewScreen extends StatefulWidget {
   final String violationId;
@@ -104,6 +105,13 @@ class _RegulatorViolationReviewScreenState
         content: Text('Violation escalated to Senior Metrology Controller.'),
         backgroundColor: AppColors.tertiary,
       ),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const RegulatorCompanyTrackingScreen(initialTabIndex: 0),
+      ),
+      (route) => false,
     );
   }
 

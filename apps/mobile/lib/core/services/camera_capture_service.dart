@@ -56,6 +56,7 @@ class CameraCaptureService {
         capturedAt: DateTime.now(),
         capturedBySource: sourceTag,
         fileSizeBytes: bytes.length,
+        rawBytes: bytes,
       );
     } on PlatformException catch (e) {
       debugPrint('CameraCaptureService: Platform error during capture: ${e.code} - ${e.message}');

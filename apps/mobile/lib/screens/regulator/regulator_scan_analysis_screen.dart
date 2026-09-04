@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
@@ -38,11 +40,8 @@ class _RegulatorScanAnalysisScreenState
     with TickerProviderStateMixin {
   late AnimationController _laserController;
   late AnimationController _progressController;
+  late AnimationController _waveController;
   late Animation<double> _laserAnimation;
-
-  // Carousel state for multi-image display
-  final PageController _carouselController = PageController();
-  int _carouselPage = 0;
 
   int _currentStageIndex = 0;
   bool _isAnalysisFinished = false;
@@ -108,6 +107,12 @@ class _RegulatorScanAnalysisScreenState
       duration: const Duration(milliseconds: 1200),
     );
 
+    // 3. Evaluation Wave Animation
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+
     _startPipelineExecution();
   }
 
@@ -115,6 +120,7 @@ class _RegulatorScanAnalysisScreenState
   void dispose() {
     _laserController.dispose();
     _progressController.dispose();
+    _waveController.dispose();
     super.dispose();
   }
 
@@ -615,8 +621,12 @@ class _RegulatorScanAnalysisScreenState
                 ],
               ],
 
-              // Action Buttons
-              _buildActionButtons(),
+              // 4. Action Buttons (ONLY after analysis finishes) or Circular Wave Progress Widget
+              if (_isAnalysisFinished) ...[
+                _buildActionButtons(),
+              ] else ...[
+                _buildEvaluationWaveLoadingWidget(),
+              ],
               const SizedBox(height: AppSpacing.xxl),
             ],
           ),
@@ -749,266 +759,296 @@ class _RegulatorScanAnalysisScreenState
 
   Widget _buildOpticalScanViewport() {
     final entries = _capturedEntries;
-    final showCarousel = entries.length > 1;
 
-    return Column(
-      children: [
-        Container(
-          height: 280,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.surfaceVariant),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 16,
-                offset: Offset(0, 4),
+    if (entries.length > 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.collections_rounded, size: 16, color: Color(0xFF10B981)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Multi-Zone Packaging Evidence',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  '${entries.length}/${entries.length} Captured',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF047857),
+                  ),
+                ),
               ),
             ],
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Captured Images via Carousel PageView or single image
-              if (showCarousel)
-                PageView.builder(
-                  controller: _carouselController,
-                  itemCount: entries.length,
-                  onPageChanged: (i) => setState(() => _carouselPage = i),
-                  itemBuilder: (context, i) {
-                    final capture = entries[i].value;
-                    return _buildCaptureSlide(capture, entries[i].key);
-                  },
-                )
-              else if (entries.isNotEmpty && entries.first.value.existsSync)
-                _buildCaptureSlide(entries.first.value, entries.first.key)
-              else
-                _buildFallbackPreview(),
+          const SizedBox(height: AppSpacing.sm),
 
-              // Optical Vignette Overlay
-              IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.35),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.45),
-                      ],
-                    ),
+          // 3-Card Row displaying ALL captured images together
+          SizedBox(
+            height: 195,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (int i = 0; i < entries.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildEvidenceCard(entries[i].value, entries[i].key),
                   ),
-                ),
-              ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
-              // Corner Guides
-              ..._buildCornerGuides(),
+    // Single Image Capture Viewport
+    final capture = entries.isNotEmpty ? entries.first.value : widget.pendingCapture;
+    final role = entries.isNotEmpty ? entries.first.key : CaptureRole.frontLabel;
+    return SizedBox(
+      height: 240,
+      child: _buildEvidenceCard(capture, role, isFullWidth: true),
+    );
+  }
 
-              // Animated Scanning Laser Bar
-              if (!_isAnalysisFinished)
-                AnimatedBuilder(
-                  animation: _laserAnimation,
-                  builder: (context, child) {
-                    return Align(
-                      alignment: Alignment(0, (_laserAnimation.value * 2) - 1),
-                      child: Container(
-                        height: 3,
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981),
-                          borderRadius: BorderRadius.circular(2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981)
-                                  .withValues(alpha: 0.85),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: const Color(0xFF10B981)
-                                  .withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              spreadRadius: 6,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+  Widget _buildEvidenceCard(PendingCapture capture, CaptureRole role, {bool isFullWidth = false}) {
+    final roleInfo = CaptureRoleInfo.forRole(role);
 
-              // Top Badge: Role & Ingestion State
-              Positioned(
-                top: 14,
-                left: 14,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.70),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.6),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isAnalysisFinished
-                            ? Icons.check_circle_rounded
-                            : CaptureRoleInfo.forRole(
-                                    entries[showCarousel ? _carouselPage : 0]
-                                        .key)
-                                .icon,
-                        size: 13,
-                        color: const Color(0xFF10B981),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _isAnalysisFinished
-                            ? '${CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).label} ✓'
-                            : CaptureRoleInfo.forRole(
-                                    entries[showCarousel ? _carouselPage : 0]
-                                        .key)
-                                .label,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
+    return InkWell(
+      onTap: () => _showEvidenceZoomDialog(capture, role),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.surfaceVariant),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Real Image Renderer (memory -> local file -> fallback)
+            _buildEvidenceImage(capture),
+
+            // Vignette gradient
+            IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.45),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.65),
                     ],
                   ),
                 ),
               ),
+            ),
 
-              // Carousel Image Count Badge
-              if (showCarousel)
-                Positioned(
-                  top: 14,
-                  right: 14,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white24),
+            // Top Role Badge
+            Positioned(
+              top: 8,
+              left: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isAnalysisFinished ? Icons.check_circle_rounded : roleInfo.icon,
+                      size: 11,
+                      color: const Color(0xFF10B981),
                     ),
-                    child: Text(
-                      '${_carouselPage + 1}/${entries.length}',
-                      style: GoogleFonts.firaCode(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        isFullWidth ? '${roleInfo.label} ✓' : roleInfo.label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: isFullWidth ? 11 : 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Animated Scanning Laser Bar
+            if (!_isAnalysisFinished)
+              AnimatedBuilder(
+                animation: _laserAnimation,
+                builder: (context, child) {
+                  return Align(
+                    alignment: Alignment(0, (_laserAnimation.value * 2) - 1),
+                    child: Container(
+                      height: 2,
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            // Bottom Filename & Zoom indicator
+            Positioned(
+              bottom: 8,
+              left: 8,
+              right: 8,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        capture.formattedSize,
+                        style: GoogleFonts.firaCode(
+                          fontSize: 9,
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
                   ),
-                ),
-
-              // Bottom Filename Tag
-              Positioned(
-                bottom: 14,
-                right: 14,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(8),
+                  const Icon(
+                    Icons.fullscreen_rounded,
+                    size: 16,
+                    color: Colors.white70,
                   ),
-                  child: Text(
-                    entries[showCarousel ? _carouselPage : 0].value.fileName,
-                    style: GoogleFonts.firaCode(
-                      fontSize: 10,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-
-        // Carousel Indicator Dots
-        if (showCarousel) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(entries.length, (i) {
-              final isActive = i == _carouselPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: isActive ? 24 : 8,
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? const Color(0xFF10B981)
-                      : AppColors.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              );
-            }),
-          ),
-        ],
-      ],
+      ),
     );
   }
 
-  Widget _buildCaptureSlide(PendingCapture capture, CaptureRole role) {
-    if (capture.existsSync) {
-      return Image.file(
-        capture.file,
+  Widget _buildEvidenceImage(PendingCapture capture) {
+    if (capture.rawBytes != null && capture.rawBytes!.isNotEmpty) {
+      return Image.memory(
+        capture.rawBytes!,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
       );
     }
+    try {
+      final path = capture.localPath.startsWith('file://')
+          ? Uri.parse(capture.localPath).toFilePath()
+          : capture.localPath;
+      final file = File(path);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
+        );
+      }
+    } catch (_) {}
     return _buildFallbackPreview();
   }
 
-  List<Widget> _buildCornerGuides() {
-    return [
-      _buildCornerBracket(top: 16, left: 16, isTop: true, isLeft: true),
-      _buildCornerBracket(top: 16, right: 16, isTop: true, isLeft: false),
-      _buildCornerBracket(bottom: 16, left: 16, isTop: false, isLeft: true),
-      _buildCornerBracket(bottom: 16, right: 16, isTop: false, isLeft: false),
-    ];
-  }
-
-  Widget _buildCornerBracket({
-    double? top,
-    double? bottom,
-    double? left,
-    double? right,
-    required bool isTop,
-    required bool isLeft,
-  }) {
-    const size = 26.0;
-    const thickness = 3.0;
-    const color = Color(0xFF10B981);
-
-    return Positioned(
-      top: top,
-      bottom: bottom,
-      left: left,
-      right: right,
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: CustomPaint(
-          painter: _CornerBracketPainter(
-            color: color,
-            thickness: thickness,
-            isTop: isTop,
-            isLeft: isLeft,
-          ),
+  void _showEvidenceZoomDialog(PendingCapture capture, CaptureRole role) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4.0,
+              child: Center(
+                child: _buildEvidenceImage(capture),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              left: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF10B981)),
+                ),
+                child: Text(
+                  CaptureRoleInfo.forRole(role).label,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1442,7 +1482,7 @@ class _RegulatorScanAnalysisScreenState
 
           const SizedBox(height: AppSpacing.md),
 
-          // Chips Row: Violations, Passed, Warnings
+          // Chips Row: Violations, Passed, Warnings, Lab, Exempt
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1462,6 +1502,18 @@ class _RegulatorScanAnalysisScreenState
                   icon: Icons.warning_rounded,
                   label: '${result.rules.warnings.length} Warnings',
                   color: const Color(0xFFF59E0B),
+                ),
+              if (result.rules.inconclusive.isNotEmpty)
+                _buildMetricChip(
+                  icon: Icons.science_outlined,
+                  label: '${result.rules.inconclusive.length} Lab Verifications',
+                  color: const Color(0xFF64748B),
+                ),
+              if (result.rules.notApplicable.isNotEmpty)
+                _buildMetricChip(
+                  icon: Icons.remove_circle_outline_rounded,
+                  label: '${result.rules.notApplicable.length} Exempt / N/A',
+                  color: const Color(0xFF94A3B8),
                 ),
             ],
           ),
@@ -1800,6 +1852,7 @@ class _RegulatorScanAnalysisScreenState
     final warnings = result.rules.warnings;
     final passed = result.rules.passed;
     final inconclusive = result.rules.inconclusive;
+    final notApplicable = result.rules.notApplicable;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1964,6 +2017,40 @@ class _RegulatorScanAnalysisScreenState
                   .toList(),
             ),
           ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
+        // 5. Exempt & Non-Applicable Rules (Collapsible)
+        if (notApplicable.isNotEmpty) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              border: Border.all(color: AppColors.surfaceVariant),
+            ),
+            child: ExpansionTile(
+              leading: const Icon(Icons.remove_circle_outline_rounded,
+                  size: 18, color: Color(0xFF64748B)),
+              title: Text(
+                'Exempt & Non-Applicable Rules (${notApplicable.length})',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              subtitle: Text(
+                'Rules evaluated as not applicable to this package category',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              children: notApplicable
+                  .map((rule) => _buildRuleItem(rule, isNotApplicable: true))
+                  .toList(),
+            ),
+          ),
         ],
       ],
     );
@@ -1975,6 +2062,7 @@ class _RegulatorScanAnalysisScreenState
     bool isWarning = false,
     bool isCompliant = false,
     bool isInconclusive = false,
+    bool isNotApplicable = false,
   }) {
     Color badgeColor = const Color(0xFF6B7280);
     String badgeLabel = rule.status;
@@ -1991,6 +2079,9 @@ class _RegulatorScanAnalysisScreenState
     } else if (isInconclusive) {
       badgeColor = AppColors.outline;
       badgeLabel = 'LAB ONLY';
+    } else if (isNotApplicable) {
+      badgeColor = const Color(0xFF64748B);
+      badgeLabel = 'EXEMPT';
     }
 
     return Container(
@@ -2137,6 +2228,162 @@ class _RegulatorScanAnalysisScreenState
     );
   }
 
+  Widget _buildEvaluationWaveLoadingWidget() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: const Color(0xFF10B981).withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C10B981),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Material style circular spinner with wave animation
+          SizedBox(
+            width: 84,
+            height: 84,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Wave ripple 1
+                AnimatedBuilder(
+                  animation: _waveController,
+                  builder: (context, child) {
+                    final val = _waveController.value;
+                    return Opacity(
+                      opacity: (1.0 - val).clamp(0.0, 1.0),
+                      child: Container(
+                        width: 44 + (val * 40),
+                        height: 44 + (val * 40),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.6),
+                            width: 2.0,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // Wave ripple 2
+                AnimatedBuilder(
+                  animation: _waveController,
+                  builder: (context, child) {
+                    final val = (_waveController.value + 0.5) % 1.0;
+                    return Opacity(
+                      opacity: (1.0 - val).clamp(0.0, 1.0),
+                      child: Container(
+                        width: 44 + (val * 40),
+                        height: 44 + (val * 40),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // Central Material Circular Progress Spinner
+                const SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                    backgroundColor: Color(0x2010B981),
+                  ),
+                ),
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF10B981),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Primary Process Text
+          Text(
+            'Legal Metrology Engine Evaluating...',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Dynamic Current Process Text
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF047857)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _statusMessage,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF047857),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Text(
+            'Validating PCR 2011 font heights, mandatory declarations & pricing metrology rules',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Action Buttons ────────────────────────────────────────────────────────
   Widget _buildActionButtons() {
     return Column(
@@ -2186,51 +2433,4 @@ class _RegulatorScanAnalysisScreenState
       ],
     );
   }
-}
-
-class _CornerBracketPainter extends CustomPainter {
-  final Color color;
-  final double thickness;
-  final bool isTop;
-  final bool isLeft;
-
-  _CornerBracketPainter({
-    required this.color,
-    required this.thickness,
-    required this.isTop,
-    required this.isLeft,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = thickness
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    if (isTop && isLeft) {
-      path.moveTo(0, size.height);
-      path.lineTo(0, 0);
-      path.lineTo(size.width, 0);
-    } else if (isTop && !isLeft) {
-      path.moveTo(0, 0);
-      path.lineTo(size.width, 0);
-      path.lineTo(size.width, size.height);
-    } else if (!isTop && isLeft) {
-      path.moveTo(0, 0);
-      path.lineTo(0, size.height);
-      path.lineTo(size.width, size.height);
-    } else {
-      path.moveTo(size.width, 0);
-      path.lineTo(size.width, size.height);
-      path.lineTo(0, size.height);
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

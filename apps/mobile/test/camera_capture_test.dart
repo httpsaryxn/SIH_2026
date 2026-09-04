@@ -324,8 +324,10 @@ void main() {
       expect(find.text('Legal Metrology PCR 2011 Verification'), findsOneWidget);
       expect(find.text('Regulatory Case File Generation'), findsOneWidget);
       expect(find.text('397.6 KB'), findsWidgets);
-      expect(find.text('Proceed to Legal Review & Case File'), findsOneWidget);
-      expect(find.text('Capture Another Sample'), findsOneWidget);
+      // During evaluation: action buttons must not appear, wave spinner should be displayed
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.text('Proceed to Legal Review & Case File'), findsNothing);
+      expect(find.text('Capture Another Sample'), findsNothing);
     });
   });
 
