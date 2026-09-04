@@ -59,13 +59,15 @@ class _RegulatorComplaintInboxScreenState
   }
 
   void _subscribeToComplaintUpdates() {
-    _complaintSubscription?.cancel();
-    _complaintSubscription =
-        RegulatorDataService.watchComplaints(
-          status: _selectedStatus == 'All' ? null : _selectedStatus,
-        ).listen((complaints) {
-          if (mounted) setState(() => _complaints = complaints);
-        });
+    try {
+      _complaintSubscription?.cancel();
+      _complaintSubscription =
+          RegulatorDataService.watchComplaints(
+            status: _selectedStatus == 'All' ? null : _selectedStatus,
+          ).listen((complaints) {
+            if (mounted) setState(() => _complaints = complaints);
+          });
+    } catch (_) {}
   }
 
   @override

@@ -108,7 +108,9 @@ Future<Map<String, Object?>> _openfacts(String gtin, String host, String source)
     String? veg;
     if (labels.contains('non-vegetarian')) {
       veg = 'NON_VEG';
-    } else if (labels.contains('vegetarian') || labels.contains('vegan')) veg = 'VEG';
+    } else if (labels.contains('vegetarian') || labels.contains('vegan')) {
+      veg = 'VEG';
+    }
     return {
       '_source': source,
       'product_name': _clean(p['product_name'] ?? p['product_name_en'] ?? p['generic_name']),

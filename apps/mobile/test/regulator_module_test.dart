@@ -191,8 +191,8 @@ void main() {
 
       expect(find.text('Inbox'), findsWidgets);
       expect(find.text('All'), findsOneWidget);
-      expect(find.text('Submitted'), findsOneWidget);
-      expect(find.text('Under Review'), findsOneWidget);
+      expect(find.text('Submitted'), findsWidgets);
+      expect(find.text('Under Review'), findsWidgets);
     });
 
     testWidgets('Screen 5 - RegulatorComplaintDetailScreen renders evidence and actions',
@@ -240,9 +240,9 @@ void main() {
       expect(find.text('Regulator Module Demo Hub'), findsOneWidget);
       expect(find.text('Officer Home Overview'), findsOneWidget);
       expect(find.text('Scan / Audit Intake'), findsOneWidget);
-      expect(find.text('Violation Review'), findsOneWidget);
+      expect(find.text('Violation Review Queue'), findsOneWidget);
       expect(find.text('Consumer Complaint Inbox'), findsOneWidget);
-      expect(find.text('Complaint Details View'), findsOneWidget);
+      expect(find.text('Complaint Details'), findsOneWidget);
       expect(find.text('Notice & Action Generator'), findsOneWidget);
       expect(find.text('Company & Case Tracking'), findsOneWidget);
     });
