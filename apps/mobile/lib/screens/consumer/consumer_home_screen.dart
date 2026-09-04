@@ -319,12 +319,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     );
   }
 
-  void _openReportDialog({String? prefilledProductName, String? prefilledBrand}) {
+  void _openReportDialog({
+    String? prefilledProductName,
+    String? prefilledBrand,
+    ConsumerScanModel? prefilledScan,
+    String? prefilledEvidenceUrl,
+  }) {
     showDialog(
       context: context,
       builder: (context) => ReportComplaintDialog(
-        prefilledProductName: prefilledProductName,
-        prefilledBrand: prefilledBrand,
+        prefilledProductName: prefilledProductName ?? prefilledScan?.productName,
+        prefilledBrand: prefilledBrand ?? prefilledScan?.brand,
+        prefilledScan: prefilledScan,
+        prefilledEvidenceUrl: prefilledEvidenceUrl ?? prefilledScan?.imageUrl,
+        recentScans: _recentScans,
         onComplaintSubmitted: (newComplaint) {
           setState(() {
             _myComplaints.insert(0, newComplaint);
@@ -355,9 +363,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       builder: (context) => ProductSummaryModal(
         scan: scan,
         onReportIssue: () {
+          Navigator.of(context).pop();
           _openReportDialog(
-            prefilledProductName: scan.productName,
-            prefilledBrand: scan.brand,
+            prefilledScan: scan,
           );
         },
         onCompare: () => _openComparisonModal(),
@@ -684,8 +692,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                     const SizedBox(height: AppSpacing.xl),
                     MyComplaintsSection(
                       complaints: _myComplaints,
+                      recentScans: _recentScans,
                       isLoading: _isLoading,
                       onComplaintTap: _showComplaintDetail,
+                      onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
                       onViewAllTap: () => setState(() => _currentNavIndex = 2),
                       onReportNewTap: () => _openReportDialog(),
                     ),
@@ -733,8 +743,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           const SizedBox(height: AppSpacing.xl),
           MyComplaintsSection(
             complaints: _myComplaints,
+            recentScans: _recentScans,
             isLoading: _isLoading,
             onComplaintTap: _showComplaintDetail,
+            onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
             onViewAllTap: () => setState(() => _currentNavIndex = 2),
             onReportNewTap: () => _openReportDialog(),
           ),
@@ -759,16 +771,18 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'My Scan History',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+            Expanded(
+              child: Text(
+                'My Scan History',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _openScanLauncher,
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
@@ -776,6 +790,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
             ),
           ],
@@ -815,16 +830,18 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'My Reported Complaints',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+            Expanded(
+              child: Text(
+                'My Complaints',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: () => _openReportDialog(),
               icon: const Icon(Icons.campaign_rounded, size: 18),
@@ -832,19 +849,186 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
+        if (_recentScans.isNotEmpty) ...[
+          _buildRecentlyScannedForComplaints(),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         MyComplaintsSection(
           complaints: _myComplaints,
+          recentScans: _recentScans,
           isLoading: _isLoading,
           onComplaintTap: _showComplaintDetail,
+          onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
           onViewAllTap: () {},
           onReportNewTap: () => _openReportDialog(),
         ),
       ],
+    );
+  }
+
+  Widget _buildRecentlyScannedForComplaints() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppSpacing.roundedMd,
+        border: Border.all(color: AppColors.surfaceVariant, width: 1),
+        boxShadow: AppSpacing.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  'Recently Scanned Products',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_recentScans.length} available',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select any scanned product to file a Legal Metrology complaint or report non-compliance:',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _recentScans.length,
+              separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (context, index) {
+                final scan = _recentScans[index];
+                return InkWell(
+                  onTap: () => _openReportDialog(prefilledScan: scan),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 210,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.surfaceVariant, width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: scan.imageUrl != null && scan.imageUrl!.isNotEmpty
+                                  ? Image.network(
+                                      scan.imageUrl!,
+                                      width: 36,
+                                      height: 36,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        width: 36,
+                                        height: 36,
+                                        color: AppColors.surfaceVariant,
+                                        child: const Icon(Icons.inventory_2_outlined, size: 20),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 36,
+                                      height: 36,
+                                      color: AppColors.surfaceVariant,
+                                      child: const Icon(Icons.inventory_2_outlined, size: 20),
+                                    ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    scan.productName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.onSurface,
+                                    ),
+                                  ),
+                                  Text(
+                                    scan.brand,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openReportDialog(prefilledScan: scan),
+                            icon: const Icon(Icons.campaign_outlined, size: 14),
+                            label: const Text('Report Issue', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.errorContainer.withValues(alpha: 0.7),
+                              foregroundColor: AppColors.error,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
