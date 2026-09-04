@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_role.dart';
 import '../../screens/regulator/regulator_home_screen.dart';
 import '../../screens/consumer/consumer_home_screen.dart';
-import '../../screens/small_business/small_business_home_screen.dart';
-import '../../screens/large_business/large_business_home_screen.dart';
+import '../../screens/business_owner/business_owner_home_screen.dart';
 
 /// Centralized role-based routing utility.
 /// Returns the correct home screen widget for the given user role.
@@ -17,10 +16,8 @@ class RoleRouter {
         return const RegulatorHomeScreen();
       case UserRole.consumer:
         return const ConsumerHomeScreen();
-      case UserRole.smallBusiness:
-        return const SmallBusinessHomeScreen();
-      case UserRole.largeBusiness:
-        return const LargeBusinessHomeScreen();
+      case UserRole.businessOwner:
+        return const BusinessOwnerHomeScreen();
     }
   }
 

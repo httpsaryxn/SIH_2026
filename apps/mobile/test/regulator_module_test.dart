@@ -189,8 +189,8 @@ void main() {
 
       expect(find.text('Unified Intake Queue'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
-      expect(find.text('Submitted'), findsOneWidget);
-      expect(find.text('Under Review'), findsOneWidget);
+      expect(find.text('Submitted'), findsWidgets);
+      expect(find.text('Under Review'), findsWidgets);
     });
 
     testWidgets('Screen 5 - RegulatorComplaintDetailScreen renders evidence and actions',

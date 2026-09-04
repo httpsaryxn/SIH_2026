@@ -70,28 +70,34 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   }
 
   void _subscribeToRealtimeUpdates() {
-    _priorityQueueSubscription = RegulatorDataService.watchPriorityQueue()
-        .listen((violations) async {
-          if (!mounted) return;
+    try {
+      _priorityQueueSubscription = RegulatorDataService.watchPriorityQueue()
+          .listen((violations) async {
+            if (!mounted) return;
+            try {
+              final metrics = await RegulatorDataService.getDashboardMetrics();
+              if (mounted) {
+                setState(() {
+                  _violations = violations;
+                  _metrics = metrics;
+                });
+              }
+            } catch (_) {}
+          });
+      _complaintSubscription = RegulatorDataService.watchComplaints().listen((
+        _,
+      ) async {
+        if (!mounted) return;
+        try {
           final metrics = await RegulatorDataService.getDashboardMetrics();
           if (mounted) {
             setState(() {
-              _violations = violations;
               _metrics = metrics;
             });
           }
-        });
-    _complaintSubscription = RegulatorDataService.watchComplaints().listen((
-      _,
-    ) async {
-      if (!mounted) return;
-      final metrics = await RegulatorDataService.getDashboardMetrics();
-      if (mounted) {
-        setState(() {
-          _metrics = metrics;
-        });
-      }
-    });
+        } catch (_) {}
+      });
+    } catch (_) {}
   }
 
   @override

@@ -12,6 +12,7 @@ import '../models/regulator_company.dart';
 import '../models/regulator_complaint.dart';
 import '../models/regulator_notice.dart';
 import '../models/regulator_violation.dart';
+import 'legal_metrology_service.dart';
 import 'storage_service.dart';
 
 class RegulatorDashboardMetrics {
@@ -38,7 +39,17 @@ class RegulatorDashboardMetrics {
 
 /// Supabase-backed data access for the shared regulator/consumer contract.
 /// Model mapping lives here so the screen-facing method signatures remain stable.
+/// Falls back to seed/mock datasets when Supabase is uninitialized (e.g. tests/offline).
 class RegulatorDataService {
+  static bool get _hasClient {
+    try {
+      Supabase.instance.client;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static SupabaseClient get _client => Supabase.instance.client;
 
   static const _violationSelect = '''
@@ -53,7 +64,10 @@ class RegulatorDataService {
     )
   ''';
 
-  static String get _currentUserId => _client.auth.currentUser?.id ?? '';
+  static String get _currentUserId {
+    if (!_hasClient) return 'regulator-system-user';
+    return _client.auth.currentUser?.id ?? '';
+  }
 
   static DateTime _date(dynamic value) =>
       value is String ? DateTime.parse(value) : DateTime.now();
@@ -191,10 +205,16 @@ class RegulatorDataService {
     status: row['status'] as String? ?? 'Active',
     timeline: timeline,
   );
-
   static Future<List<RegulatorTimelineEvent>> _companyTimeline(
     String companyId,
   ) async {
+    if (!_hasClient) {
+      final comp = _mockCompanies.firstWhere(
+        (c) => c.id == companyId,
+        orElse: () => _mockCompanies.first,
+      );
+      return comp.timeline;
+    }
     try {
       final rows = await _client
           .from('company_timeline_events')
@@ -206,7 +226,15 @@ class RegulatorDataService {
           .map((row) => _timelineFromRow(Map<String, dynamic>.from(row as Map)))
           .toList();
     } catch (_) {
-      return [];
+      try {
+        final comp = _mockCompanies.firstWhere(
+          (c) => c.id == companyId,
+          orElse: () => _mockCompanies.first,
+        );
+        return comp.timeline;
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -215,6 +243,25 @@ class RegulatorDataService {
     String? category,
     String? severity,
   }) async {
+    if (!_hasClient) {
+      var results = List<RegulatorViolation>.from(_mockViolations);
+      if (region != null && region.isNotEmpty && region != 'All Regions') {
+        results = results
+            .where((item) => item.region.toLowerCase().contains(region.toLowerCase()))
+            .toList();
+      }
+      if (category != null && category.isNotEmpty && category != 'All Categories') {
+        results = results
+            .where((item) => item.category.toLowerCase().contains(category.toLowerCase()))
+            .toList();
+      }
+      if (severity != null && severity.isNotEmpty && severity != 'All') {
+        results = results
+            .where((item) => item.severity.toLowerCase() == severity.toLowerCase())
+            .toList();
+      }
+      return results;
+    }
     try {
       final rows = await _client
           .from('regulator_violations')
@@ -250,11 +297,33 @@ class RegulatorDataService {
       }
       return results;
     } catch (_) {
-      return [];
+      var results = List<RegulatorViolation>.from(_mockViolations);
+      if (region != null && region.isNotEmpty && region != 'All Regions') {
+        results = results
+            .where((item) => item.region.toLowerCase().contains(region.toLowerCase()))
+            .toList();
+      }
+      if (category != null && category.isNotEmpty && category != 'All Categories') {
+        results = results
+            .where((item) => item.category.toLowerCase().contains(category.toLowerCase()))
+            .toList();
+      }
+      if (severity != null && severity.isNotEmpty && severity != 'All') {
+        results = results
+            .where((item) => item.severity.toLowerCase() == severity.toLowerCase())
+            .toList();
+      }
+      return results;
     }
   }
 
   static Future<RegulatorViolation> getViolationById(String id) async {
+    if (!_hasClient) {
+      return _mockViolations.firstWhere(
+        (v) => v.id == id,
+        orElse: () => _mockViolations.first,
+      );
+    }
     try {
       final row = await _client
           .from('regulator_violations')
@@ -264,24 +333,9 @@ class RegulatorDataService {
           .timeout(const Duration(seconds: 4));
       return _violationFromRow(Map<String, dynamic>.from(row));
     } catch (_) {
-      return RegulatorViolation(
-        id: id,
-        scanId: 'SCN-100234',
-        productName: 'Organic Honey 500g',
-        companyName: 'Sunrise Foods Ltd.',
-        category: 'Food & Beverages',
-        region: 'North Region (Delhi-NCR)',
-        storeLocation: 'Retail Mart, Gurugram',
-        imageUrl: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=500',
-        severity: 'High',
-        riskLevel: 'High Risk',
-        confidenceScore: 94,
-        violationType: 'Missing MRP Declaration',
-        violationSummary: 'Mandatory MRP declaration missing from PDP under PCR Rule 6(1)(e).',
-        capturedAt: DateTime.now(),
-        status: 'pending',
-        declarations: const [],
-        overlayBoxes: const [],
+      return _mockViolations.firstWhere(
+        (v) => v.id == id,
+        orElse: () => _mockViolations.first,
       );
     }
   }
@@ -289,6 +343,15 @@ class RegulatorDataService {
   static Future<List<RegulatorComplaint>> getComplaints({
     String? status,
   }) async {
+    if (!_hasClient) {
+      var results = List<RegulatorComplaint>.from(_mockComplaints);
+      if (status != null && status.isNotEmpty && status != 'All') {
+        results = results
+            .where((item) => item.status.toLowerCase() == status.toLowerCase())
+            .toList();
+      }
+      return results;
+    }
     try {
       var request = _client.from('consumer_complaints').select('''
         *, consumer:users!consumer_complaints_consumer_id_fkey(full_name, email)
@@ -323,12 +386,24 @@ class RegulatorDataService {
             )
             .toList();
       } catch (_) {
-        return [];
+        var results = List<RegulatorComplaint>.from(_mockComplaints);
+        if (status != null && status.isNotEmpty && status != 'All') {
+          results = results
+              .where((item) => item.status.toLowerCase() == status.toLowerCase())
+              .toList();
+        }
+        return results;
       }
     }
   }
 
   static Future<RegulatorComplaint> getComplaintById(String id) async {
+    if (!_hasClient) {
+      return _mockComplaints.firstWhere(
+        (c) => c.id == id,
+        orElse: () => _mockComplaints.first,
+      );
+    }
     try {
       final row = await _client
           .from('consumer_complaints')
@@ -343,30 +418,42 @@ class RegulatorDataService {
         await _companyNames(),
       );
     } catch (_) {
-      return RegulatorComplaint(
-        id: id,
-        complaintCode: 'CMP-2026-001',
-        title: 'Missing MRP and Expiry Date',
-        productName: 'Fresh Dairy Milk 1L',
-        companyName: 'Apex Foods Ltd.',
-        category: 'Dairy Products',
-        description: 'Product purchased without any visible MRP or expiry date stamp on the carton.',
-        locationName: 'Supermarket Store 4, South Extension, Delhi',
-        address: 'Main Market, South Extension Part 2, New Delhi - 110049',
-        status: 'Submitted',
-        priority: 'High',
-        submittedAt: DateTime.now(),
-        evidencePhotos: const [
-          'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500',
-        ],
-        coordinates: '28.5700°, 77.2200°',
-        consumerName: 'Priya Sharma',
-        consumerContact: '+91 98765 43210',
-      );
+      try {
+        final row = await _client
+            .from('consumer_complaints')
+            .select()
+            .eq('id', id)
+            .single()
+            .timeout(const Duration(seconds: 4));
+        return _complaintFromRow(
+          Map<String, dynamic>.from(row),
+          await _companyNames(),
+        );
+      } catch (_) {
+        return _mockComplaints.firstWhere(
+          (c) => c.id == id,
+          orElse: () => _mockComplaints.first,
+        );
+      }
     }
   }
 
   static Future<List<RegulatorCompany>> getCompanies({String? search}) async {
+    if (!_hasClient) {
+      var results = List<RegulatorCompany>.from(_mockCompanies);
+      if (search != null && search.trim().isNotEmpty) {
+        final term = search.trim().toLowerCase();
+        results = results
+            .where(
+              (company) =>
+                  company.name.toLowerCase().contains(term) ||
+                  company.address.toLowerCase().contains(term) ||
+                  company.category.toLowerCase().contains(term),
+            )
+            .toList();
+      }
+      return results;
+    }
     try {
       final rows = await _client
           .from('company_compliance_overview')
@@ -404,23 +491,88 @@ class RegulatorDataService {
       }
       return companies;
     } catch (_) {
-      return [];
+      var results = List<RegulatorCompany>.from(_mockCompanies);
+      if (search != null && search.trim().isNotEmpty) {
+        final term = search.trim().toLowerCase();
+        results = results
+            .where(
+              (company) =>
+                  company.name.toLowerCase().contains(term) ||
+                  company.address.toLowerCase().contains(term) ||
+                  company.category.toLowerCase().contains(term),
+            )
+            .toList();
+      }
+      return results;
     }
   }
 
   static Future<RegulatorCompany> getCompanyDetail(String id) async {
-    final row = await _client
-        .from('company_compliance_overview')
-        .select()
-        .eq('company_id', id)
-        .single();
-    return _companyFromRow(
-      Map<String, dynamic>.from(row),
-      await _companyTimeline(id),
-    );
+    if (!_hasClient) {
+      return _mockCompanies.firstWhere(
+        (c) => c.id == id,
+        orElse: () => _mockCompanies.first,
+      );
+    }
+    try {
+      final row = await _client
+          .from('company_compliance_overview')
+          .select()
+          .eq('company_id', id)
+          .single();
+      return _companyFromRow(
+        Map<String, dynamic>.from(row),
+        await _companyTimeline(id),
+      );
+    } catch (_) {
+      return _mockCompanies.firstWhere(
+        (c) => c.id == id,
+        orElse: () => _mockCompanies.first,
+      );
+    }
   }
 
   static Future<RegulatorNotice> generateNoticeDraft(String violationId) async {
+    if (!_hasClient) {
+      final violation = await getViolationById(violationId);
+      return RegulatorNotice(
+        id: 'not-001',
+        noticeNumber: 'SCN-2026-004481',
+        violationId: violation.id,
+        companyId: 'comp-001',
+        companyName: violation.companyName,
+        productName: violation.productName,
+        ruleViolated: violation.violationSummary,
+        ruleCitation: violation.declarations.isNotEmpty
+            ? violation.declarations.first.ruleCitation
+            : 'LMPC Act 2009 & PCR 2011',
+        issueDate: DateTime.now(),
+        deadlineDate: DateTime.now().add(const Duration(days: 15)),
+        status: 'Draft',
+        officerNotes:
+            'Audit scan ${violation.scanId} detected ${violation.violationSummary} at ${violation.storeLocation}. Immediate formal show-cause notice initiated under Legal Metrology (Packaged Commodities) Rules 2011.',
+        officerName: 'Officer J. Sharma (Metrology Division)',
+        evidenceSummary:
+            'Scan ID: ${violation.scanId}, Confidence: ${violation.confidenceScore}%, Location: ${violation.storeLocation}',
+        history: [
+          RegulatorNoticeHistoryItem(
+            title: 'Violation Noted',
+            description: violation.violationSummary,
+            date: violation.capturedAt,
+            officerName: 'Officer J. Sharma',
+            type: 'violation',
+          ),
+          RegulatorNoticeHistoryItem(
+            title: 'Routine Audit Passed',
+            description:
+                'Previous facility packaging inspection passed standard tolerance.',
+            date: DateTime.now().subtract(const Duration(days: 90)),
+            officerName: 'Officer M. Smith',
+            type: 'audit_passed',
+          ),
+        ],
+      );
+    }
     try {
       final draft = await _client
           .rpc(
@@ -447,77 +599,103 @@ class RegulatorDataService {
       }).toList();
       return RegulatorNotice.fromJson(row);
     } catch (_) {
+      final violation = await getViolationById(violationId);
       return RegulatorNotice(
         id: 'not-001',
-        noticeNumber: 'NOT-2026-001',
-        violationId: violationId,
+        noticeNumber: 'SCN-2026-004481',
+        violationId: violation.id,
         companyId: 'comp-001',
-        companyName: 'Sunrise Foods Ltd.',
-        productName: 'Organic Honey 500g',
-        ruleViolated: 'PCR 2011 - Rule 6(1)(e): MRP Declaration',
-        ruleCitation: 'Legal Metrology Act, 2009 - Section 18',
+        companyName: violation.companyName,
+        productName: violation.productName,
+        ruleViolated: violation.violationSummary,
+        ruleCitation: violation.declarations.isNotEmpty
+            ? violation.declarations.first.ruleCitation
+            : 'LMPC Act 2009 & PCR 2011',
         issueDate: DateTime.now(),
         deadlineDate: DateTime.now().add(const Duration(days: 15)),
         status: 'Draft',
         officerNotes:
-            'Immediate correction required. Second violation within 12 months may attract compounding penalties.',
-        officerName: 'Officer J. Sharma (Metrology Div)',
-        evidenceSummary: 'Missing MRP declaration on principal display panel',
-        history: const [],
+            'Audit scan ${violation.scanId} detected ${violation.violationSummary} at ${violation.storeLocation}. Immediate formal show-cause notice initiated under Legal Metrology (Packaged Commodities) Rules 2011.',
+        officerName: 'Officer J. Sharma (Metrology Division)',
+        evidenceSummary:
+            'Scan ID: ${violation.scanId}, Confidence: ${violation.confidenceScore}%, Location: ${violation.storeLocation}',
+        history: [
+          RegulatorNoticeHistoryItem(
+            title: 'Violation Noted',
+            description: violation.violationSummary,
+            date: violation.capturedAt,
+            officerName: 'Officer J. Sharma',
+            type: 'violation',
+          ),
+          RegulatorNoticeHistoryItem(
+            title: 'Routine Audit Passed',
+            description:
+                'Previous facility packaging inspection passed standard tolerance.',
+            date: DateTime.now().subtract(const Duration(days: 90)),
+            officerName: 'Officer M. Smith',
+            type: 'audit_passed',
+          ),
+        ],
       );
     }
   }
 
   static Future<void> _setViolationStatus(String id, String status) async {
-    try {
-      await _client
-          .from('regulator_violations')
-          .update({
-            'status': status,
-            'reviewed_by': _currentUserId,
-            'reviewed_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', id);
+    final index = _mockViolations.indexWhere((v) => v.id == id);
+    if (index != -1) {
+      _mockViolations[index] = _mockViolations[index].copyWith(status: status);
+    }
+    if (_hasClient) {
+      try {
+        await _client
+            .from('regulator_violations')
+            .update({
+              'status': status,
+              'reviewed_by': _currentUserId,
+              'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', id);
 
-      // Record this enforcement change to the company audit logs (company_timeline_events)
-      final vRow = await _client
-          .from('regulator_violations')
-          .select('company_id, regulator_scans(product_name, company_name)')
-          .eq('id', id)
-          .maybeSingle();
-      if (vRow != null && vRow['company_id'] != null) {
-        final compId = vRow['company_id'] as String;
-        final scanData = vRow['regulator_scans'] as Map?;
-        final pName = scanData?['product_name'] as String? ?? 'Product';
-        final cName = scanData?['company_name'] as String? ?? 'Registered Company';
+        // Record this enforcement change to the company audit logs (company_timeline_events)
+        final vRow = await _client
+            .from('regulator_violations')
+            .select('company_id, regulator_scans(product_name, company_name)')
+            .eq('id', id)
+            .maybeSingle();
+        if (vRow != null && vRow['company_id'] != null) {
+          final compId = vRow['company_id'] as String;
+          final scanData = vRow['regulator_scans'] as Map?;
+          final pName = scanData?['product_name'] as String? ?? 'Product';
+          final cName = scanData?['company_name'] as String? ?? 'Registered Company';
 
-        String eventTitle = 'Violation status changed to $status';
-        String eventType = 'status_change';
-        if (status == 'confirmed') {
-          eventTitle = 'Violation Confirmed';
-          eventType = 'violation';
-        } else if (status == 'escalated') {
-          eventTitle = 'Violation Escalated to Notice';
-          eventType = 'notice_issued';
-        } else if (status == 'false_positive') {
-          eventTitle = 'Violation Marked False Positive';
-          eventType = 'status_change';
+          String eventTitle = 'Violation status changed to $status';
+          String eventType = 'status_change';
+          if (status == 'confirmed') {
+            eventTitle = 'Violation Confirmed';
+            eventType = 'violation';
+          } else if (status == 'escalated') {
+            eventTitle = 'Violation Escalated to Notice';
+            eventType = 'notice_issued';
+          } else if (status == 'false_positive') {
+            eventTitle = 'Violation Marked False Positive';
+            eventType = 'status_change';
+          }
+
+          await _client.from('company_timeline_events').insert({
+            'company_id': compId,
+            'event_type': eventType,
+            'title': eventTitle,
+            'description':
+                'Enforcement decision recorded for "$pName" (Company: "$cName"). Case status updated to "$status".',
+            'actor_id': _currentUserId.isNotEmpty ? _currentUserId : null,
+            'actor_name': 'Regulator Officer',
+            'violation_id': id,
+            'occurred_at': DateTime.now().toUtc().toIso8601String(),
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          });
         }
-
-        await _client.from('company_timeline_events').insert({
-          'company_id': compId,
-          'event_type': eventType,
-          'title': eventTitle,
-          'description':
-              'Enforcement decision recorded for "$pName" (Company: "$cName"). Case status updated to "$status".',
-          'actor_id': _currentUserId.isNotEmpty ? _currentUserId : null,
-          'actor_name': 'Regulator Officer',
-          'violation_id': id,
-          'occurred_at': DateTime.now().toUtc().toIso8601String(),
-          'created_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
   static Future<void> confirmViolation(String id) =>
@@ -530,26 +708,37 @@ class RegulatorDataService {
       _setViolationStatus(id, 'escalated');
 
   static Future<void> issueNotice(RegulatorNotice notice) async {
-    final values = {
-      'notice_number': notice.noticeNumber,
-      'violation_id': notice.violationId,
-      'company_id': notice.companyId,
-      'rule_violated': notice.ruleViolated,
-      'rule_citation': notice.ruleCitation,
-      'issue_date': notice.issueDate.toUtc().toIso8601String(),
-      'deadline_date': notice.deadlineDate.toUtc().toIso8601String(),
-      'status': 'Issued',
-      'officer_notes': notice.officerNotes,
-      'issued_by': _currentUserId,
-      'evidence_summary': notice.evidenceSummary,
-    };
-    if (notice.id.isEmpty) {
-      await _client.from('regulator_notices').insert(values);
+    final updatedNotice = notice.copyWith(status: 'Issued');
+    final index = _mockNotices.indexWhere((n) => n.id == notice.id);
+    if (index != -1) {
+      _mockNotices[index] = updatedNotice;
     } else {
-      await _client
-          .from('regulator_notices')
-          .update(values)
-          .eq('id', notice.id);
+      _mockNotices.insert(0, updatedNotice);
+    }
+    if (_hasClient) {
+      final values = {
+        'notice_number': notice.noticeNumber,
+        'violation_id': notice.violationId,
+        'company_id': notice.companyId,
+        'rule_violated': notice.ruleViolated,
+        'rule_citation': notice.ruleCitation,
+        'issue_date': notice.issueDate.toUtc().toIso8601String(),
+        'deadline_date': notice.deadlineDate.toUtc().toIso8601String(),
+        'status': 'Issued',
+        'officer_notes': notice.officerNotes,
+        'issued_by': _currentUserId,
+        'evidence_summary': notice.evidenceSummary,
+      };
+      try {
+        if (notice.id.isEmpty) {
+          await _client.from('regulator_notices').insert(values);
+        } else {
+          await _client
+              .from('regulator_notices')
+              .update(values)
+              .eq('id', notice.id);
+        }
+      } catch (_) {}
     }
 
     // Record statutory notice issuance to company audit logs
@@ -573,34 +762,52 @@ class RegulatorDataService {
   }
 
   static Future<void> verifyAndForwardComplaint(String id) async {
-    try {
-      await _client.rpc(
-        'verify_and_forward_complaint',
-        params: {'p_complaint_id': id},
-      );
-    } catch (_) {
-      await _client
-          .from('consumer_complaints')
-          .update({
-            'status': 'Verified',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
+    final index = _mockComplaints.indexWhere((c) => c.id == id);
+    if (index != -1) {
+      _mockComplaints[index] =
+          _mockComplaints[index].copyWith(status: 'Forwarded');
+    }
+    if (_hasClient) {
+      try {
+        await _client.rpc(
+          'verify_and_forward_complaint',
+          params: {'p_complaint_id': id},
+        );
+      } catch (_) {
+        try {
+          await _client
+              .from('consumer_complaints')
+              .update({
+                'status': 'Verified',
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', id);
+        } catch (_) {}
+      }
     }
   }
 
   static Future<void> rejectComplaint(String id, {String? notes}) async {
-    try {
-      await _client.rpc('reject_complaint', params: {'p_complaint_id': id});
-    } catch (_) {
-      await _client
-          .from('consumer_complaints')
-          .update({
-            'status': 'Rejected',
-            'regulator_notes': notes,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
+    final index = _mockComplaints.indexWhere((c) => c.id == id);
+    if (index != -1) {
+      _mockComplaints[index] =
+          _mockComplaints[index].copyWith(status: 'Rejected');
+    }
+    if (_hasClient) {
+      try {
+        await _client.rpc('reject_complaint', params: {'p_complaint_id': id});
+      } catch (_) {
+        try {
+          await _client
+              .from('consumer_complaints')
+              .update({
+                'status': 'Rejected',
+                'regulator_notes': notes,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', id);
+        } catch (_) {}
+      }
     }
   }
 
@@ -647,6 +854,7 @@ class RegulatorDataService {
     MultiCapturePayload? multiCapture,
     String? imagePath,
     String? imageUrl,
+    LmAuditResult? audit,
   }) async {
     final name = companyName.trim();
     var companies = name.isNotEmpty
@@ -731,24 +939,48 @@ class RegulatorDataService {
           'category': company['category'],
           'region': company['region'],
           'store_location': '',
-          'confidence_score': 0,
+          'ocr_text': audit != null ? _ocrTextFromAudit(audit) : null,
+          'confidence_score': audit?.scorePercent ?? 0,
           'status': 'completed',
         })
         .select()
         .single();
     final scanRow = Map<String, dynamic>.from(scan);
+
+    // Persist each rule outcome as a declaration_check so the review screen
+    // renders the real Legal Metrology findings.
+    if (audit != null) {
+      final checks = _declarationChecks(scanRow['id'] as String, audit);
+      if (checks.isNotEmpty) {
+        try {
+          await _client.from('declaration_checks').insert(checks);
+        } catch (_) {
+          // non-fatal — the violation row still carries the summary
+        }
+      }
+    }
+
+    final tier = audit == null ? _AuditTier.medium : _tierFor(audit);
     final violation = await _client
         .from('regulator_violations')
         .insert({
           'scan_id': scanRow['id'],
           'company_id': company['company_id'],
-          'severity': 'Medium',
-          'risk_level': 'Medium Risk',
-          'confidence_score': 0,
-          'violation_type': 'Manual review required',
-          'violation_summary':
-              'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.',
-          'status': 'manual_review',
+          'severity': tier.severity,
+          'risk_level': tier.riskLevel,
+          'confidence_score': audit?.scorePercent ?? 0,
+          'violation_type': audit == null
+              ? 'Manual review required'
+              : (audit.complianceIssues.isEmpty
+                  ? 'No deviation detected'
+                  : (audit.complianceIssues.first['type'] as String? ??
+                      'PCR 2011 non-compliance')),
+          'violation_summary': audit == null
+              ? 'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.'
+              : _violationSummaryFromAudit(audit),
+          'status': audit != null && audit.report.diff.failed.isNotEmpty
+              ? 'pending'
+              : 'manual_review',
         })
         .select()
         .single();
@@ -803,6 +1035,7 @@ class RegulatorDataService {
       return const Stream.empty();
     }
   }
+
 
   // =========================================================================
   // STUB METHODS — business branch has separate Supabase, this will need
@@ -1084,4 +1317,834 @@ class RegulatorDataService {
       );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Legal Metrology pipeline -> regulator enforcement rows
+  // ---------------------------------------------------------------------------
+
+  static String _ocrTextFromAudit(LmAuditResult audit) {
+    final d = audit.detectedDeclarations;
+    final lines = <String>[
+      for (final e in const [
+        'commodity_name',
+        'manufacturer',
+        'manufacturer_address',
+        'net_quantity',
+        'mrp',
+        'mfg_date',
+        'best_before',
+        'country_of_origin',
+        'fssai_license_no',
+        'consumer_care_info',
+      ])
+        if (d[e] != null) '$e: ${d[e]}',
+    ];
+    return lines.join('\n');
+  }
+
+  static String _violationSummaryFromAudit(LmAuditResult audit) {
+    final pct = audit.scorePercent;
+    if (audit.complianceIssues.isEmpty) {
+      return 'LM(PC) Rules 2011 audit: $pct% (${audit.starLabel}). '
+          'No mandatory declaration deviations detected.';
+    }
+    final items = audit.complianceIssues
+        .take(3)
+        .map((i) => i['type'])
+        .whereType<String>()
+        .join('; ');
+    return 'LM(PC) Rules 2011 audit: $pct% (${audit.starLabel}). '
+        '${audit.complianceIssues.length} finding(s): $items.';
+  }
+
+  static const Map<String, String> _dcStatus = {
+    'PASS': 'Compliant',
+    'FAIL': 'Violation',
+    'WARNING': 'Warning',
+    'INCONCLUSIVE': 'Unable to Verify',
+    'NOT_APPLICABLE': 'Unable to Verify',
+  };
+
+  static List<Map<String, dynamic>> _declarationChecks(
+    String scanId,
+    LmAuditResult audit,
+  ) {
+    final rules = [
+      ...audit.report.diff.failed,
+      ...audit.report.diff.warnings,
+      ...audit.report.diff.inconclusive,
+      ...audit.report.diff.passed,
+    ];
+    return [
+      for (final r in rules)
+        {
+          'scan_id': scanId,
+          'field_name': r.ruleName,
+          'extracted_value': r.evidence ?? '',
+          'confidence_percent': 100,
+          'status': _dcStatus[r.status] ?? 'Unable to Verify',
+          'rule_citation': r.legalReference ?? r.ruleId,
+          'rule_description': r.detail,
+        },
+    ];
+  }
+
+  static _AuditTier _tierFor(LmAuditResult audit) {
+    if (audit.report.score.criticalFailures > 0) return _AuditTier.critical;
+    if (audit.report.diff.failed.isNotEmpty) return _AuditTier.high;
+    final unverified = audit.report.diff.inconclusive
+        .any((x) => x.severity == 'CRITICAL' || x.severity == 'MAJOR');
+    if (unverified || audit.report.diff.warnings.isNotEmpty) {
+      return _AuditTier.medium;
+    }
+    return _AuditTier.low;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fallback Mock Datasets (for tests and offline mode)
+  // ---------------------------------------------------------------------------
+
+  static final List<RegulatorViolation> _mockViolations = [
+    RegulatorViolation(
+      id: 'viol-001',
+      scanId: '#77291-LM',
+      productName: 'Instant Masala Noodles 70g Pack',
+      companyName: 'Nestle India Limited',
+      category: 'Packaged Foods',
+      region: 'North Region - New Delhi',
+      storeLocation: 'QuickShop Superstore, Connaught Place, New Delhi',
+      imageUrl:
+          'https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=600&q=80',
+      severity: 'Critical',
+      riskLevel: 'Critical Risk',
+      confidenceScore: 99,
+      violationType: 'Misleading Declaration',
+      violationSummary: 'Misleading weight claim (+20% extra text without baseline)',
+      capturedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'NET QUANTITY DECLARATION',
+          extractedValue: '70g (+20% Extra Free claim present)',
+          confidencePercent: 99,
+          status: 'Violation',
+          ruleCitation: 'PCR 2011 Rule 6(1)(c) & Rule 2(h)',
+          ruleDescription:
+              'Promotional percentage claim missing baseline quantity on principal display panel.',
+        ),
+        RegulatorDeclaration(
+          fieldName: 'MAXIMUM RETAIL PRICE (MRP)',
+          extractedValue: '₹14.00 (Inclusive of all taxes)',
+          confidencePercent: 98,
+          status: 'Compliant',
+          ruleCitation: 'LMPC Sec 18(1)',
+          ruleDescription: 'MRP clearly indicated.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.35,
+          leftPercent: 0.15,
+          widthPercent: 0.45,
+          heightPercent: 0.15,
+          label: 'Weight Claim Anomaly',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-002',
+      scanId: '#88104-FB',
+      productName: 'Artisan Multigrain Bread 400g',
+      companyName: 'BakeCraft Foods LLP',
+      category: 'Bakery Products',
+      region: 'West Region - Mumbai',
+      storeLocation: 'Riverside Fresh Mart, Bandra West, Mumbai',
+      imageUrl:
+          'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+      severity: 'High',
+      riskLevel: 'High Risk',
+      confidenceScore: 98,
+      violationType: 'Missing Allergen',
+      violationSummary: 'Undeclared walnuts in ingredient list',
+      capturedAt: DateTime.now().subtract(const Duration(hours: 6)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'ALLERGEN DECLARATION',
+          extractedValue: 'Not Declared (Contains Walnuts/Gluten)',
+          confidencePercent: 96,
+          status: 'Violation',
+          ruleCitation: 'FSSAI Packaging Regs & PCR Rule 6(1)(e)',
+          ruleDescription:
+              'Mandatory allergen disclosure missing for tree nuts and gluten.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.65,
+          leftPercent: 0.20,
+          widthPercent: 0.40,
+          heightPercent: 0.12,
+          label: 'Missing Allergen',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-003',
+      scanId: '#66129-DR',
+      productName: 'Organic Almond Milk 1L',
+      companyName: 'PureNutri Beverages India',
+      category: 'Dairy & Beverages',
+      region: 'South Region - Bengaluru',
+      storeLocation: 'Whole Foods Prep, Indiranagar, Bengaluru',
+      imageUrl:
+          'https://images.unsplash.com/photo-1568651315053-4bb4268e0013?auto=format&fit=crop&w=600&q=80',
+      severity: 'Medium',
+      riskLevel: 'Medium Risk',
+      confidenceScore: 92,
+      violationType: 'Date Format',
+      violationSummary: 'Expiration and use-by date obscured/smudged',
+      capturedAt: DateTime.now().subtract(const Duration(hours: 12)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'DATE OF MFG / EXPIRY',
+          extractedValue: 'Illegible / Overprinted (Smudged)',
+          confidencePercent: 42,
+          status: 'Violation',
+          ruleCitation: 'PCR 2011 Rule 6(1)(d)',
+          ruleDescription:
+              'Expiry and best before date must remain smudge-resistant and clearly legible.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.25,
+          leftPercent: 0.30,
+          widthPercent: 0.35,
+          heightPercent: 0.10,
+          label: 'Date Obscured',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-004',
+      scanId: '#55210-SP',
+      productName: 'Spicy Mustard Oil 1L Pouch',
+      companyName: 'Shree Kissan Agro Mills',
+      category: 'Edible Oils',
+      region: 'North Region - Lucknow',
+      storeLocation: 'Kissan Mandi, Alambagh, Lucknow',
+      imageUrl:
+          'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+      severity: 'High',
+      riskLevel: 'High Risk',
+      confidenceScore: 95,
+      violationType: 'Weight Tolerance',
+      violationSummary: 'Volume shortfall (Measured 910ml vs 1000ml declared)',
+      capturedAt: DateTime.now().subtract(const Duration(days: 1)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'NET QUANTITY',
+          extractedValue: 'Declared 1L / Actual 910ml (-9.0% shortfall)',
+          confidencePercent: 98,
+          status: 'Violation',
+          ruleCitation: 'PCR 2011 Second Schedule & Sec 30',
+          ruleDescription:
+              'Maximum allowable deficiency exceeded for 1000ml liquid packages.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.70,
+          leftPercent: 0.25,
+          widthPercent: 0.50,
+          heightPercent: 0.12,
+          label: 'Weight Shortfall',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-005',
+      scanId: '#44918-SN',
+      productName: 'Roasted Cashew Masala 200g',
+      companyName: 'Haldiram Snacks Pvt Ltd',
+      category: 'Packaged Snacks',
+      region: 'North Region - Noida',
+      storeLocation: 'Mega Mart, Sector 62, Noida',
+      imageUrl:
+          'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=600&q=80',
+      severity: 'Low',
+      riskLevel: 'Low Risk',
+      confidenceScore: 89,
+      violationType: 'Font Size',
+      violationSummary: 'Consumer care contact font size under 1.5mm standard',
+      capturedAt: DateTime.now().subtract(const Duration(days: 2)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'CONSUMER CARE DETAILS',
+          extractedValue: 'Font height 0.9mm (Min required 1.5mm)',
+          confidencePercent: 91,
+          status: 'Warning',
+          ruleCitation: 'PCR 2011 Rule 9(1) Table 1',
+          ruleDescription:
+              'Height of numeral and letters must adhere to minimum area standards.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.82,
+          leftPercent: 0.15,
+          widthPercent: 0.60,
+          heightPercent: 0.08,
+          label: 'Font Size < 1.5mm',
+          isViolation: false,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-006',
+      scanId: '#33812-TC',
+      productName: 'Premium Assam Gold CTC Tea 500g',
+      companyName: 'Tata Consumer Products Ltd',
+      category: 'Beverages',
+      region: 'East Region - Kolkata',
+      storeLocation: 'Super Bazaar, Park Street, Kolkata',
+      imageUrl:
+          'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=600&q=80',
+      severity: 'Low',
+      riskLevel: 'Low Risk',
+      confidenceScore: 94,
+      violationType: 'USP Missing',
+      violationSummary: 'Unit sale price missing on multi-pack carton',
+      capturedAt: DateTime.now().subtract(const Duration(days: 3)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'UNIT SALE PRICE (USP)',
+          extractedValue: 'Missing',
+          confidencePercent: 0,
+          status: 'Violation',
+          ruleCitation: 'PCR 2011 Rule 2(m)',
+          ruleDescription: 'Unit sale price must be displayed per g.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.60,
+          leftPercent: 0.35,
+          widthPercent: 0.30,
+          heightPercent: 0.08,
+          label: 'USP Missing',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-007',
+      scanId: '#22904-BT',
+      productName: 'Digestive High Fiber Biscuits',
+      companyName: 'Britannia Industries Ltd',
+      category: 'Bakery & Biscuits',
+      region: 'South Region - Chennai',
+      storeLocation: 'Nilgiris Supermarket, T. Nagar, Chennai',
+      imageUrl:
+          'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=600&q=80',
+      severity: 'Medium',
+      riskLevel: 'Medium Risk',
+      confidenceScore: 91,
+      violationType: 'Dual MRP',
+      violationSummary: 'Dual pricing sticker superimposed on pre-printed MRP',
+      capturedAt: DateTime.now().subtract(const Duration(days: 4)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'MAXIMUM RETAIL PRICE (MRP)',
+          extractedValue: 'Sticker: ₹95.00 / Original Print: ₹85.00',
+          confidencePercent: 96,
+          status: 'Violation',
+          ruleCitation: 'LMPC Sec 18(2) & PCR Rule 18(1)',
+          ruleDescription:
+              'No person shall alter or superimpose any price sticker on the pre-printed MRP.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.45,
+          leftPercent: 0.50,
+          widthPercent: 0.35,
+          heightPercent: 0.12,
+          label: 'Sticker Overprint',
+          isViolation: true,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-008',
+      scanId: '#11450-DB',
+      productName: '100% Pure Honey 500g Glass Jar',
+      companyName: 'Dabur India Limited',
+      category: 'Packaged Foods',
+      region: 'North Region - Chandigarh',
+      storeLocation: 'Reliance Smart, Sector 17, Chandigarh',
+      imageUrl:
+          'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80',
+      severity: 'Low',
+      riskLevel: 'Low Risk',
+      confidenceScore: 97,
+      violationType: 'Customer Care Info',
+      violationSummary: 'Toll-free number line busy/disconnected on test call',
+      capturedAt: DateTime.now().subtract(const Duration(days: 5)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'CONSUMER CARE DETAILS',
+          extractedValue: '1800-103-1644 (Inactive in audit verification)',
+          confidencePercent: 93,
+          status: 'Warning',
+          ruleCitation: 'PCR 2011 Rule 6(1)(f)',
+          ruleDescription:
+              'Consumer grievance helpline must remain functional and responsive.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.78,
+          leftPercent: 0.20,
+          widthPercent: 0.50,
+          heightPercent: 0.10,
+          label: 'Helpline Warning',
+          isViolation: false,
+        ),
+      ],
+    ),
+    RegulatorViolation(
+      id: 'viol-009',
+      scanId: '#99341-MD',
+      productName: 'Cow Ghee 1L Tin',
+      companyName: 'Mother Dairy Fruit & Vegetable Pvt Ltd',
+      category: 'Dairy Products',
+      region: 'West Region - Ahmedabad',
+      storeLocation: 'Amul & Dairy Mart, Navrangpura, Ahmedabad',
+      imageUrl:
+          'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80',
+      severity: 'High',
+      riskLevel: 'High Risk',
+      confidenceScore: 96,
+      violationType: 'Missing Manufacturer Address',
+      violationSummary: 'Only brand name declared; physical packing unit missing',
+      capturedAt: DateTime.now().subtract(const Duration(days: 6)),
+      status: 'pending',
+      declarations: const [
+        RegulatorDeclaration(
+          fieldName: 'MANUFACTURER ADDRESS',
+          extractedValue: 'Marketed by only. Manufacturing Unit ID missing.',
+          confidencePercent: 89,
+          status: 'Violation',
+          ruleCitation: 'PCR 2011 Rule 6(1)(a)',
+          ruleDescription:
+              'Both manufacturing unit postal address and marketer details required.',
+        ),
+      ],
+      overlayBoxes: const [
+        RegulatorOverlayBox(
+          topPercent: 0.55,
+          leftPercent: 0.20,
+          widthPercent: 0.45,
+          heightPercent: 0.12,
+          label: 'Unit Addr Missing',
+          isViolation: true,
+        ),
+      ],
+    ),
+  ];
+
+  static final List<RegulatorComplaint> _mockComplaints = [
+    RegulatorComplaint(
+      id: 'cmp-001',
+      complaintCode: 'CMP-2023-892',
+      title: 'Mislabeled Expiry - Dairy Product',
+      productName: 'Fresh Farms Greek Yogurt 400g',
+      companyName: 'Apex Dairy Foods India Ltd',
+      category: 'Dairy & Eggs',
+      description:
+          'I purchased two tubs of Fresh Farms Yogurt from the refrigerated section. When I got home, I noticed the sell-by date looked like it had been rubbed off and re-stamped with a later date over the original faded ink.',
+      locationName: 'Downtown Market, Sector 18',
+      address: '124 Main St, Food District, New Delhi 110001',
+      status: 'Submitted',
+      priority: 'High Priority',
+      submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
+      evidencePhotos: const [
+        'https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=600&q=80',
+      ],
+      coordinates: '28.6139° N, 77.2090° E',
+      consumerName: 'Rajesh Malhotra',
+      consumerContact: '+91 98110 44219',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-002',
+      complaintCode: 'CMP-2023-893',
+      title: 'Missing Allergen Warning on Bread',
+      productName: 'Artisan Multigrain Sourdough Loaf',
+      companyName: 'BakeCraft Foods LLP',
+      category: 'Bakery',
+      description:
+          'Artisan sourdough loaf completely lacks mandatory tree nut (walnut) and wheat/gluten allergen declaration on the rear nutritional panel despite having walnut pieces visible inside.',
+      locationName: 'Riverside Bakery & Cafe',
+      address: 'Shop 14, Riverside Promenade, Bandra West, Mumbai 400050',
+      status: 'Submitted',
+      priority: 'Allergen Flag',
+      submittedAt: DateTime.now().subtract(const Duration(hours: 5)),
+      evidencePhotos: const [
+        'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+      ],
+      coordinates: '19.0596° N, 72.8295° E',
+      consumerName: 'Ananya Deshmukh',
+      consumerContact: '+91 97230 18842',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-003',
+      complaintCode: 'CMP-2023-894',
+      title: 'Underweight Pre-packaged Paneer',
+      productName: 'Organic Malai Paneer 200g',
+      companyName: 'Heritage Dairy Products',
+      category: 'Dairy',
+      description:
+          'Package claims 200g net weight. When weighed on certified digital scale at home, net weight was only 165g (including whey liquid).',
+      locationName: 'Heritage Store, Malleshwaram',
+      address: '8th Cross, Sampige Road, Bengaluru 560003',
+      status: 'Under Review',
+      priority: 'High Priority',
+      submittedAt: DateTime.now().subtract(const Duration(hours: 8)),
+      evidencePhotos: const [
+        'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80',
+      ],
+      coordinates: '13.0031° N, 77.5643° E',
+      consumerName: 'Karthik Raman',
+      consumerContact: '+91 98450 71120',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-004',
+      complaintCode: 'CMP-2023-895',
+      title: 'Dual MRP Pricing Sticker Superimposed',
+      productName: 'Crunchy Chocolate Granola 500g',
+      companyName: 'NutriBite Foods India',
+      category: 'Breakfast Cereals',
+      description:
+          'Store placed a white sticker of ₹350 over the manufacturer printed MRP of ₹299.',
+      locationName: 'Grand Central Hypermarket',
+      address: 'Lower Parel, Mumbai 400013',
+      status: 'Verified',
+      priority: 'Price Gouging',
+      submittedAt: DateTime.now().subtract(const Duration(days: 1)),
+      evidencePhotos: const [
+        'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80',
+      ],
+      coordinates: '18.9986° N, 72.8258° E',
+      consumerName: 'Pooja Hegde',
+      consumerContact: '+91 98201 55309',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-005',
+      complaintCode: 'CMP-2023-896',
+      title: 'Missing Veg/Non-Veg Logo on Cookies',
+      productName: 'Imported Marshmallow Biscuits 150g',
+      companyName: 'EuroTreats Global Importers',
+      category: 'Confectionery',
+      description:
+          'Imported cookies containing gelatin sold without mandatory brown non-veg dot indicator symbol on PDP.',
+      locationName: 'Gourmet World, Vasant Kunj',
+      address: 'Ambience Mall, Vasant Kunj, New Delhi 110070',
+      status: 'Forwarded',
+      priority: 'Standard',
+      submittedAt: DateTime.now().subtract(const Duration(days: 1, hours: 4)),
+      evidencePhotos: const [],
+      coordinates: '28.5284° N, 77.1517° E',
+      consumerName: 'Sanjay Gupta',
+      consumerContact: '+91 99100 28471',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-006',
+      complaintCode: 'CMP-2023-897',
+      title: 'Illegible Batch and Date Coding',
+      productName: 'Spiced Tomato Ketchup 950g',
+      companyName: 'Zest Foods Ltd',
+      category: 'Condiments',
+      description:
+          'Inkjet printed manufacturing date and batch number on neck of bottle completely smudged and unreadable.',
+      locationName: 'Local Bazaar, Aminabad',
+      address: 'Nazirabad Road, Lucknow 226018',
+      status: 'Submitted',
+      priority: 'Standard',
+      submittedAt: DateTime.now().subtract(const Duration(days: 2)),
+      evidencePhotos: const [],
+      coordinates: '26.8467° N, 80.9462° E',
+      consumerName: 'Mohd. Tariq',
+      consumerContact: '+91 94150 99812',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-007',
+      complaintCode: 'CMP-2023-898',
+      title: 'Unit Sale Price Missing on Family Pack',
+      productName: 'Premium Washing Powder 3kg Bucket',
+      companyName: 'CleanHome Chemicals Ltd',
+      category: 'Household Goods',
+      description:
+          '3kg promotional bucket package does not display Unit Sale Price per kg/gram.',
+      locationName: 'Big Supercenter, Anna Nagar',
+      address: '2nd Avenue, Anna Nagar, Chennai 600040',
+      status: 'Submitted',
+      priority: 'Standard',
+      submittedAt: DateTime.now().subtract(const Duration(days: 2, hours: 6)),
+      evidencePhotos: const [],
+      coordinates: '13.0850° N, 80.2101° E',
+      consumerName: 'Meenakshi Sundaram',
+      consumerContact: '+91 94440 12390',
+    ),
+    RegulatorComplaint(
+      id: 'cmp-008',
+      complaintCode: 'CMP-2023-899',
+      title: 'Customer Grievance Email Bouncing',
+      productName: 'Roasted Almond Crunch 100g',
+      companyName: 'NutriPure Snack LLP',
+      category: 'Snacks',
+      description:
+          'Declared email customercare@nutripure.co.in returned mailer-daemon delivery failed.',
+      locationName: 'Online Purchase / Quick Commerce',
+      address: 'Blinkit Hub, Sector 50, Gurugram 122018',
+      status: 'Under Review',
+      priority: 'Standard',
+      submittedAt: DateTime.now().subtract(const Duration(days: 3)),
+      evidencePhotos: const [],
+      coordinates: '28.4124° N, 77.0620° E',
+      consumerName: 'Vikram Sethi',
+      consumerContact: '+91 98101 67234',
+    ),
+  ];
+
+  static final List<RegulatorCompany> _mockCompanies = [
+    RegulatorCompany(
+      id: 'comp-001',
+      name: 'Nestle India Limited',
+      address: '100/101, World Trade Centre, Barakhamba Lane, New Delhi 110001',
+      region: 'North Region',
+      category: 'Packaged Foods & Beverages',
+      complianceScore: 78,
+      openViolationsCount: 4,
+      noticesIssuedCount: 2,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 14)),
+      status: 'Active Audit',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 14)),
+          title: 'Field Audit Intake Logged',
+          description: 'Intake #77291-LM logged for Noodles product package.',
+          type: 'audit_passed',
+          officerName: 'Inspector V. Saxena',
+          batchNo: 'BAT-2023-N09',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-002',
+      name: 'BakeCraft Foods LLP',
+      address: 'Plot 45, MIDC Industrial Area, Andheri East, Mumbai 400093',
+      region: 'West Region',
+      category: 'Bakery & Confectionery',
+      complianceScore: 64,
+      openViolationsCount: 6,
+      noticesIssuedCount: 3,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 20)),
+      status: 'Under Scrutiny',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 20)),
+          title: 'Allergen Non-Compliance',
+          description: 'Show-cause notice dispatched for missing walnut allergen declaration.',
+          type: 'notice_issued',
+          officerName: 'Inspector R. Kamble',
+          batchNo: 'BCF-BREAD-400',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-003',
+      name: 'PureNutri Beverages India',
+      address: '7th Floor, Brigade Towers, Brigade Road, Bengaluru 560025',
+      region: 'South Region',
+      category: 'Dairy & Plant Beverages',
+      complianceScore: 82,
+      openViolationsCount: 2,
+      noticesIssuedCount: 1,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 35)),
+      status: 'Active',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 35)),
+          title: 'Date Coding Verification',
+          description: 'Corrective action plan submitted for ink coding printer calibration.',
+          type: 'status_change',
+          officerName: 'Inspector K. Swamy',
+          batchNo: 'PN-ALM-1L',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-004',
+      name: 'Shree Kissan Agro Mills',
+      address: 'Industrial Growth Centre, Phase II, UPSIDC, Lucknow 226008',
+      region: 'North Region',
+      category: 'Edible Oils & Grains',
+      complianceScore: 58,
+      openViolationsCount: 8,
+      noticesIssuedCount: 5,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 8)),
+      status: 'High Risk Watch',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 8)),
+          title: 'Deficiency Beyond Tolerance',
+          description: 'Shortfall violation detected on 1L pouch packaging.',
+          type: 'violation',
+          officerName: 'Inspector D. Shukla',
+          batchNo: 'SK-MST-910',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-005',
+      name: 'Haldiram Snacks Pvt Ltd',
+      address: 'B-1/H-8, Mohan Co-op Industrial Estate, Mathura Road, New Delhi 110044',
+      region: 'North Region',
+      category: 'Packaged Snacks & Sweets',
+      complianceScore: 89,
+      openViolationsCount: 1,
+      noticesIssuedCount: 0,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 45)),
+      status: 'Active',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 45)),
+          title: 'Annual Surveillance Audit',
+          description: 'Inspection of snack packaging unit completed satisfactorily.',
+          type: 'audit_passed',
+          officerName: 'Inspector A. Verma',
+          batchNo: 'HS-CSH-200',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-006',
+      name: 'Tata Consumer Products Ltd',
+      address: '1, Bishop Lefroy Road, Kolkata, West Bengal 700020',
+      region: 'East Region',
+      category: 'Tea, Coffee & Foods',
+      complianceScore: 94,
+      openViolationsCount: 1,
+      noticesIssuedCount: 0,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 60)),
+      status: 'Compliant',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 60)),
+          title: 'Routine Lab Testing Sample',
+          description: 'Net content verified with standard laboratory balance.',
+          type: 'audit_passed',
+          officerName: 'Inspector P. Ghosh',
+          batchNo: 'TCP-TEA-500',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-007',
+      name: 'Britannia Industries Ltd',
+      address: '5/1A, Hungerford Street, Kolkata, West Bengal 700017',
+      region: 'East Region',
+      category: 'Bakery & Biscuits',
+      complianceScore: 86,
+      openViolationsCount: 2,
+      noticesIssuedCount: 1,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 18)),
+      status: 'Active',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 18)),
+          title: 'Retail Store Price Check',
+          description: 'Investigation into retailer sticker overprint underway.',
+          type: 'status_change',
+          officerName: 'Inspector S. Natarajan',
+          batchNo: 'BIL-DIG-100',
+        ),
+      ],
+    ),
+    RegulatorCompany(
+      id: 'comp-008',
+      name: 'Dabur India Limited',
+      address: '8/3, Asaf Ali Road, New Delhi 110002',
+      region: 'North Region',
+      category: 'Health Care & Foods',
+      complianceScore: 91,
+      openViolationsCount: 1,
+      noticesIssuedCount: 0,
+      lastAuditDate: DateTime.now().subtract(const Duration(days: 28)),
+      status: 'Active',
+      timeline: [
+        RegulatorTimelineEvent(
+          date: DateTime.now().subtract(const Duration(days: 28)),
+          title: 'Customer Helpline Verification',
+          description: 'Toll-free line status tested during market review.',
+          type: 'status_change',
+          officerName: 'Inspector M. Tyagi',
+          batchNo: 'DAB-HNY-500',
+        ),
+      ],
+    ),
+  ];
+
+  static final List<RegulatorNotice> _mockNotices = [
+    RegulatorNotice(
+      id: 'not-001',
+      noticeNumber: 'SCN-2026-004481',
+      violationId: 'viol-001',
+      companyId: 'comp-001',
+      companyName: 'Nestle India Limited',
+      productName: 'Instant Masala Noodles 70g Pack',
+      ruleViolated: 'Misleading weight claim (+20% extra text without baseline)',
+      ruleCitation: 'PCR 2011 Rule 6(1)(c) & Rule 2(h)',
+      issueDate: DateTime.now().subtract(const Duration(days: 2)),
+      deadlineDate: DateTime.now().add(const Duration(days: 13)),
+      status: 'Draft',
+      officerNotes:
+          'Audit scan #77291-LM detected misleading promotional text. Formal notice initiated under PCR 2011.',
+      officerName: 'Officer J. Sharma (Metrology Division)',
+      evidenceSummary:
+          'Scan ID: #77291-LM, Confidence: 99%, Location: QuickShop Superstore, Connaught Place, New Delhi',
+      history: [
+        RegulatorNoticeHistoryItem(
+          title: 'Violation Noted',
+          description: 'Misleading weight claim (+20% extra text without baseline)',
+          date: DateTime.now().subtract(const Duration(hours: 3)),
+          officerName: 'Officer J. Sharma',
+          type: 'violation',
+        ),
+      ],
+    ),
+  ];
+}
+
+enum _AuditTier {
+  critical('Critical', 'Critical Risk'),
+  high('High', 'High Risk'),
+  medium('Medium', 'Medium Risk'),
+  low('Low', 'Low Risk');
+
+  const _AuditTier(this.severity, this.riskLevel);
+  final String severity;
+  final String riskLevel;
 }

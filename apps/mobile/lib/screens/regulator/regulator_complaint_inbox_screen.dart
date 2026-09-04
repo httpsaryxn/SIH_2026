@@ -63,6 +63,7 @@ class _RegulatorComplaintInboxScreenState
     }
   }
 
+
   String _formatRelativeTime(DateTime date) {
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 60) {

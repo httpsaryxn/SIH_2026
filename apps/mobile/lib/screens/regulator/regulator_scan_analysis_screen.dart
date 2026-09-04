@@ -6,6 +6,7 @@ import '../../core/models/capture_role.dart';
 import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../core/models/regulator_violation.dart';
+import '../../core/services/legal_metrology_service.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../shared/multi_capture_screen.dart';
 import 'regulator_violation_review_screen.dart';
@@ -158,29 +159,42 @@ class _RegulatorScanAnalysisScreenState
   Future<void> _startPipelineExecution() async {
     _progressController.forward();
 
-    // =========================================================================
-    // TODO: send PendingCapture to FastAPI backend, see services/backend/app/main.py
-    //
-    // When backend audit intake endpoint is wired:
-    // final fileBytes = await widget.pendingCapture.file.readAsBytes();
-    // final apiResult = await BackendApiService.analyzeAuditLabel(
-    //   fileBytes: fileBytes,
-    //   fileName: widget.pendingCapture.fileName,
-    //   metadata: widget.pendingCapture.toJson(),
-    // );
-    // =========================================================================
+    // On-device Legal Metrology (PCR 2011) pipeline: ML Kit OCR + bar code +
+    // the deterministic rulebook. Offline-capable; registries enrich when online.
+    LmAuditResult? audit;
+    try {
+      if (mounted) {
+        setState(() => _statusMessage =
+            'Multi-zone OCR & bar code extraction (on device)...');
+      }
+      audit = await LegalMetrologyService.auditCapture(
+        capture: widget.pendingCapture,
+        productName: widget.prefilledProductName,
+      );
+      if (mounted) {
+        setState(() => _statusMessage =
+            'Validating mandatory declarations against LM(PC) Rules 2011...');
+      }
+    } catch (_) {
+      // OCR/model unavailable — fall through with audit == null
+    }
 
     try {
       final violation = await RegulatorDataService.createAuditViolation(
-        productName: widget.prefilledProductName?.isNotEmpty == true
-            ? widget.prefilledProductName!
-            : 'Packaged Food Commodity',
+        productName: (audit?.detectedDeclarations['commodity_name'] as String?)
+                    ?.isNotEmpty ==
+                true
+            ? audit!.detectedDeclarations['commodity_name'] as String
+            : widget.prefilledProductName?.isNotEmpty == true
+                ? widget.prefilledProductName!
+                : 'Packaged Food Commodity',
         companyName: widget.prefilledCompanyName?.isNotEmpty == true
             ? widget.prefilledCompanyName!
             : 'Registered Packer / Importer',
         multiCapture: widget.multiCapture,
         pendingCapture: widget.pendingCapture,
         imagePath: widget.pendingCapture.localPath,
+        audit: audit,
       );
 
       if (mounted) {

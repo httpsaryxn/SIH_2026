@@ -8,6 +8,7 @@ import '../../core/models/consumer_scan_model.dart';
 import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../core/services/consumer_data_service.dart';
+import '../../core/services/legal_metrology_service.dart';
 import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
@@ -163,22 +164,39 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     try {
       _progressController.forward();
 
-      // =========================================================================
-      // TODO: send PendingCapture to FastAPI backend, see services/backend/app/main.py
-      //
-      // When the backend consumer analysis API is connected:
-      // final fileBytes = await widget.pendingCapture.file.readAsBytes();
-      // final result = await BackendApiService.analyzeConsumerLabel(
-      //   fileBytes: fileBytes,
-      //   fileName: widget.pendingCapture.fileName,
-      //   metadata: widget.pendingCapture.toJson(),
-      // );
-      // =========================================================================
+      // On-device Legal Metrology (PCR 2011) pipeline: ML Kit OCR + bar code +
+      // the deterministic rulebook. Runs fully offline; product registries and
+      // GS1 India enrich the result when a network is available.
+      if (mounted) {
+        setState(() {
+          _currentStageIndex = 1;
+          _statusMessage =
+              'Reading label with on-device OCR & bar code scanner...';
+        });
+      }
+      final audit = await LegalMetrologyService.auditCapture(
+        capture: widget.pendingCapture,
+        productName: widget.prefilledProductName,
+        netQuantity: widget.prefilledNetQty,
+        mrp: widget.prefilledMrp,
+      );
+      if (mounted) {
+        setState(() {
+          _currentStageIndex = 2;
+          _statusMessage =
+              'Verifying mandatory declarations against LM(PC) Rules 2011...';
+        });
+      }
 
-      final pName = (widget.prefilledProductName != null &&
-              widget.prefilledProductName!.trim().isNotEmpty)
-          ? widget.prefilledProductName!.trim()
-          : _deriveProductNameFromFileName(widget.pendingCapture.fileName);
+      final pName = (audit.detectedDeclarations['commodity_name'] as String?)
+                  ?.trim()
+                  .isNotEmpty ==
+              true
+          ? (audit.detectedDeclarations['commodity_name'] as String).trim()
+          : (widget.prefilledProductName != null &&
+                  widget.prefilledProductName!.trim().isNotEmpty)
+              ? widget.prefilledProductName!.trim()
+              : _deriveProductNameFromFileName(widget.pendingCapture.fileName);
 
       final pBrand = (widget.prefilledBrand != null &&
               widget.prefilledBrand!.trim().isNotEmpty)
@@ -207,6 +225,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         multiCapture: widget.multiCapture,
         pendingCapture: widget.pendingCapture,
         imageUrl: widget.pendingCapture.localPath,
+        audit: audit,
       );
 
       // Wait for progress animation to complete
@@ -216,7 +235,9 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         setState(() {
           _completedScan = createdScan;
           _isAnalysisFinished = true;
-          _statusMessage = 'Analysis Complete! Verified against PCR 2011.';
+          _statusMessage =
+              'Analysis complete — ${audit.scorePercent}% (${audit.starLabel}), '
+              'verified against LM(PC) Rules 2011.';
         });
 
         if (createdScan != null && widget.onScanCompleted != null) {
