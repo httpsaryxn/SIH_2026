@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// UserRole represents the 3 stakeholder roles in the Packaged Commodity Compliance Platform.
+/// UserRole represents the stakeholder roles in the Packaged Commodity Compliance Platform.
 enum UserRole {
   businessOwner,
   consumer,
-  regulator,
+  regulator;
+
+  // Compatibility aliases for legacy references
+  static const UserRole smallBusiness = UserRole.businessOwner;
+  static const UserRole largeBusiness = UserRole.businessOwner;
 }
 
 extension UserRoleExtension on UserRole {

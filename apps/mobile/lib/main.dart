@@ -9,10 +9,14 @@ import 'screens/onboarding/role_selection_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    publishableKey: SupabaseConfig.supabaseAnonKey,
-  );
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      publishableKey: SupabaseConfig.supabasePublishableKey,
+    );
+  } catch (e) {
+    debugPrint('Supabase initialization warning: $e');
+  }
 
   runApp(const FreshLabelApp());
 }
