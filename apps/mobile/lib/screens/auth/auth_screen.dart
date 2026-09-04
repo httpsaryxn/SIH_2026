@@ -277,7 +277,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             Text(
-                              'FreshLabel Pro',
+                              'LabelLens',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w700,

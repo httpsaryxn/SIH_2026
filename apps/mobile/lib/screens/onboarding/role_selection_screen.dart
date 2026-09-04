@@ -71,7 +71,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
-                      'FreshLabel Pro',
+                      'LabelLens',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,

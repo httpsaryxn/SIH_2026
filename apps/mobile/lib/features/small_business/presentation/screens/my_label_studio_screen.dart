@@ -346,7 +346,7 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
 
   void _showProfileSheet() {
     final user = AuthService.currentUser;
-    final email = user?.email ?? 'business@freshlabel.in';
+    final email = user?.email ?? 'business@labellens.in';
     final name = (user?.userMetadata?['full_name'] as String?) ??
         (user?.userMetadata?['organization_name'] as String?) ??
         'Small Business';

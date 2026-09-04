@@ -425,11 +425,11 @@ void main() {
 
   testWidgets('Role Selection screen displays all 3 roles and title',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const FreshLabelApp());
+    await tester.pumpWidget(const LabelLensApp());
     await tester.pumpAndSettle();
 
     // Verify Brand title & Header
-    expect(find.text('FreshLabel Pro'), findsWidgets);
+    expect(find.text('LabelLens'), findsWidgets);
     expect(find.text('How will you use the platform?'), findsOneWidget);
 
     // Verify 3 Role cards exist
