@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pending_capture.dart';
+import '../models/capture_role.dart';
+import '../models/multi_capture_payload.dart';
 import 'auth_service.dart';
 
 /// Service responsible for uploading locally cached [PendingCapture] images
@@ -99,6 +101,54 @@ class StorageService {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Uploads all captures in a [MultiCapturePayload] in parallel.
+  ///
+  /// Returns a map of [CaptureRole] → signed URL for each successfully uploaded image.
+  /// Roles with null captures are skipped.
+  static Future<Map<CaptureRole, String?>> uploadMultiCapture({
+    required MultiCapturePayload payload,
+    required String source,
+    required String recordId,
+    String? customUserId,
+  }) async {
+    final results = <CaptureRole, String?>{};
+
+    // Build list of upload futures in parallel
+    final futures = <Future<MapEntry<CaptureRole, String?>>>[];
+
+    for (final role in CaptureRoleInfo.orderedRoles) {
+      final capture = payload.getForRole(role);
+      if (capture == null || !capture.existsSync) {
+        results[role] = null;
+        continue;
+      }
+
+      futures.add(
+        uploadPendingCapture(
+          pendingCapture: capture,
+          source: source,
+          recordId: '$recordId/${role.name}',
+          customUserId: customUserId,
+        ).then((url) => MapEntry(role, url)),
+      );
+    }
+
+    // Await all uploads in parallel
+    final uploadResults = await Future.wait(futures);
+    for (final entry in uploadResults) {
+      results[entry.key] = entry.value;
+    }
+
+    return results;
+  }
+
+  /// Deletes all local cached files in a [MultiCapturePayload] after confirmed DB sync.
+  static Future<void> deleteMultiCaptureLocalCache(MultiCapturePayload payload) async {
+    for (final capture in payload.allCaptures) {
+      await deleteLocalCacheAfterSync(capture);
     }
   }
 }
