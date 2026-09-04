@@ -5,6 +5,7 @@ class RegulatorTimelineEvent {
   final String type; // 'violation', 'audit_passed', 'notice_issued', 'response_received', 'corrective_action', 're_audit'
   final String officerName;
   final String batchNo;
+  final String? imageUrl;
 
   const RegulatorTimelineEvent({
     required this.date,
@@ -13,6 +14,7 @@ class RegulatorTimelineEvent {
     required this.type,
     this.officerName = 'Officer J. Sharma',
     this.batchNo = '',
+    this.imageUrl,
   });
 
   bool get isViolation => type == 'violation';
@@ -27,6 +29,7 @@ class RegulatorTimelineEvent {
         'type': type,
         'officer_name': officerName,
         'batch_no': batchNo,
+        'image_url': imageUrl,
       };
 
   factory RegulatorTimelineEvent.fromJson(Map<String, dynamic> json) =>
@@ -39,6 +42,7 @@ class RegulatorTimelineEvent {
         type: json['type'] as String? ?? 'audit_passed',
         officerName: json['officer_name'] as String? ?? 'Officer J. Sharma',
         batchNo: json['batch_no'] as String? ?? '',
+        imageUrl: json['image_url'] as String?,
       );
 }
 

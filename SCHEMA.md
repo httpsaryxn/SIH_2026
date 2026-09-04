@@ -141,3 +141,32 @@ compliance-images/{source}/{user_id}/{record_id}/{filename}
 | `consumer_complaints` | `evidence_urls` | `text[]` | Array of uploaded evidence image signed URLs |
 | `consumer_complaints` | `evidence_image_url` | `text?` | Primary evidence image URL for single-image backwards compatibility |
 
+## Business Label Verification Requests (`label_verification_requests`)
+
+> [!NOTE]
+> **STUB TABLE** — The business branch has a separate Supabase project. This table exists in the main Supabase project (`tyshfugxmwvhbmoydlnl`) so that RLS, schema validation, and unified queue queries are live and fully typed in the mobile app. It will require a cross-project sync or migration once branches merge. Currently seeded with sample compliance review requests.
+
+| Column | Type | Constraints / Defaults | Description |
+|---|---|---|---|
+| `id` | `uuid` | `PRIMARY KEY DEFAULT gen_random_uuid()` | Unique verification request identifier |
+| `request_code` | `text` | `UNIQUE NOT NULL` | Human-readable tracking code (e.g. `LVR-2026-001`) |
+| `business_id` | `uuid?` | `REFERENCES public.users(id) ON DELETE SET NULL` | Submitting business user account (loose FK) |
+| `business_name` | `text` | `NOT NULL` | Denormalized enterprise brand name |
+| `product_name` | `text` | `NOT NULL` | Declared commodity name |
+| `brand` | `text?` | | Registered brand |
+| `category` | `text?` | | Commodity category (e.g. Packaged Food, Beverages) |
+| `label_image_url` | `text` | `NOT NULL` | High-resolution packaging label artwork photo |
+| `declarations` | `jsonb` | `DEFAULT '[]'::jsonb` | Extracted declarations (Net Qty, MRP, Font Height, etc.) |
+| `status` | `text` | `DEFAULT 'pending' CHECK ('pending', 'under_review', 'approved', 'rejected')` | Compliance lifecycle status |
+| `priority` | `text` | `DEFAULT 'Normal' CHECK ('High Priority', 'Normal', 'Urgent')` | Processing priority |
+| `reviewed_by` | `uuid?` | `REFERENCES public.users(id) ON DELETE SET NULL` | Regulator officer who reviewed the request |
+| `reviewed_at` | `timestamptz?` | | Timestamp of regulatory clearance / rejection |
+| `regulator_notes` | `text?` | | Officer feedback or required font/format changes |
+| `submitted_at` | `timestamptz` | `DEFAULT now()` | Submission timestamp |
+| `created_at` / `updated_at` | `timestamptz` | `DEFAULT now()` | Record timestamps |
+
+### RLS Policies
+- `label_verification_requests_select`: Authenticated users can query label requests.
+- `label_verification_requests_all_regulator`: Regulators have full CRUD access to review and approve/reject label requests.
+
+

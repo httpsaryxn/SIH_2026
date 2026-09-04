@@ -157,7 +157,7 @@ void main() {
       expect(find.text('All Active'), findsOneWidget);
     });
 
-    testWidgets('Screen 2 - RegulatorAuditIntakeScreen renders intake tabs and stepper',
+    testWidgets('Screen 2 - RegulatorAuditIntakeScreen renders intake tabs and viewfinder',
         (tester) async {
       await tester.pumpWidget(createTestApp(const RegulatorAuditIntakeScreen()));
       await tester.pump(const Duration(milliseconds: 500));
@@ -165,9 +165,7 @@ void main() {
       expect(find.text('Audit Intake'), findsOneWidget);
       expect(find.text('Field Photo Capture'), findsOneWidget);
       expect(find.text('E-Commerce URL'), findsOneWidget);
-      expect(find.text('Processing Pipeline'), findsOneWidget);
-      expect(find.text('Preprocessing'), findsOneWidget);
-      expect(find.text('Text Detection'), findsOneWidget);
+      expect(find.text('Scan Packaging Label'), findsOneWidget);
     });
 
     testWidgets('Screen 3 - RegulatorViolationReviewScreen renders declarations and actions',
@@ -189,7 +187,7 @@ void main() {
       await tester.pumpWidget(createTestApp(const RegulatorComplaintInboxScreen()));
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Inbox'), findsWidgets);
+      expect(find.text('Unified Intake Queue'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
       expect(find.text('Submitted'), findsOneWidget);
       expect(find.text('Under Review'), findsOneWidget);
@@ -228,8 +226,9 @@ void main() {
       await tester.pumpWidget(createTestApp(const RegulatorCompanyTrackingScreen()));
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('EnforceMetrology'), findsOneWidget);
+      expect(find.text('Violations & Enforcement History'), findsOneWidget);
+      expect(find.text('My Actions'), findsOneWidget);
+      expect(find.text('Company Compliance'), findsOneWidget);
     });
 
     testWidgets('Demo Entry Screen renders links to all 7 screens',
@@ -240,9 +239,9 @@ void main() {
       expect(find.text('Regulator Module Demo Hub'), findsOneWidget);
       expect(find.text('Officer Home Overview'), findsOneWidget);
       expect(find.text('Scan / Audit Intake'), findsOneWidget);
-      expect(find.text('Violation Review'), findsOneWidget);
+      expect(find.text('Violation Review Queue'), findsOneWidget);
       expect(find.text('Consumer Complaint Inbox'), findsOneWidget);
-      expect(find.text('Complaint Details View'), findsOneWidget);
+      expect(find.text('Complaint Details'), findsOneWidget);
       expect(find.text('Notice & Action Generator'), findsOneWidget);
       expect(find.text('Company & Case Tracking'), findsOneWidget);
     });
@@ -257,13 +256,13 @@ void main() {
       await tester.tap(find.widgetWithText(InkWell, 'Violations'));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(TextField), findsOneWidget); // Search bar on Company Tracking screen
+      expect(find.text('Violations & Enforcement History'), findsOneWidget);
 
       // 2. Tap Inbox tab from Company Tracking screen
       await tester.tap(find.widgetWithText(InkWell, 'Inbox'));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Review pending consumer complaints and compliance flags.'), findsOneWidget);
+      expect(find.text('Unified Intake Queue'), findsOneWidget);
 
       // 3. Tap Audit tab from Inbox screen
       await tester.tap(find.widgetWithText(InkWell, 'Audit'));
@@ -278,22 +277,21 @@ void main() {
       expect(find.text('Morning, Officer.'), findsOneWidget);
     });
 
-    testWidgets('Pulling down on list does not stretch or break fixed Top App Bar',
+    testWidgets('Pulling down on list does not stretch or break fixed header',
         (tester) async {
       await tester.pumpWidget(createTestApp(const RegulatorHomeScreen()));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
 
-      // Verify top app bar is mounted
-      expect(find.text('EnforceMetrology'), findsOneWidget);
+      // Verify header is mounted
       expect(find.text('Morning, Officer.'), findsOneWidget);
 
       // Simulate pull-down overscroll drag
       await tester.drag(find.text('Morning, Officer.'), const Offset(0, 300));
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Fixed top app bar remains intact and displayed
-      expect(find.text('EnforceMetrology'), findsOneWidget);
+      // Header remains intact and displayed
+      expect(find.text('Morning, Officer.'), findsOneWidget);
     });
   });
 }

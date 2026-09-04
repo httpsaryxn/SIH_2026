@@ -368,6 +368,30 @@ class _RegulatorViolationReviewScreenState
                       ),
                     ),
                     const SizedBox(height: 4),
+                    if (violation.companyName.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.business_rounded,
+                            size: 15,
+                            color: AppColors.secondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Company: ${violation.companyName}',
+                              style: AppTypography.bodyMd.copyWith(
+                                color: AppColors.secondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Text(
                       'Scan ID: ${violation.scanId}',
                       style: AppTypography.bodySm.copyWith(

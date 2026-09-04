@@ -7,7 +7,6 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/regulator_violation.dart';
 import '../../core/models/regulator_complaint.dart';
 import '../../core/services/regulator_data_service.dart';
-import '../../widgets/regulator/regulator_top_app_bar.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../../widgets/regulator/regulator_metric_card.dart';
 import '../../widgets/regulator/regulator_status_badge.dart';
@@ -124,21 +123,21 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const RegulatorTopAppBar(),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : ClipRect(
-              child: ScrollConfiguration(
-                behavior: const ScrollBehavior().copyWith(overscroll: false),
-                child: RefreshIndicator(
-                  onRefresh: _loadDashboardData,
-                  color: AppColors.primary,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: ClampingScrollPhysics(),
-                    ),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
+            : ClipRect(
+                child: ScrollConfiguration(
+                  behavior: const ScrollBehavior().copyWith(overscroll: false),
+                  child: RefreshIndicator(
+                    onRefresh: _loadDashboardData,
+                    color: AppColors.primary,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: ClampingScrollPhysics(),
+                      ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.gutter,
                       vertical: AppSpacing.md,
@@ -167,6 +166,7 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
                 ),
               ),
             ),
+      ),
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: _currentTab,
         onTabSelected: (tab) =>
@@ -394,8 +394,35 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
+                      if (item.companyName.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.business_rounded,
+                              size: 13,
+                              color: AppColors.secondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                item.companyName,
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                      ],
                       Text(
-                        'Store: ${item.storeLocation}',
+                        item.storeLocation.isNotEmpty
+                            ? 'Store: ${item.storeLocation}'
+                            : 'Category: ${item.category}',
                         style: AppTypography.bodySm.copyWith(
                           color: AppColors.onSurfaceVariant,
                           fontSize: 12,

@@ -49,15 +49,17 @@ class AuthService {
     required UserRole role,
     String? organizationName,
   }) async {
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {
-        'full_name': fullName.trim(),
-        'role': roleToDb(role),
-        'organization_name': organizationName?.trim(),
-      },
-    );
+    final response = await _client.auth
+        .signUp(
+          email: email.trim(),
+          password: password,
+          data: {
+            'full_name': fullName.trim(),
+            'role': roleToDb(role),
+            'organization_name': organizationName?.trim(),
+          },
+        )
+        .timeout(const Duration(seconds: 25));
     return response;
   }
 
@@ -66,10 +68,12 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final response = await _client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
-    );
+    final response = await _client.auth
+        .signInWithPassword(
+          email: email.trim(),
+          password: password,
+        )
+        .timeout(const Duration(seconds: 25));
     return response;
   }
 
@@ -103,13 +107,18 @@ class AuthService {
     final user = currentUser;
     if (user == null) return null;
 
-    final data = await _client
-        .from('users')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    try {
+      final data = await _client
+          .from('users')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 12));
 
-    return data;
+      return data;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Fetch role-specific details from dedicated table

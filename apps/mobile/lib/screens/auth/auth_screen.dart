@@ -109,8 +109,24 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           );
           return;
-        } catch (_) {
-          // Graceful fallback for offline demo
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                e.toString().contains('TimeoutException')
+                    ? 'Connection timeout. Please check your network.'
+                    : 'Sign in failed. Please check your credentials.',
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+          return;
         }
 
         if (!mounted) return;
@@ -172,8 +188,24 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           );
           return;
-        } catch (_) {
-          // Graceful fallback for offline demo
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                e.toString().contains('TimeoutException')
+                    ? 'Connection timeout. Please check your network.'
+                    : 'Account creation failed. Please try again.',
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+          return;
         }
 
         if (!mounted) return;
