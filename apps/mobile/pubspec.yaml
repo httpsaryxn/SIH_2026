@@ -47,6 +47,7 @@ dependencies:
   # http / connectivity_plus transitively.
   legal_metrology:
     path: packages/legal_metrology
+  url_launcher: ^6.2.0
 
 dev_dependencies:
   flutter_test:
