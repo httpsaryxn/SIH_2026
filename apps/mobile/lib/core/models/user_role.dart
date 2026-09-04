@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// UserRole represents the 4 stakeholder roles in the Packaged Commodity Compliance Platform.
+/// UserRole represents the 3 stakeholder roles in the Packaged Commodity Compliance Platform.
 enum UserRole {
-  smallBusiness,
-  largeBusiness,
+  businessOwner,
   consumer,
   regulator,
 }
@@ -11,10 +10,8 @@ enum UserRole {
 extension UserRoleExtension on UserRole {
   String get title {
     switch (this) {
-      case UserRole.smallBusiness:
-        return 'Small Business';
-      case UserRole.largeBusiness:
-        return 'Large Business';
+      case UserRole.businessOwner:
+        return 'Business Owner';
       case UserRole.consumer:
         return 'Consumer';
       case UserRole.regulator:
@@ -24,10 +21,8 @@ extension UserRoleExtension on UserRole {
 
   String get description {
     switch (this) {
-      case UserRole.smallBusiness:
-        return 'Create compliant product labels and check your packaging before it reaches customers.';
-      case UserRole.largeBusiness:
-        return 'Audit product labels, manage compliance issues, and track packaging changes across products.';
+      case UserRole.businessOwner:
+        return 'Create compliant product labels, audit packaging, and manage declarations before your products reach customers.';
       case UserRole.consumer:
         return 'Scan packaged products, understand their labels, and report potential compliance issues.';
       case UserRole.regulator:
@@ -37,10 +32,8 @@ extension UserRoleExtension on UserRole {
 
   IconData get icon {
     switch (this) {
-      case UserRole.smallBusiness:
-        return Icons.storefront_rounded;
-      case UserRole.largeBusiness:
-        return Icons.domain_rounded;
+      case UserRole.businessOwner:
+        return Icons.business_center_rounded;
       case UserRole.consumer:
         return Icons.shopping_bag_rounded;
       case UserRole.regulator:
@@ -50,10 +43,8 @@ extension UserRoleExtension on UserRole {
 
   String get authRoleLabel {
     switch (this) {
-      case UserRole.smallBusiness:
-        return 'Signing up as a Small Business.';
-      case UserRole.largeBusiness:
-        return 'Signing up as a Large Business.';
+      case UserRole.businessOwner:
+        return 'Signing up as a Business Owner.';
       case UserRole.consumer:
         return 'Signing up as a Consumer.';
       case UserRole.regulator:
@@ -63,10 +54,8 @@ extension UserRoleExtension on UserRole {
 
   String? get organizationFieldLabel {
     switch (this) {
-      case UserRole.smallBusiness:
-        return 'Business Name';
-      case UserRole.largeBusiness:
-        return 'Company Name';
+      case UserRole.businessOwner:
+        return 'Business / Company Name';
       case UserRole.regulator:
         return 'Department / Authority Name';
       case UserRole.consumer:
@@ -76,10 +65,8 @@ extension UserRoleExtension on UserRole {
 
   String? get organizationFieldPlaceholder {
     switch (this) {
-      case UserRole.smallBusiness:
-        return 'Enter business name';
-      case UserRole.largeBusiness:
-        return 'Enter organization name';
+      case UserRole.businessOwner:
+        return 'Enter business or enterprise name';
       case UserRole.regulator:
         return 'Enter authority or department name';
       case UserRole.consumer:

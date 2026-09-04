@@ -2,11 +2,11 @@
 
 This is the shared database contract for all application branches. Its source migrations are [regulator_compliance_contract.sql](supabase/migrations/20260829090000_regulator_compliance_contract.sql) and [harden_regulator_function_access.sql](supabase/migrations/20260829093000_harden_regulator_function_access.sql). The active Supabase project is `tyshfugxmwvhbmoydlnl` (LabelLens).
 
-`uuid` company identifiers always point to `public.users.id`. A company is therefore either the same user's `small_businesses` profile or its `large_businesses` profile—there is no duplicate company table.
+`uuid` company identifiers always point to `public.users.id`. A company is the same user's `business_profiles` (or legacy `small_businesses`/`large_businesses`) profile.
 
 ## Enum and controlled values
 
-- `user_role` enum: `small_business`, `large_business`, `consumer`, `regulator`.
+- `user_role` enum: `business_owner` (unified role), `consumer`, `regulator` (legacy `small_business` and `large_business` remain supported for backward compatibility).
 - `consumer_complaints.status`: `Submitted`, `Under Review`, `Verified`, `Forwarded`, `Rejected`.
 - `consumer_complaints.priority`: `Critical`, `High Priority`, `Allergen Flag`, `Weight Discrepancy`, `Pricing Violation`, `Medium Priority`, `Low Priority`, `Normal`.
 - `regulator_scans.source_type`: `field_photo`, `ecommerce_url`, `consumer_evidence`, `batch_upload`; `status`: `queued`, `processing`, `completed`, `failed`.
@@ -22,10 +22,11 @@ All tables below use `id` as their primary key unless noted.
 | Table | Columns | Foreign keys |
 |---|---|---|
 | `users` | `id uuid`, `email text unique`, `full_name text?`, `role user_role`, `avatar_url text?`, `created_at timestamptz`, `updated_at timestamptz` | `id → auth.users.id` |
+| `business_profiles` | `id uuid`, `business_name text`, `company_name text?`, `business_type text?`, `gstin text?`, `fssai_license_no text?`, `cin text?`, `registered_address text?`, `address text?`, `city text?`, `state text?`, `pincode text?`, `contact_number text?`, `contact_email text?`, `nodal_officer_name text?`, timestamps | `id → users.id` |
 | `regulators` | `id uuid`, `department_name text`, `designation text?`, `official_id text?`, `jurisdiction_region text?`, `verification_status text`, timestamps | `id → users.id` |
 | `consumers` | `id uuid`, `phone_number text?`, `city text?`, `state text?`, `pincode text?`, timestamps | `id → users.id` |
-| `small_businesses` | `id uuid`, `business_name text`, `gstin text?`, `fssai_license_no text?`, `address text?`, `city text?`, `state text?`, `pincode text?`, `contact_number text?`, timestamps | `id → users.id` |
-| `large_businesses` | `id uuid`, `company_name text`, `cin text?`, `gstin text?`, `registered_address text?`, `nodal_officer_name text?`, `contact_email text?`, `contact_number text?`, timestamps | `id → users.id` |
+| `small_businesses` | (Legacy alias) `id uuid`, `business_name text`, `gstin text?`, `fssai_license_no text?`, `address text?`, `city text?`, `state text?`, `pincode text?`, `contact_number text?`, timestamps | `id → users.id` |
+| `large_businesses` | (Legacy alias) `id uuid`, `company_name text`, `cin text?`, `gstin text?`, `registered_address text?`, `nodal_officer_name text?`, `contact_email text?`, `contact_number text?`, timestamps | `id → users.id` |
 | `products` | `id uuid`, `barcode text? unique`, `product_name text`, `brand text`, `category text?`, `net_quantity text?`, `mrp numeric?`, `ingredients text[]?`, `nutrition_facts jsonb`, `manufacturer_name text?`, `manufacturer_address text?`, `fssai_license_no text?`, `image_url text?`, `compliance_status text`, `compliance_issues jsonb`, `created_at timestamptz`, `company_id uuid?` | `company_id → users.id` |
 | `consumer_scans` | `id uuid`, `consumer_id uuid`, `product_id uuid?`, `product_name text`, `brand text?`, `net_quantity text?`, `image_url text?`, `compliance_status text`, `detected_declarations jsonb`, `scan_notes text?`, `scanned_at timestamptz` | `consumer_id → users.id`; `product_id → products.id` |
 | `saved_products` | `id uuid`, `consumer_id uuid`, `product_id uuid?`, `product_name text`, `brand text?`, `category text?`, `quantity text?`, `image_url text?`, `saved_at timestamptz` | `consumer_id → users.id`; `product_id → products.id` |

@@ -15,10 +15,8 @@ class AuthService {
   /// Helper to convert UserRole enum to database string
   static String roleToDb(UserRole role) {
     switch (role) {
-      case UserRole.smallBusiness:
-        return 'small_business';
-      case UserRole.largeBusiness:
-        return 'large_business';
+      case UserRole.businessOwner:
+        return 'business_owner';
       case UserRole.consumer:
         return 'consumer';
       case UserRole.regulator:
@@ -29,10 +27,10 @@ class AuthService {
   /// Helper to parse database string to UserRole enum
   static UserRole roleFromDb(String? value) {
     switch (value) {
+      case 'business_owner':
       case 'small_business':
-        return UserRole.smallBusiness;
       case 'large_business':
-        return UserRole.largeBusiness;
+        return UserRole.businessOwner;
       case 'regulator':
         return UserRole.regulator;
       case 'consumer':
@@ -119,11 +117,8 @@ class AuthService {
 
     String tableName;
     switch (role) {
-      case UserRole.smallBusiness:
-        tableName = 'small_businesses';
-        break;
-      case UserRole.largeBusiness:
-        tableName = 'large_businesses';
+      case UserRole.businessOwner:
+        tableName = 'business_profiles';
         break;
       case UserRole.consumer:
         tableName = 'consumers';
@@ -133,12 +128,24 @@ class AuthService {
         break;
     }
 
-    final data = await _client
-        .from(tableName)
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    try {
+      final data = await _client
+          .from(tableName)
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
 
-    return data;
+      return data;
+    } catch (_) {
+      // Fallback for legacy tables if business_profiles isn't directly queried
+      if (role == UserRole.businessOwner) {
+        return await _client
+            .from('small_businesses')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
+      }
+      return null;
+    }
   }
 }
