@@ -18,16 +18,16 @@ void main() async {
     debugPrint('Supabase initialization warning: $e');
   }
 
-  runApp(const FreshLabelApp());
+  runApp(const LabelLensApp());
 }
 
-class FreshLabelApp extends StatelessWidget {
-  const FreshLabelApp({super.key});
+class LabelLensApp extends StatelessWidget {
+  const LabelLensApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FreshLabel Pro',
+      title: 'LabelLens',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const AuthGate(),

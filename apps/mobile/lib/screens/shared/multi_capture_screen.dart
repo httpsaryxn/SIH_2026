@@ -83,7 +83,7 @@ class _MultiCaptureScreenState extends State<MultiCaptureScreen>
       final bytes = await capture.file.readAsBytes();
       if (!mounted) return;
       setState(() {
-        _payload.setForRole(_currentRole, capture);
+        _payload.setForRole(_currentRole, capture.copyWith(rawBytes: bytes));
         _previewBytes[_currentRole] = bytes;
       });
     }

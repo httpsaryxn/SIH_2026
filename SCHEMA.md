@@ -1,4 +1,4 @@
-# FreshLabel Pro Supabase schema contract
+# LabelLens Supabase schema contract
 
 This is the shared database contract for all application branches. Its source migrations are [regulator_compliance_contract.sql](supabase/migrations/20260829090000_regulator_compliance_contract.sql) and [harden_regulator_function_access.sql](supabase/migrations/20260829093000_harden_regulator_function_access.sql). The active Supabase project is `tyshfugxmwvhbmoydlnl` (LabelLens).
 

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
+import '../../core/constants/app_typography.dart';
 import '../../core/models/consumer_complaint_model.dart';
 import '../../core/models/consumer_saved_product.dart';
 import '../../core/models/consumer_scan_model.dart';
@@ -10,9 +11,10 @@ import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
+import '../onboarding/role_selection_screen.dart';
+import 'consumer_profile_screen.dart';
 import 'consumer_scan_analysis_screen.dart';
 import 'widgets/complaint_detail_modal.dart';
-import 'widgets/consumer_profile_sheet.dart';
 import 'widgets/my_complaints_section.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/product_comparison_modal.dart';
@@ -33,10 +35,13 @@ class ConsumerHomeScreen extends StatefulWidget {
 }
 
 class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
-  int _currentNavIndex = 0; // 0: Home, 1: My Scans, 2: Complaints, 3: Compare
+  int _currentNavIndex = 0; // 0: Home, 1: My Scans, 2: Complaints, 3: Compare, 4: Profile
   bool _isLoading = true;
+  bool _isSigningOut = false;
   String _userName = 'Consumer';
+  String _fullProfileName = 'Consumer';
   String _userEmail = 'consumer@labellens.in';
+  String _createdAt = '2026';
 
   List<ConsumerScanModel> _recentScans = [];
   List<ConsumerSavedProduct> _savedProducts = [];
@@ -56,15 +61,34 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     // Fetch user profile name
     final userProfile = await AuthService.fetchUserProfile();
-    if (userProfile != null &&
-        userProfile['full_name'] != null &&
-        (userProfile['full_name'] as String).isNotEmpty) {
-      _userName = (userProfile['full_name'] as String).split(' ').first;
+    if (userProfile != null) {
+      if (userProfile['full_name'] != null &&
+          (userProfile['full_name'] as String).isNotEmpty) {
+        _fullProfileName = userProfile['full_name'] as String;
+        _userName = _fullProfileName.split(' ').first;
+      }
+      if (userProfile['email'] != null &&
+          (userProfile['email'] as String).isNotEmpty) {
+        _userEmail = userProfile['email'] as String;
+      }
+      if (userProfile['created_at'] != null) {
+        final dt = DateTime.tryParse(userProfile['created_at'].toString());
+        if (dt != null) {
+          _createdAt = '${dt.day}/${dt.month}/${dt.year}';
+        }
+      }
     } else {
-      final email = AuthService.currentUser?.email;
-      if (email != null && email.contains('@')) {
-        _userName = email.split('@').first;
-        _userEmail = email;
+      final user = AuthService.currentUser;
+      if (user != null) {
+        final email = user.email;
+        if (email != null && email.contains('@')) {
+          _userName = email.split('@').first;
+          _userEmail = email;
+        }
+        if (user.userMetadata != null && user.userMetadata!['full_name'] != null) {
+          _fullProfileName = user.userMetadata!['full_name'] as String;
+          _userName = _fullProfileName.split(' ').first;
+        }
       }
     }
 
@@ -372,17 +396,115 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   }
 
   void _openProfileSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ConsumerProfileSheet(
-        userName: _userName,
-        userEmail: _userEmail,
-        onNavigateToScans: () => setState(() => _currentNavIndex = 1),
-        onNavigateToComplaints: () => setState(() => _currentNavIndex = 2),
-        onOpenNotifications: _openNotificationsSheet,
+    setState(() => _currentNavIndex = 4);
+  }
+
+  PreferredSizeWidget _buildProfileAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      toolbarHeight: 60.0,
+      automaticallyImplyLeading: false,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1.0),
+        child: Container(
+          color: AppColors.surfaceVariant.withValues(alpha: 0.6),
+          height: 1.0,
+        ),
       ),
+      title: Text(
+        'Consumer Profile',
+        style: AppTypography.headlineSm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSignOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusLg)),
+        title: Row(
+          children: [
+            const Icon(Icons.logout_rounded, color: AppColors.error, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Sign Out',
+              style: AppTypography.headlineSm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of your consumer session?',
+          style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.labelMd.copyWith(color: AppColors.outline),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusDefault)),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Log Out',
+              style: AppTypography.labelMd.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSigningOut = true);
+    try {
+      await AuthService.signOut();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.onSurface,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          'Logged out successfully.',
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
     );
   }
 
@@ -416,15 +538,17 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: _currentNavIndex == 4 ? _buildProfileAppBar() : null,
       body: SafeArea(
+        top: _currentNavIndex != 4,
         child: RefreshIndicator(
           onRefresh: _loadAllConsumerData,
           color: AppColors.primary,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding,
-              vertical: AppSpacing.lg,
+              horizontal: _currentNavIndex == 4 ? AppSpacing.gutter : horizontalPadding,
+              vertical: _currentNavIndex == 4 ? AppSpacing.md : AppSpacing.lg,
             ),
             child: Center(
               child: ConstrainedBox(
@@ -439,8 +563,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     );
   }
 
-
-
   Widget _buildCurrentTabContent(bool isDesktop) {
     switch (_currentNavIndex) {
       case 1:
@@ -449,6 +571,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         return _buildMyComplaintsView();
       case 3:
         return _buildCompareView();
+      case 4:
+        return ConsumerProfileBody(
+          userName: _fullProfileName.isNotEmpty ? _fullProfileName : _userName,
+          userEmail: _userEmail,
+          createdAt: _createdAt,
+          onSignOut: _handleSignOut,
+          isSigningOut: _isSigningOut,
+        );
       case 0:
       default:
         return _buildHomeDashboard(isDesktop);
@@ -760,14 +890,26 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '$_greeting, $_userName 👋',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-            letterSpacing: -0.5,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                '$_greeting, $_userName 👋',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.notifications_none_rounded, color: AppColors.onSurfaceVariant),
+              tooltip: 'Notifications',
+              onPressed: _openNotificationsSheet,
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(

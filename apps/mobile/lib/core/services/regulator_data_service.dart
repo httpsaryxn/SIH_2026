@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/capture_role.dart';
@@ -13,6 +14,7 @@ import '../models/regulator_complaint.dart';
 import '../models/regulator_notice.dart';
 import '../models/regulator_violation.dart';
 import 'legal_metrology_service.dart';
+import 'ml_scanner_client.dart';
 import 'storage_service.dart';
 
 class RegulatorDashboardMetrics {
@@ -205,38 +207,7 @@ class RegulatorDataService {
     status: row['status'] as String? ?? 'Active',
     timeline: timeline,
   );
-  static Future<List<RegulatorTimelineEvent>> _companyTimeline(
-    String companyId,
-  ) async {
-    if (!_hasClient) {
-      final comp = _mockCompanies.firstWhere(
-        (c) => c.id == companyId,
-        orElse: () => _mockCompanies.first,
-      );
-      return comp.timeline;
-    }
-    try {
-      final rows = await _client
-          .from('company_timeline_events')
-          .select()
-          .eq('company_id', companyId)
-          .order('occurred_at', ascending: false)
-          .timeout(const Duration(seconds: 4));
-      return (rows as List<dynamic>)
-          .map((row) => _timelineFromRow(Map<String, dynamic>.from(row as Map)))
-          .toList();
-    } catch (_) {
-      try {
-        final comp = _mockCompanies.firstWhere(
-          (c) => c.id == companyId,
-          orElse: () => _mockCompanies.first,
-        );
-        return comp.timeline;
-      } catch (_) {
-        return [];
-      }
-    }
-  }
+
 
   static Future<List<RegulatorViolation>> getFlaggedViolations({
     String? region,
@@ -478,6 +449,120 @@ class RegulatorDataService {
           grouped[item['company_id'] as String] ?? const [],
         );
       }).toList();
+
+      // Also aggregate field-audited companies (e.g. Amul) from regulator_scans & regulator_violations
+      try {
+        final scanRows = await _client
+            .from('regulator_scans')
+            .select('''
+              id, company_id, company_name, product_name, category, region, captured_at,
+              regulator_violations(id, severity, violation_type, violation_summary, status, created_at)
+            ''')
+            .order('captured_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+
+        final existingNames = companies.map((c) => c.name.trim().toLowerCase()).toSet();
+        final auditedCompanyMap = <String, List<Map<String, dynamic>>>{};
+
+        for (final sRow in scanRows) {
+          final sMap = Map<String, dynamic>.from(sRow as Map);
+          final cName = (sMap['company_name'] as String? ?? '').trim();
+          if (cName.isEmpty) continue;
+          if (existingNames.contains(cName.toLowerCase())) continue;
+          auditedCompanyMap.putIfAbsent(cName.toLowerCase(), () => []).add(sMap);
+        }
+
+        for (final entry in auditedCompanyMap.entries) {
+          final sList = entry.value;
+          final primaryScan = sList.first;
+          final displayName = (primaryScan['company_name'] as String? ?? '').trim();
+          final category = (primaryScan['category'] as String?)?.isNotEmpty == true
+              ? (primaryScan['category'] as String)
+              : 'Packaged Commodity';
+          final region = (primaryScan['region'] as String?)?.isNotEmpty == true
+              ? (primaryScan['region'] as String)
+              : 'National Jurisdiction';
+
+          final allViolations = <Map<String, dynamic>>[];
+          for (final scanItem in sList) {
+            final vList = scanItem['regulator_violations'] as List<dynamic>? ?? const [];
+            for (final v in vList) {
+              allViolations.add(Map<String, dynamic>.from(v as Map));
+            }
+          }
+
+          final openViolations = allViolations.where((v) {
+            final st = (v['status'] as String? ?? '').toLowerCase();
+            return st != 'resolved' && st != 'false_positive';
+          }).toList();
+
+          final hasEscalated = allViolations.any((v) => (v['status'] as String? ?? '').toLowerCase() == 'escalated');
+          final openCount = openViolations.length;
+          final score = (100 - (openCount * 8)).clamp(10, 100);
+
+          final status = hasEscalated
+              ? 'Under Investigation'
+              : (openCount > 0 ? 'Active' : 'Compliant');
+
+          // Build audit timeline events for this company
+          final timelineEvents = <RegulatorTimelineEvent>[];
+          for (final scanItem in sList) {
+            final vList = scanItem['regulator_violations'] as List<dynamic>? ?? const [];
+            final pName = scanItem['product_name'] as String? ?? 'Packaged Commodity';
+            for (final v in vList) {
+              final vStatus = (v['status'] as String? ?? '').toLowerCase();
+              final vSummary = v['violation_summary'] as String? ?? v['violation_type'] as String? ?? '';
+              final vDate = _date(v['created_at']);
+
+              if (vStatus == 'escalated') {
+                timelineEvents.add(RegulatorTimelineEvent(
+                  date: vDate,
+                  type: 'notice_issued',
+                  title: 'Statutory notice issued / Escalated',
+                  description: 'Enforcement escalated: $vSummary',
+                  officerName: 'Regulator Officer',
+                  imageUrl: v['image_url'] as String?,
+                ));
+              } else if (vStatus == 'confirmed') {
+                timelineEvents.add(RegulatorTimelineEvent(
+                  date: vDate,
+                  type: 'violation',
+                  title: 'Violation confirmed',
+                  description: 'Violation verified under PCR 2011: $vSummary',
+                  officerName: 'Regulator Officer',
+                  imageUrl: v['image_url'] as String?,
+                ));
+              }
+            }
+
+            timelineEvents.add(RegulatorTimelineEvent(
+              date: _date(scanItem['captured_at']),
+              type: 'audit_passed',
+              title: 'Field Audit Scan Completed',
+              description: 'Optical inspection recorded for "$pName" ($displayName)',
+              officerName: 'Regulator Officer',
+              imageUrl: scanItem['image_url'] as String?,
+            ));
+          }
+
+          companies.add(RegulatorCompany(
+            id: 'audit_${displayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+            name: displayName,
+            address: 'Packer / Importer ($region)',
+            region: region,
+            category: category,
+            complianceScore: score,
+            openViolationsCount: openCount,
+            noticesIssuedCount: hasEscalated ? 1 : 0,
+            lastAuditDate: _date(primaryScan['captured_at']),
+            status: status,
+            timeline: timelineEvents,
+          ));
+        }
+      } catch (err) {
+        debugPrint('[RegulatorDataService] Aggregating audited companies note: $err');
+      }
+
       if (search != null && search.trim().isNotEmpty) {
         final term = search.trim().toLowerCase();
         companies = companies
@@ -508,28 +593,11 @@ class RegulatorDataService {
   }
 
   static Future<RegulatorCompany> getCompanyDetail(String id) async {
-    if (!_hasClient) {
-      return _mockCompanies.firstWhere(
-        (c) => c.id == id,
-        orElse: () => _mockCompanies.first,
-      );
-    }
-    try {
-      final row = await _client
-          .from('company_compliance_overview')
-          .select()
-          .eq('company_id', id)
-          .single();
-      return _companyFromRow(
-        Map<String, dynamic>.from(row),
-        await _companyTimeline(id),
-      );
-    } catch (_) {
-      return _mockCompanies.firstWhere(
-        (c) => c.id == id,
-        orElse: () => _mockCompanies.first,
-      );
-    }
+    final all = await getCompanies();
+    return all.firstWhere(
+      (c) => c.id == id,
+      orElse: () => all.isNotEmpty ? all.first : _mockCompanies.first,
+    );
   }
 
   static Future<RegulatorNotice> generateNoticeDraft(String violationId) async {
@@ -855,6 +923,7 @@ class RegulatorDataService {
     String? imagePath,
     String? imageUrl,
     LmAuditResult? audit,
+    MlScannerResult? mlResult,
   }) async {
     final name = companyName.trim();
     var companies = name.isNotEmpty
@@ -865,25 +934,33 @@ class RegulatorDataService {
             .limit(1)
         : <Map<String, dynamic>>[];
 
-    if (companies.isEmpty) {
-      final all = await _client
-          .from('company_compliance_overview')
-          .select('company_id, company_name, category, region')
-          .limit(1);
-      if (all.isNotEmpty) {
-        companies = [Map<String, dynamic>.from(all.first)];
-      } else {
-        throw StateError('No registered business found in company compliance overview.');
-      }
+    String? companyId;
+    String effectiveCategory = 'Packaged Commodity';
+    String effectiveRegion = 'National Jurisdiction';
+
+    if (companies.isNotEmpty) {
+      final company = Map<String, dynamic>.from(companies.first);
+      companyId = company['company_id'] as String?;
+      effectiveCategory = company['category'] as String? ?? effectiveCategory;
+      effectiveRegion = company['region'] as String? ?? effectiveRegion;
     }
-    final company = Map<String, dynamic>.from(companies.first);
 
-    // Upload images to Supabase Storage
+    // If company not found in registered accounts, clean up any previous accidental assignment to Paracetamol
+    try {
+      if (name.isNotEmpty) {
+        await _client
+            .from('regulator_scans')
+            .update({'company_id': null})
+            .ilike('company_name', '%$name%')
+            .neq('company_name', 'Paracetamol');
+      }
+    } catch (_) {}
+
+    // If we have a multiCapture payload, upload all 3 role-specific captures to Supabase Storage
     String? uploadedImageUrl = imageUrl;
-    final tempScanCode = 'SCN-${DateTime.now().millisecondsSinceEpoch}';
-
-    // Multi-image upload (3 role-specific captures)
     Map<CaptureRole, String?>? multiImageUrls;
+    final tempScanCode = 'REG-${DateTime.now().millisecondsSinceEpoch}';
+
     if (multiCapture != null && multiCapture.hasAnyCapture) {
       multiImageUrls = await StorageService.uploadMultiCapture(
         payload: multiCapture,
@@ -911,13 +988,17 @@ class RegulatorDataService {
 
     final effectiveCompanyName = name.isNotEmpty
         ? name
-        : (company['company_name'] as String? ?? 'Registered Company');
+        : 'Registered Company';
+
+    final confidenceScore = mlResult != null
+        ? mlResult.score.finalScore.round()
+        : (audit?.scorePercent ?? 0);
 
     final scan = await _client
         .from('regulator_scans')
         .insert({
           'scan_code': tempScanCode,
-          'company_id': company['company_id'],
+          'company_id': companyId,
           'captured_by': _currentUserId,
           'source_type': uploadedImageUrl?.isNotEmpty == true
               ? (imageUrl?.startsWith('http') == true
@@ -936,11 +1017,11 @@ class RegulatorDataService {
               ? 'Unidentified packaged commodity'
               : productName.trim(),
           'company_name': effectiveCompanyName,
-          'category': company['category'],
-          'region': company['region'],
+          'category': effectiveCategory,
+          'region': effectiveRegion,
           'store_location': '',
           'ocr_text': audit != null ? _ocrTextFromAudit(audit) : null,
-          'confidence_score': audit?.scorePercent ?? 0,
+          'confidence_score': confidenceScore,
           'status': 'completed',
         })
         .select()
@@ -949,7 +1030,16 @@ class RegulatorDataService {
 
     // Persist each rule outcome as a declaration_check so the review screen
     // renders the real Legal Metrology findings.
-    if (audit != null) {
+    if (mlResult != null) {
+      final checks = mlResult.toDeclarationChecks(scanRow['id'] as String);
+      if (checks.isNotEmpty) {
+        try {
+          await _client.from('declaration_checks').insert(checks);
+        } catch (_) {
+          // non-fatal — the violation row still carries the summary
+        }
+      }
+    } else if (audit != null) {
       final checks = _declarationChecks(scanRow['id'] as String, audit);
       if (checks.isNotEmpty) {
         try {
@@ -960,27 +1050,57 @@ class RegulatorDataService {
       }
     }
 
-    final tier = audit == null ? _AuditTier.medium : _tierFor(audit);
+    final _AuditTier tier;
+    final String violationType;
+    final String violationSummary;
+    final String violationStatus;
+
+    if (mlResult != null) {
+      final s = mlResult.score;
+      if (s.failedRules > 0 && s.finalScore < 60) {
+        tier = _AuditTier.critical;
+      } else if (s.failedRules > 0) {
+        tier = _AuditTier.high;
+      } else if (mlResult.rules.warnings.isNotEmpty) {
+        tier = _AuditTier.medium;
+      } else {
+        tier = _AuditTier.low;
+      }
+      violationType = s.failedRules > 0
+          ? (mlResult.rules.failed.first.ruleName)
+          : 'No deviation detected';
+      final failedNames = mlResult.rules.failed.map((r) => r.ruleName).take(3);
+      violationSummary = s.failedRules > 0
+          ? 'ML Scanner: ${s.failedRules} violation(s) flagged — ${failedNames.join("; ")}'
+          : 'ML Scanner: All ${s.passedRules} checked rules compliant under PCR 2011.';
+      violationStatus = s.failedRules > 0 ? 'pending' : 'manual_review';
+    } else {
+      tier = audit == null ? _AuditTier.medium : _tierFor(audit);
+      violationType = audit == null
+          ? 'Manual review required'
+          : (audit.complianceIssues.isEmpty
+              ? 'No deviation detected'
+              : (audit.complianceIssues.first['type'] as String? ??
+                  'PCR 2011 non-compliance'));
+      violationSummary = audit == null
+          ? 'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.'
+          : _violationSummaryFromAudit(audit);
+      violationStatus = audit != null && audit.report.diff.failed.isNotEmpty
+          ? 'pending'
+          : 'manual_review';
+    }
+
     final violation = await _client
         .from('regulator_violations')
         .insert({
           'scan_id': scanRow['id'],
-          'company_id': company['company_id'],
+          'company_id': companyId,
           'severity': tier.severity,
           'risk_level': tier.riskLevel,
-          'confidence_score': audit?.scorePercent ?? 0,
-          'violation_type': audit == null
-              ? 'Manual review required'
-              : (audit.complianceIssues.isEmpty
-                  ? 'No deviation detected'
-                  : (audit.complianceIssues.first['type'] as String? ??
-                      'PCR 2011 non-compliance')),
-          'violation_summary': audit == null
-              ? 'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.'
-              : _violationSummaryFromAudit(audit),
-          'status': audit != null && audit.report.diff.failed.isNotEmpty
-              ? 'pending'
-              : 'manual_review',
+          'confidence_score': confidenceScore,
+          'violation_type': violationType,
+          'violation_summary': violationSummary,
+          'status': violationStatus,
         })
         .select()
         .single();
@@ -988,30 +1108,74 @@ class RegulatorDataService {
     final violationRow = Map<String, dynamic>.from(violation as Map);
     final violationId = violationRow['id'] as String;
 
-    // Log this audit intake to the company compliance audit logs (company_timeline_events)
-    try {
-      await _client.from('company_timeline_events').insert({
-        'company_id': company['company_id'],
-        'event_type': 'audit_intake',
-        'title': 'Audit Intake Registered',
-        'description':
-            'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"). Awaiting OCR and declaration validation.',
-        'actor_id': _currentUserId.isNotEmpty ? _currentUserId : null,
-        'actor_name': 'Regulator Officer',
-        'violation_id': violationId,
-        'occurred_at': DateTime.now().toUtc().toIso8601String(),
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      });
-    } catch (_) {}
+    // Log this audit intake to the company compliance audit logs (company_timeline_events) if companyId exists
+    if (companyId != null) {
+      try {
+        await _client.from('company_timeline_events').insert({
+          'company_id': companyId,
+          'event_type': 'audit_intake',
+          'title': 'Audit Intake Registered',
+          'description':
+              'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"). Awaiting OCR and declaration validation.',
+          'actor_id': _currentUserId.isNotEmpty ? _currentUserId : null,
+          'actor_name': 'Regulator Officer',
+          'violation_id': violationId,
+          'occurred_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (_) {}
+    }
 
-    // After confirmed successful DB insert, safely clean up local cache
-    if (multiCapture != null) {
+    // Only clean up local cache if remote upload confirmed
+    if (multiCapture != null && multiImageUrls != null && multiImageUrls.values.every((u) => u != null && u.startsWith('http'))) {
       await StorageService.deleteMultiCaptureLocalCache(multiCapture);
     } else if (pendingCapture != null && uploadedImageUrl != null && uploadedImageUrl.startsWith('http')) {
       await StorageService.deleteLocalCacheAfterSync(pendingCapture);
     }
 
-    return getViolationById((violation as Map)['id'] as String);
+    final fetched = await getViolationById(violationId);
+    if (fetched.declarations.isEmpty && mlResult != null) {
+      // If DB declaration checks weren't returned by the join query, hydrate them in-memory
+      final allRules = [
+        ...mlResult.rules.failed,
+        ...mlResult.rules.warnings,
+        ...mlResult.rules.inconclusive,
+        ...mlResult.rules.passed,
+      ];
+      final decls = allRules.map((r) => RegulatorDeclaration(
+        fieldName: r.ruleName,
+        extractedValue: r.evidence ?? (r.status.toUpperCase() == 'PASS' ? 'Compliant' : 'Not detected'),
+        confidencePercent: mlResult.score.finalScore.round(),
+        status: r.standardStatus,
+        ruleCitation: r.legalReference ?? r.ruleId,
+        ruleDescription: r.detail,
+      )).toList();
+
+      return RegulatorViolation(
+        id: fetched.id,
+        scanId: fetched.scanId,
+        productName: fetched.productName,
+        companyName: fetched.companyName,
+        category: fetched.category,
+        region: fetched.region,
+        storeLocation: fetched.storeLocation,
+        imageUrl: fetched.imageUrl,
+        frontLabelUrl: fetched.frontLabelUrl,
+        curvedSurfaceUrl: fetched.curvedSurfaceUrl,
+        scaleReferenceUrl: fetched.scaleReferenceUrl,
+        severity: fetched.severity,
+        riskLevel: fetched.riskLevel,
+        confidenceScore: fetched.confidenceScore,
+        violationType: fetched.violationType,
+        violationSummary: fetched.violationSummary,
+        capturedAt: fetched.capturedAt,
+        status: fetched.status,
+        declarations: decls,
+        overlayBoxes: fetched.overlayBoxes,
+      );
+    }
+
+    return fetched;
   }
 
   static Stream<List<RegulatorViolation>> watchPriorityQueue() {
@@ -1168,11 +1332,11 @@ class RegulatorDataService {
           .select('''
             *, regulator_scans!inner(
               scan_code, product_name, company_name, category, region, store_location,
-              image_url, captured_at
+              image_url, front_label_url, curved_surface_url, scale_reference_url, captured_at
             )
           ''');
       if (uid.isNotEmpty) {
-        violationQuery = violationQuery.or('reviewed_by.eq.$uid,captured_by.eq.$uid,status.neq.pending');
+        violationQuery = violationQuery.or('reviewed_by.eq.$uid,status.neq.pending');
       }
       final violationRows = await violationQuery
           .order('created_at', ascending: false)
@@ -1194,6 +1358,12 @@ class RegulatorDataService {
           actionTaken = 'Field Intake Registered';
         }
 
+        final vImg = v.frontLabelUrl?.isNotEmpty == true
+            ? v.frontLabelUrl!
+            : (v.imageUrl.isNotEmpty
+                ? v.imageUrl
+                : (scan['image_url'] as String? ?? ''));
+
         actionItems.add(
           RegulatorActionItem(
             id: v.id,
@@ -1202,9 +1372,7 @@ class RegulatorDataService {
             title: v.productName.isNotEmpty ? v.productName : v.violationType,
             entityName: v.companyName.isNotEmpty ? v.companyName : 'Packaged Goods Co.',
             category: v.category,
-            imageUrl: v.imageUrl.isNotEmpty
-                ? v.imageUrl
-                : 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500',
+            imageUrl: vImg.isNotEmpty ? vImg : null,
             actionTaken: actionTaken,
             severityOrStatus: v.severity,
             actionDate: _date(rMap['reviewed_at'] ?? rMap['updated_at'] ?? rMap['created_at']),

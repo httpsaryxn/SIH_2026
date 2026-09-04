@@ -24,7 +24,7 @@ class BusinessOwnerHomeScreen extends StatelessWidget {
             const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              'FreshLabel Pro',
+              'LabelLens',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

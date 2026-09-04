@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:legal_metrology/legal_metrology.dart';
 
+import '../models/multi_capture_payload.dart';
 import '../models/pending_capture.dart';
+import 'ml_scanner_client.dart';
 
 /// Result of an on-device Legal Metrology audit, mapped into the vocabulary the
 /// app already uses (`compliance_status`, `compliance_issues`,
@@ -85,6 +88,45 @@ class LegalMetrologyService {
       lookupConfig: LookupConfig(gs1IndiaKey: gs1IndiaKey),
     );
     return _map(report);
+  }
+
+  /// Attempt a full compliance audit via the remote ML Scanner service.
+  ///
+  /// Sends front/back/ruler images as multipart form data to the FastAPI
+  /// endpoint.  Falls back to the on-device [auditCapture] when the service
+  /// is unreachable or returns an error.
+  static Future<MlScannerResult?> auditCaptureRemote({
+    required PendingCapture capture,
+    MultiCapturePayload? multiCapture,
+    String? productName,
+    String? geminiApiKey,
+  }) async {
+    try {
+      final isUp = await MlScannerClient.isAvailable();
+      if (!isUp) {
+        debugPrint('[LegalMetrologyService] ML Scanner service is not reachable at ${MlScannerClient.baseUrl}');
+        return null;
+      }
+
+      final frontPath = multiCapture?.frontLabel?.localPath ?? capture.localPath;
+      final backPath = multiCapture?.curvedSurface?.localPath;
+      final rulerPath = multiCapture?.scaleReference?.localPath;
+
+      debugPrint('[LegalMetrologyService] Transmitting 3 captured samples to ML Scanner:');
+      debugPrint('  - Front: $frontPath');
+      debugPrint('  - Back/Side: $backPath');
+      debugPrint('  - Ruler/Scale: $rulerPath');
+
+      return await MlScannerClient.analyzeLabels(
+        frontImagePath: frontPath,
+        backImagePath: backPath,
+        rulerImagePath: rulerPath,
+        geminiApiKey: geminiApiKey,
+      );
+    } catch (e, st) {
+      debugPrint('[LegalMetrologyService] auditCaptureRemote failed: $e\n$st');
+      return null;
+    }
   }
 
   /// Deterministic audit from a bar code / GTIN alone (no photo).
