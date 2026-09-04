@@ -225,16 +225,30 @@ class MlScannerClient {
     _baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
 
-  /// Check if the ML scanner service is reachable.
+  /// Check if the ML scanner service is reachable, auto-detecting between
+  /// current configured URL, physical device reverse proxy, and Android emulator loopback.
   static Future<bool> isAvailable() async {
-    try {
-      final response = await http
-          .get(Uri.parse('$_baseUrl/health'))
-          .timeout(const Duration(seconds: 3));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+    final candidates = [
+      _baseUrl,
+      if (Platform.isAndroid) ...[
+        'http://127.0.0.1:8000', // Physical Android phone via `adb reverse tcp:8000 tcp:8000`
+        'http://10.0.2.2:8000',  // Android emulator loopback
+      ],
+      'http://localhost:8000',
+    ];
+
+    for (final url in candidates.toSet()) {
+      try {
+        final response = await http
+            .get(Uri.parse('$url/health'))
+            .timeout(const Duration(milliseconds: 1500));
+        if (response.statusCode == 200) {
+          _baseUrl = url;
+          return true;
+        }
+      } catch (_) {}
     }
+    return false;
   }
 
   /// Analyze label images via the ML scanner service.
