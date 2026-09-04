@@ -7,7 +7,7 @@
 ///
 /// Everything is offline; [lookupProduct] only reaches the network when a
 /// connection is available.
-library legal_metrology;
+library;
 
 export 'src/compliance/models.dart'
     show

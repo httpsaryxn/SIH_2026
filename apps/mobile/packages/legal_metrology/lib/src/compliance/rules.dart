@@ -181,7 +181,7 @@ RuleResult checkMrpPresent(PackageData p) {
 RuleResult checkMrpTaxInclusive(PackageData p) {
   if (p.mrpValue == null) {
     return _r('R06_MRP_TAX', 'MRP Tax-Inclusive Wording (Rule 6)', 'INCONCLUSIVE',
-        'MAJOR', "No MRP extracted — cannot check the wording.", 0.5,
+        'MAJOR', 'No MRP extracted — cannot check the wording.', 0.5,
         legalReference: 'Rule 6(1)(e)');
   }
   if (p.mrpIncludesTax == true) {
