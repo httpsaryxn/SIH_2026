@@ -44,7 +44,8 @@ class RegulatorDataService {
   static const _violationSelect = '''
     *, regulator_scans!inner(
       scan_code, product_name, company_name, category, region, store_location,
-      image_url, captured_at, declaration_checks(
+      image_url, front_label_url, curved_surface_url, scale_reference_url,
+      captured_at, declaration_checks(
         field_name, extracted_value, confidence_percent, status,
         rule_citation, rule_description, top_percent, left_percent,
         width_percent, height_percent
@@ -79,6 +80,9 @@ class RegulatorDataService {
       region: scan['region'] as String? ?? '',
       storeLocation: scan['store_location'] as String? ?? '',
       imageUrl: scan['image_url'] as String? ?? '',
+      frontLabelUrl: scan['front_label_url'] as String?,
+      curvedSurfaceUrl: scan['curved_surface_url'] as String?,
+      scaleReferenceUrl: scan['scale_reference_url'] as String?,
       severity: row['severity'] as String? ?? 'Medium',
       riskLevel: row['risk_level'] as String? ?? 'Medium Risk',
       confidenceScore: (row['confidence_score'] as num?)?.toInt() ?? 0,
