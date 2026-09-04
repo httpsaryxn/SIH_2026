@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
-import '../../core/services/regulator_data_service.dart';
+import '../../core/models/pending_capture.dart';
+import '../../core/services/camera_capture_service.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
-import 'regulator_violation_review_screen.dart';
+import 'regulator_scan_analysis_screen.dart';
 
 class RegulatorAuditIntakeScreen extends StatefulWidget {
   const RegulatorAuditIntakeScreen({super.key});
@@ -20,89 +20,70 @@ class RegulatorAuditIntakeScreen extends StatefulWidget {
 class _RegulatorAuditIntakeScreenState
     extends State<RegulatorAuditIntakeScreen> {
   int _selectedTabIndex = 0; // 0 = Photo Capture, 1 = URL / Batch Upload
-  final ImagePicker _picker = ImagePicker();
-  XFile? _selectedImage;
+  PendingCapture? _pendingCapture;
   final TextEditingController _urlController = TextEditingController();
+  final TextEditingController _productNameController = TextEditingController();
+  final TextEditingController _companyNameController = TextEditingController();
 
-  // Processing state: 0 = Idle, 1 = Preprocessing, 2 = Text Detection, 3 = OCR, 4 = Validation, 5 = Done
-  int _processingStep = 0;
-  bool _isProcessing = false;
+  final int _processingStep = 0;
 
   @override
   void dispose() {
     _urlController.dispose();
+    _productNameController.dispose();
+    _companyNameController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final image = await _picker.pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 85,
+  Future<void> _handleCapture({ImageSource source = ImageSource.camera}) async {
+    final capture = await CameraCaptureService.captureImage(
+      context: context,
+      sourceTag: source == ImageSource.camera ? 'regulator_field' : 'regulator_gallery',
+      imageSource: source,
+    );
+
+    if (capture != null && mounted) {
+      setState(() {
+        _pendingCapture = capture;
+      });
+
+      // Immediate redirect to RegulatorScanAnalysisScreen matching consumer flow
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RegulatorScanAnalysisScreen(
+            pendingCapture: capture,
+            prefilledProductName: _productNameController.text.trim().isNotEmpty
+                ? _productNameController.text.trim()
+                : null,
+            prefilledCompanyName: _companyNameController.text.trim().isNotEmpty
+                ? _companyNameController.text.trim()
+                : null,
+          ),
+        ),
       );
-      if (image != null) {
-        setState(() {
-          _selectedImage = image;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image capture note: Using simulated sample.')),
-        );
-      }
     }
   }
 
   Future<void> _startAuditPipeline() async {
-    setState(() {
-      _isProcessing = true;
-      _processingStep = 1;
-    });
+    if (_pendingCapture != null && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RegulatorScanAnalysisScreen(
+            pendingCapture: _pendingCapture!,
+            prefilledProductName: _productNameController.text.trim().isNotEmpty
+                ? _productNameController.text.trim()
+                : null,
+            prefilledCompanyName: _companyNameController.text.trim().isNotEmpty
+                ? _companyNameController.text.trim()
+                : null,
+          ),
+        ),
+      );
+      return;
+    }
 
-    // Step 1: Preprocessing
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _processingStep = 2);
-
-    // Step 2: Text Detection
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _processingStep = 3);
-
-    // Step 3: OCR Extraction
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    setState(() => _processingStep = 4);
-
-    // Step 4: Rule Validation
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _processingStep = 5);
-
-    // Create newly audited mock violation
-    final newViolation = await RegulatorDataService.createAuditViolation(
-      productName: _selectedTabIndex == 1 && _urlController.text.isNotEmpty
-          ? 'E-Commerce Scraped Sample (${_urlController.text.split('/').last})'
-          : 'Packaged Quinoa Flakes Scan',
-      companyName: 'Nature Organics India Pvt Ltd',
-      imagePath: _selectedImage?.path,
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _isProcessing = false;
-      _processingStep = 0;
-    });
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            RegulatorViolationReviewScreen(violationId: newViolation.id),
-      ),
-    );
+    // Trigger capture first if none selected
+    await _handleCapture(source: ImageSource.camera);
   }
 
   @override
@@ -143,6 +124,9 @@ class _RegulatorAuditIntakeScreenState
                 _buildIntakeTabs(),
                 const SizedBox(height: AppSpacing.lg),
 
+                _buildAuditIdentityFields(),
+                const SizedBox(height: AppSpacing.lg),
+
                 // Viewfinder / Upload Section
                 if (_selectedTabIndex == 0)
                   _buildCameraViewfinder()
@@ -161,8 +145,11 @@ class _RegulatorAuditIntakeScreenState
       ),
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.audit,
-        onTabSelected: (tab) =>
-            RegulatorBottomNavBar.navigateToTab(context, RegulatorNavTab.audit, tab),
+        onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
+          context,
+          RegulatorNavTab.audit,
+          tab,
+        ),
       ),
     );
   }
@@ -259,174 +246,344 @@ class _RegulatorAuditIntakeScreenState
   }
 
   Widget _buildCameraViewfinder() {
-    return Container(
-      width: double.infinity,
-      height: 380,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.outlineVariant),
-        boxShadow: AppSpacing.cardShadow,
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background Image / Feed
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-              child: _selectedImage != null
-                  ? Image.file(
-                      File(_selectedImage!.path),
-                      fit: BoxFit.cover,
-                    )
-                  : Image.network(
-                      'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80',
-                      fit: BoxFit.cover,
-                      color: Colors.black.withValues(alpha: 0.2),
-                      colorBlendMode: BlendMode.darken,
-                    ),
-            ),
-          ),
+    final hasCapture = _pendingCapture != null && _pendingCapture!.existsSync;
 
-          // Camera Overlay Corner Guides
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Stack(
-                children: [
-                  // Top Left
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          left: BorderSide(color: AppColors.primaryFixed, width: 3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Top Right
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          right: BorderSide(color: AppColors.primaryFixed, width: 3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Bottom Left
-                  Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          left: BorderSide(color: AppColors.primaryFixed, width: 3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Bottom Right
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: AppColors.primaryFixed, width: 3),
-                          right: BorderSide(color: AppColors.primaryFixed, width: 3),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          height: 380,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(
+              color: hasCapture ? AppColors.primary : AppColors.outlineVariant,
+              width: hasCapture ? 2 : 1,
             ),
+            boxShadow: AppSpacing.cardShadow,
           ),
-
-          // Pick from gallery action chip
-          Positioned(
-            top: AppSpacing.md,
-            right: AppSpacing.md,
-            child: InkWell(
-              onTap: () => _pickImage(ImageSource.gallery),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.photo_library_rounded, size: 16, color: AppColors.onSurface),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Choose Photo',
-                      style: AppTypography.labelSm.copyWith(
-                        color: AppColors.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Floating Shutter Button
-          Positioned(
-            bottom: AppSpacing.lg,
-            child: GestureDetector(
-              onTap: _isProcessing ? null : _startAuditPipeline,
-              child: Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: _isProcessing ? AppColors.outlineVariant : AppColors.primary,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 4),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x33006E2F),
-                      blurRadius: 16,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: _isProcessing
-                      ? const SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: Colors.white,
-                          ),
-                        )
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background Image / Feed
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd - 2),
+                  child: hasCapture
+                      ? Image.file(_pendingCapture!.file, fit: BoxFit.cover)
                       : Container(
+                          color: const Color(0xFF0F172A),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.qr_code_scanner_rounded,
+                                  size: 36,
+                                  color: AppColors.primaryFixedDim,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                'Scan Packaging Label',
+                                style: AppTypography.labelMd.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                                child: Text(
+                                  'Position the product label inside the frame and tap the shutter button.',
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.bodySm.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+
+              // Camera Overlay Corner Guides
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Stack(
+                    children: [
+                      // Top Left
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Container(
                           width: 24,
                           height: 24,
                           decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+                            border: Border(
+                              top: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                              left: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                            ),
                           ),
                         ),
+                      ),
+                      // Top Right
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                              right: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Bottom Left
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                              left: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Bottom Right
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                              right: BorderSide(
+                                color: AppColors.primaryFixed,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
+              // Top Left Cache Status Badge
+              if (hasCapture)
+                Positioned(
+                  top: AppSpacing.md,
+                  left: AppSpacing.md,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Cached (${_pendingCapture!.formattedSize})',
+                          style: AppTypography.labelSm.copyWith(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Pick from gallery action chip
+              Positioned(
+                top: AppSpacing.md,
+                right: AppSpacing.md,
+                child: InkWell(
+                  onTap: () => _handleCapture(source: ImageSource.gallery),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLowest.withValues(
+                        alpha: 0.9,
+                      ),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.photo_library_rounded,
+                          size: 16,
+                          color: AppColors.onSurface,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Gallery',
+                          style: AppTypography.labelSm.copyWith(
+                            color: AppColors.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Floating Shutter Button
+              Positioned(
+                bottom: AppSpacing.lg,
+                child: GestureDetector(
+                  onTap: () => _handleCapture(source: ImageSource.camera),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33006E2F),
+                              blurRadius: 16,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            hasCapture ? Icons.refresh_rounded : Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        ),
+                        child: Text(
+                          hasCapture ? 'Tap to Retake' : 'Tap to Capture',
+                          style: AppTypography.labelSm.copyWith(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasCapture) ...[
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                ),
+                elevation: 0,
+              ),
+              onPressed: _startAuditPipeline,
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: Text(
+                'Verify Packaging Label',
+                style: AppTypography.labelMd.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAuditIdentityFields() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.surfaceVariant),
+      ),
+      child: Column(
+        children: [
+          TextField(
+            controller: _productNameController,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Product name',
+              hintText: 'Enter the label product name',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _companyNameController,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Registered company name',
+              hintText: 'Must match the company compliance record',
             ),
           ),
         ],
@@ -436,7 +593,7 @@ class _RegulatorAuditIntakeScreenState
 
   Widget _buildUrlUploadSection() {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -448,14 +605,11 @@ class _RegulatorAuditIntakeScreenState
         children: [
           Text(
             'E-Commerce Product URL',
-            style: AppTypography.labelMd.copyWith(
-              fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
-            ),
+            style: AppTypography.labelMd.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Enter the product listing URL from Amazon India, Flipkart, Blinkit, or Zepto.',
+            'Paste an Amazon, Flipkart, or Blinkit product page URL to audit declarations.',
             style: AppTypography.bodySm.copyWith(
               color: AppColors.onSurfaceVariant,
             ),
@@ -464,21 +618,17 @@ class _RegulatorAuditIntakeScreenState
           TextField(
             controller: _urlController,
             decoration: InputDecoration(
-              hintText: 'https://www.blinkit.com/prn/organic-quinoa...',
-              prefixIcon: const Icon(Icons.link_rounded, color: AppColors.primary),
-              filled: true,
-              fillColor: AppColors.inputBackground,
+              hintText: 'https://www.amazon.in/dp/B08XYZ123',
+              prefixIcon: const Icon(Icons.link_rounded),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-                borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 2,
+                ),
               ),
             ),
           ),
@@ -486,18 +636,9 @@ class _RegulatorAuditIntakeScreenState
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isProcessing ? null : _startAuditPipeline,
-              icon: _isProcessing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.travel_explore_rounded),
-              label: Text(_isProcessing ? 'Analyzing Listing...' : 'Scrape & Verify Compliance'),
+              onPressed: _startAuditPipeline,
+              icon: const Icon(Icons.travel_explore_rounded),
+              label: const Text('Scrape & Verify Compliance'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
@@ -629,7 +770,11 @@ class _RegulatorAuditIntakeScreenState
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.outlineVariant),
         ),
-        child: const Icon(Icons.rule_rounded, size: 16, color: AppColors.outline),
+        child: const Icon(
+          Icons.rule_rounded,
+          size: 16,
+          color: AppColors.outline,
+        ),
       );
       titleColor = AppColors.onSurfaceVariant.withValues(alpha: 0.6);
     }
@@ -659,14 +804,19 @@ class _RegulatorAuditIntakeScreenState
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md, top: 4),
+              padding: EdgeInsets.only(
+                bottom: isLast ? 0 : AppSpacing.md,
+                top: 4,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: AppTypography.labelMd.copyWith(
-                      fontWeight: state == 1 ? FontWeight.w700 : FontWeight.w600,
+                      fontWeight: state == 1
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                       color: titleColor,
                     ),
                   ),

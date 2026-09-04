@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'app_colors.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_spacing.dart';
 
-class AppTheme {
-  AppTheme._();
-
+/// AppTheme provides configured ThemeData matching DESIGN.md specifications.
+abstract class AppTheme {
   static ThemeData get lightTheme {
     final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme();
 
@@ -18,11 +18,15 @@ class AppTheme {
         primaryContainer: AppColors.primaryContainer,
         onPrimaryContainer: AppColors.onPrimaryContainer,
         secondary: AppColors.secondary,
-        onSecondary: AppColors.onPrimary,
+        onSecondary: AppColors.onSecondary,
         secondaryContainer: AppColors.secondaryContainer,
         onSecondaryContainer: AppColors.onSecondaryContainer,
+        tertiary: AppColors.tertiary,
+        onTertiary: AppColors.onTertiary,
+        tertiaryContainer: AppColors.tertiaryContainer,
+        onTertiaryContainer: AppColors.onTertiaryContainer,
         error: AppColors.error,
-        onError: Colors.white,
+        onError: AppColors.onError,
         errorContainer: AppColors.errorContainer,
         onErrorContainer: AppColors.onErrorContainer,
         surface: AppColors.surface,
@@ -30,53 +34,109 @@ class AppTheme {
         onSurfaceVariant: AppColors.onSurfaceVariant,
         outline: AppColors.outline,
         outlineVariant: AppColors.outlineVariant,
+        surfaceTint: AppColors.surfaceTint,
+        inverseSurface: AppColors.inverseSurface,
+        onInverseSurface: AppColors.inverseOnSurface,
+        inversePrimary: AppColors.inversePrimary,
       ),
       textTheme: baseTextTheme.copyWith(
-        displayLarge: baseTextTheme.displayLarge?.copyWith(
-          color: AppColors.onBackground,
+        displayLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 40,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
+          color: AppColors.onSurface,
+          letterSpacing: -0.8,
         ),
-        headlineLarge: baseTextTheme.headlineLarge?.copyWith(
-          color: AppColors.onBackground,
+        displayMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 32,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.3,
+          color: AppColors.onSurface,
+          letterSpacing: -0.32,
         ),
-        headlineMedium: baseTextTheme.headlineMedium?.copyWith(
-          color: AppColors.onBackground,
-          fontWeight: FontWeight.w700,
-        ),
-        headlineSmall: baseTextTheme.headlineSmall?.copyWith(
-          color: AppColors.onBackground,
+        headlineMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 24,
           fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
         ),
-        titleMedium: baseTextTheme.titleMedium?.copyWith(
-          color: AppColors.onBackground,
+        headlineSmall: GoogleFonts.plusJakartaSans(
+          fontSize: 20,
           fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
         ),
-        bodyLarge: baseTextTheme.bodyLarge?.copyWith(
+        titleMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
+        ),
+        bodyLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
           color: AppColors.onSurfaceVariant,
         ),
-        bodyMedium: baseTextTheme.bodyMedium?.copyWith(
+        bodyMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
           color: AppColors.onSurfaceVariant,
         ),
-        bodySmall: baseTextTheme.bodySmall?.copyWith(
+        bodySmall: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
           color: AppColors.onSurfaceVariant,
         ),
-        labelLarge: baseTextTheme.labelLarge?.copyWith(
+        labelLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
           fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
         ),
-        labelMedium: baseTextTheme.labelMedium?.copyWith(
+        labelSmall: GoogleFonts.plusJakartaSans(
+          fontSize: 12,
           fontWeight: FontWeight.w600,
-        ),
-        labelSmall: baseTextTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w500,
+          color: AppColors.onSurfaceVariant,
         ),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.inputBackground,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          color: AppColors.outline,
+          fontWeight: FontWeight.w400,
+        ),
+        labelStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: AppSpacing.roundedDefault,
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: AppSpacing.roundedDefault,
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: AppSpacing.roundedDefault,
+          borderSide: const BorderSide(color: AppColors.primaryContainer, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: AppSpacing.roundedDefault,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          elevation: 0,
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppSpacing.roundedFull,
+          ),
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

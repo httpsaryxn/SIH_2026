@@ -3,7 +3,6 @@ import '../models/user_role.dart';
 import '../../screens/regulator/regulator_home_screen.dart';
 import '../../screens/consumer/consumer_home_screen.dart';
 import '../../features/small_business/presentation/screens/my_label_studio_screen.dart';
-import '../../screens/large_business/large_business_home_screen.dart';
 
 /// Centralized role-based routing utility.
 /// Returns the correct home screen widget for the given user role.
@@ -17,10 +16,8 @@ class RoleRouter {
         return const RegulatorHomeScreen();
       case UserRole.consumer:
         return const ConsumerHomeScreen();
-      case UserRole.smallBusiness:
+      case UserRole.businessOwner:
         return const MyLabelStudioScreen();
-      case UserRole.largeBusiness:
-        return const LargeBusinessHomeScreen();
     }
   }
 

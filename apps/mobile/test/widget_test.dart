@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/small_business/data/models/small_business_label_model.dart';
@@ -347,7 +348,7 @@ void main() {
     expect(filtered, isA<List<SmallBusinessLabelModel>>());
   });
 
-  testWidgets('RoleSelectionScreen displays roles and allows selecting Small Business',
+  testWidgets('RoleSelectionScreen displays roles and allows selecting Business Owner',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -360,10 +361,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('How will you use the platform?'), findsOneWidget);
-    expect(find.text('Small Business'), findsWidgets);
+    expect(find.text('Business Owner'), findsWidgets);
 
-    // Tap Small Business card
-    await tester.tap(find.text('Small Business').first);
+    // Tap Business Owner card
+    await tester.tap(find.text('Business Owner').first);
     await tester.pumpAndSettle();
 
     // Verify Continue button is present and active
@@ -420,6 +421,25 @@ void main() {
     final pdfBytes = await pdfFile.readAsBytes();
     expect(pdfBytes.length, greaterThan(100));
     expect(String.fromCharCodes(pdfBytes.take(8)), contains('%PDF'));
+  });
+
+  testWidgets('Role Selection screen displays all 3 roles and title',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const FreshLabelApp());
+    await tester.pumpAndSettle();
+
+    // Verify Brand title & Header
+    expect(find.text('FreshLabel Pro'), findsWidgets);
+    expect(find.text('How will you use the platform?'), findsOneWidget);
+
+    // Verify 3 Role cards exist
+    expect(find.text('Business Owner'), findsOneWidget);
+    expect(find.text('Consumer'), findsOneWidget);
+    expect(find.text('Regulator'), findsOneWidget);
+
+    // Verify Continue button & Login link
+    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Already have an account? Log in'), findsOneWidget);
   });
 }
 

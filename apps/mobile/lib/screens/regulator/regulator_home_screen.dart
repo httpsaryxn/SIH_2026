@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
@@ -25,7 +27,14 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   bool _isLoading = true;
 
   List<RegulatorViolation> _violations = [];
-  List<RegulatorComplaint> _complaints = [];
+  RegulatorDashboardMetrics _metrics = const RegulatorDashboardMetrics(
+    itemsScanned: 0,
+    activeViolations: 0,
+    priorityComplaints: 0,
+    scanTrendPercent: 0,
+  );
+  StreamSubscription<List<RegulatorViolation>>? _priorityQueueSubscription;
+  StreamSubscription<List<RegulatorComplaint>>? _complaintSubscription;
 
   final List<String> _filters = [
     'All Active',
@@ -38,20 +47,65 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    _subscribeToRealtimeUpdates();
   }
 
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
-    final violations = await RegulatorDataService.getFlaggedViolations();
-    final complaints = await RegulatorDataService.getComplaints();
+    try {
+      final violations = await RegulatorDataService.getFlaggedViolations();
+      final metrics = await RegulatorDataService.getDashboardMetrics();
 
-    if (mounted) {
-      setState(() {
-        _violations = violations;
-        _complaints = complaints;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _violations = violations;
+          _metrics = metrics;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _subscribeToRealtimeUpdates() {
+    try {
+      _priorityQueueSubscription = RegulatorDataService.watchPriorityQueue()
+          .listen((violations) async {
+            if (!mounted) return;
+            try {
+              final metrics = await RegulatorDataService.getDashboardMetrics();
+              if (mounted) {
+                setState(() {
+                  _violations = violations;
+                  _metrics = metrics;
+                });
+              }
+            } catch (_) {}
+          });
+      _complaintSubscription = RegulatorDataService.watchComplaints().listen((
+        _,
+      ) async {
+        if (!mounted) return;
+        try {
+          final metrics = await RegulatorDataService.getDashboardMetrics();
+          if (mounted) {
+            setState(() {
+              _metrics = metrics;
+            });
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _priorityQueueSubscription?.cancel();
+    _complaintSubscription?.cancel();
+    super.dispose();
   }
 
   List<RegulatorViolation> get _filteredViolations {
@@ -62,8 +116,9 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
         return _violations.where((v) => v.severity == 'High').toList();
       case 'Completed':
         return _violations
-            .where((v) =>
-                v.status == 'confirmed' || v.status == 'false_positive')
+            .where(
+              (v) => v.status == 'confirmed' || v.status == 'false_positive',
+            )
             .toList();
       case 'All Active':
       default:
@@ -154,7 +209,8 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _filters.length,
-        separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+        separatorBuilder: (context, index) =>
+            const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, index) {
           final filter = _filters[index];
           final isSelected = filter == _selectedFilter;
@@ -193,12 +249,8 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   }
 
   Widget _buildMetricGrid() {
-    final scannedCount = 1200 + _violations.length * 4;
-    final activeViolationsCount =
-        _violations.where((v) => v.status == 'pending').length;
-    final complaintsCount = _complaints
-        .where((c) => c.status == 'Submitted' || c.status == 'Under Review')
-        .length;
+    final trend = _metrics.scanTrendPercent;
+    final trendText = '${trend >= 0 ? '+' : ''}${trend.toStringAsFixed(0)}%';
 
     return Column(
       children: [
@@ -207,10 +259,10 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
             Expanded(
               child: RegulatorMetricCard(
                 title: 'Items Scanned',
-                value: scannedCount.toString(),
+                value: _metrics.itemsScanned.toString(),
                 icon: Icons.qr_code_scanner_rounded,
                 iconColor: AppColors.tertiary,
-                deltaText: '+12%',
+                deltaText: trendText,
                 deltaColor: AppColors.primary,
               ),
             ),
@@ -218,11 +270,9 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
             Expanded(
               child: RegulatorMetricCard(
                 title: 'Active Violations',
-                value: activeViolationsCount.toString(),
+                value: _metrics.activeViolations.toString(),
                 icon: Icons.warning_amber_rounded,
                 iconColor: AppColors.error,
-                deltaText: '-3%',
-                deltaColor: AppColors.error,
               ),
             ),
           ],
@@ -230,7 +280,7 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
         const SizedBox(height: AppSpacing.sm),
         RegulatorMetricCard(
           title: 'New Complaints',
-          value: complaintsCount.toString(),
+          value: _metrics.priorityComplaints.toString(),
           icon: Icons.feedback_outlined,
           isFullWidth: true,
           onTap: () => Navigator.of(context).push(
@@ -313,11 +363,14 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   Widget _buildQueueItem(RegulatorViolation item) {
     return InkWell(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => RegulatorViolationReviewScreen(violationId: item.id),
-          ),
-        ).then((_) => _loadDashboardData());
+        Navigator.of(context)
+            .push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    RegulatorViolationReviewScreen(violationId: item.id),
+              ),
+            )
+            .then((_) => _loadDashboardData());
       },
       borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
       child: Container(

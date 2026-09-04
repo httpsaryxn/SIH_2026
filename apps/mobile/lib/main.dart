@@ -59,6 +59,7 @@ class _AuthGateState extends State<AuthGate> {
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
+        // User is authenticated — determine their role
         final profile = await AuthService.fetchUserProfile();
         if (profile != null && profile['role'] != null) {
           final role = AuthService.roleFromDb(profile['role'] as String?);
@@ -71,7 +72,9 @@ class _AuthGateState extends State<AuthGate> {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // If anything fails, fall through to role selection
+    }
 
     if (mounted) {
       setState(() {

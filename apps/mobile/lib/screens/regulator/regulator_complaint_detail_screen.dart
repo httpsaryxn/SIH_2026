@@ -160,6 +160,10 @@ class _RegulatorComplaintDetailScreenState
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
+                // Product & Company Information
+                _buildProductDetailsCard(complaint),
+                const SizedBox(height: AppSpacing.md),
+
                 // Evidence Photos Gallery
                 _buildEvidenceGallery(complaint),
                 const SizedBox(height: AppSpacing.lg),
@@ -181,6 +185,80 @@ class _RegulatorComplaintDetailScreenState
         ),
       ),
       bottomNavigationBar: _buildStickyActions(),
+    );
+  }
+
+  Widget _buildProductDetailsCard(RegulatorComplaint complaint) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.surfaceVariant),
+        boxShadow: AppSpacing.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Product & Brand',
+                style: AppTypography.labelMd.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              RegulatorStatusBadge.fromStatus(complaint.status),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            complaint.productName.isNotEmpty ? complaint.productName : complaint.title,
+            style: AppTypography.headlineSm.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.onSurface,
+            ),
+          ),
+          if (complaint.companyName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.business_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  complaint.companyName,
+                  style: AppTypography.labelMd.copyWith(
+                    color: AppColors.tertiary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (complaint.category.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Text(
+                'Category: ${complaint.category}',
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

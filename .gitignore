@@ -21,6 +21,7 @@ Thumbs.db
 *.pem
 *.key
 *.cert
+.stitch/
 
 # ==========================================
 # IDEs and Editors
