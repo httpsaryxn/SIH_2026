@@ -7,6 +7,7 @@ import '../models/regulator_company.dart';
 import '../models/regulator_complaint.dart';
 import '../models/regulator_notice.dart';
 import '../models/regulator_violation.dart';
+import 'legal_metrology_service.dart';
 import 'storage_service.dart';
 
 class RegulatorDashboardMetrics {
@@ -493,6 +494,7 @@ class RegulatorDataService {
     PendingCapture? pendingCapture,
     String? imagePath,
     String? imageUrl,
+    LmAuditResult? audit,
   }) async {
     final name = companyName.trim();
     var companies = name.isNotEmpty
@@ -550,24 +552,48 @@ class RegulatorDataService {
           'category': company['category'],
           'region': company['region'],
           'store_location': '',
-          'confidence_score': 0,
+          'ocr_text': audit != null ? _ocrTextFromAudit(audit) : null,
+          'confidence_score': audit?.scorePercent ?? 0,
           'status': 'completed',
         })
         .select()
         .single();
     final scanRow = Map<String, dynamic>.from(scan);
+
+    // Persist each rule outcome as a declaration_check so the review screen
+    // renders the real Legal Metrology findings.
+    if (audit != null) {
+      final checks = _declarationChecks(scanRow['id'] as String, audit);
+      if (checks.isNotEmpty) {
+        try {
+          await _client.from('declaration_checks').insert(checks);
+        } catch (_) {
+          // non-fatal — the violation row still carries the summary
+        }
+      }
+    }
+
+    final tier = audit == null ? _AuditTier.medium : _tierFor(audit);
     final violation = await _client
         .from('regulator_violations')
         .insert({
           'scan_id': scanRow['id'],
           'company_id': company['company_id'],
-          'severity': 'Medium',
-          'risk_level': 'Medium Risk',
-          'confidence_score': 0,
-          'violation_type': 'Manual review required',
-          'violation_summary':
-              'Audit captured; awaiting OCR and declaration validation.',
-          'status': 'manual_review',
+          'severity': tier.severity,
+          'risk_level': tier.riskLevel,
+          'confidence_score': audit?.scorePercent ?? 0,
+          'violation_type': audit == null
+              ? 'Manual review required'
+              : (audit.complianceIssues.isEmpty
+                  ? 'No deviation detected'
+                  : (audit.complianceIssues.first['type'] as String? ??
+                      'PCR 2011 non-compliance')),
+          'violation_summary': audit == null
+              ? 'Audit captured; awaiting OCR and declaration validation.'
+              : _violationSummaryFromAudit(audit),
+          'status': audit != null && audit.report.diff.failed.isNotEmpty
+              ? 'pending'
+              : 'manual_review',
         })
         .select()
         .single();
@@ -597,4 +623,97 @@ class RegulatorDataService {
       Map<String, dynamic>.from(result as Map),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Legal Metrology pipeline -> regulator enforcement rows
+  // ---------------------------------------------------------------------------
+
+  static String _ocrTextFromAudit(LmAuditResult audit) {
+    final d = audit.detectedDeclarations;
+    final lines = <String>[
+      for (final e in const [
+        'commodity_name',
+        'manufacturer',
+        'manufacturer_address',
+        'net_quantity',
+        'mrp',
+        'mfg_date',
+        'best_before',
+        'country_of_origin',
+        'fssai_license_no',
+        'consumer_care_info',
+      ])
+        if (d[e] != null) '$e: ${d[e]}',
+    ];
+    return lines.join('\n');
+  }
+
+  static String _violationSummaryFromAudit(LmAuditResult audit) {
+    final pct = audit.scorePercent;
+    if (audit.complianceIssues.isEmpty) {
+      return 'LM(PC) Rules 2011 audit: $pct% (${audit.starLabel}). '
+          'No mandatory declaration deviations detected.';
+    }
+    final items = audit.complianceIssues
+        .take(3)
+        .map((i) => i['type'])
+        .whereType<String>()
+        .join('; ');
+    return 'LM(PC) Rules 2011 audit: $pct% (${audit.starLabel}). '
+        '${audit.complianceIssues.length} finding(s): $items.';
+  }
+
+  static const Map<String, String> _dcStatus = {
+    'PASS': 'Compliant',
+    'FAIL': 'Violation',
+    'WARNING': 'Warning',
+    'INCONCLUSIVE': 'Unable to Verify',
+    'NOT_APPLICABLE': 'Unable to Verify',
+  };
+
+  static List<Map<String, dynamic>> _declarationChecks(
+    String scanId,
+    LmAuditResult audit,
+  ) {
+    final rules = [
+      ...audit.report.diff.failed,
+      ...audit.report.diff.warnings,
+      ...audit.report.diff.inconclusive,
+      ...audit.report.diff.passed,
+    ];
+    return [
+      for (final r in rules)
+        {
+          'scan_id': scanId,
+          'field_name': r.ruleName,
+          'extracted_value': r.evidence ?? '',
+          'confidence_percent': 100,
+          'status': _dcStatus[r.status] ?? 'Unable to Verify',
+          'rule_citation': r.legalReference ?? r.ruleId,
+          'rule_description': r.detail,
+        },
+    ];
+  }
+
+  static _AuditTier _tierFor(LmAuditResult audit) {
+    if (audit.report.score.criticalFailures > 0) return _AuditTier.critical;
+    if (audit.report.diff.failed.isNotEmpty) return _AuditTier.high;
+    final unverified = audit.report.diff.inconclusive
+        .any((x) => x.severity == 'CRITICAL' || x.severity == 'MAJOR');
+    if (unverified || audit.report.diff.warnings.isNotEmpty) {
+      return _AuditTier.medium;
+    }
+    return _AuditTier.low;
+  }
+}
+
+enum _AuditTier {
+  critical('Critical', 'Critical Risk'),
+  high('High', 'High Risk'),
+  medium('Medium', 'Medium Risk'),
+  low('Low', 'Low Risk');
+
+  const _AuditTier(this.severity, this.riskLevel);
+  final String severity;
+  final String riskLevel;
 }
