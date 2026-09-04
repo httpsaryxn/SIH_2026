@@ -11,8 +11,7 @@ import '../widgets/studio_search_bar.dart';
 import '../widgets/your_labels_section.dart';
 import 'create_label_declaration_screen.dart';
 import 'label_review_export_screen.dart';
-import '../../../../core/services/auth_service.dart';
-import '../../../../screens/onboarding/role_selection_screen.dart';
+import 'small_business_profile_screen.dart';
 
 class MyLabelStudioScreen extends StatefulWidget {
   const MyLabelStudioScreen({super.key});
@@ -345,105 +344,9 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
   }
 
   void _showProfileSheet() {
-    final user = AuthService.currentUser;
-    final email = user?.email ?? 'business@labellens.in';
-    final name = (user?.userMetadata?['full_name'] as String?) ??
-        (user?.userMetadata?['organization_name'] as String?) ??
-        'Small Business';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(20),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.outlineVariant,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              CircleAvatar(
-                radius: 34,
-                backgroundColor: AppColors.secondaryContainer,
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'S',
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.brandDeepGreen,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onBackground,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                email,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Small Business Enterprise',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.brandDeepGreen,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ListTile(
-                leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                title: const Text(
-                  'Sign Out',
-                  style: TextStyle(
-                    color: AppColors.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await AuthService.signOut();
-                  if (!mounted) return;
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-                    (route) => false,
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SmallBusinessProfileScreen(),
       ),
     );
   }
@@ -546,6 +449,10 @@ class _MyLabelStudioScreenState extends State<MyLabelStudioScreen> {
       bottomNavigationBar: StudioBottomNav(
         currentIndex: _currentNavIndex,
         onTap: (index) {
+          if (index == 3) {
+            _showProfileSheet();
+            return;
+          }
           setState(() {
             _currentNavIndex = index;
             if (index == 0) {
