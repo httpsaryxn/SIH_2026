@@ -11,7 +11,7 @@ void main() async {
 
   await Supabase.initialize(
     url: SupabaseConfig.supabaseUrl,
-    publishableKey: SupabaseConfig.supabasePublishableKey,
+    publishableKey: SupabaseConfig.supabaseAnonKey,
   );
 
   runApp(const FreshLabelApp());

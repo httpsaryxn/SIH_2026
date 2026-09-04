@@ -85,6 +85,9 @@ class RegulatorViolation {
   final String region;
   final String storeLocation;
   final String imageUrl;
+  final String? frontLabelUrl;
+  final String? curvedSurfaceUrl;
+  final String? scaleReferenceUrl;
   final String severity; // 'High', 'Medium', 'Low'
   final String riskLevel; // 'High Risk', 'Medium Risk', 'Low Risk'
   final int confidenceScore;
@@ -95,6 +98,25 @@ class RegulatorViolation {
   final List<RegulatorDeclaration> declarations;
   final List<RegulatorOverlayBox> overlayBoxes;
 
+  /// Returns all non-empty image URLs with their role labels.
+  List<MapEntry<String, String>> get allLabeledImages {
+    final images = <MapEntry<String, String>>[];
+    if (frontLabelUrl != null && frontLabelUrl!.isNotEmpty) {
+      images.add(MapEntry('Front Label', frontLabelUrl!));
+    }
+    if (curvedSurfaceUrl != null && curvedSurfaceUrl!.isNotEmpty) {
+      images.add(MapEntry('Curved Surface', curvedSurfaceUrl!));
+    }
+    if (scaleReferenceUrl != null && scaleReferenceUrl!.isNotEmpty) {
+      images.add(MapEntry('Scale Reference', scaleReferenceUrl!));
+    }
+    // Fallback: if no role-specific URLs, use the primary imageUrl
+    if (images.isEmpty && imageUrl.isNotEmpty) {
+      images.add(MapEntry('Evidence', imageUrl));
+    }
+    return images;
+  }
+
   const RegulatorViolation({
     required this.id,
     required this.scanId,
@@ -104,6 +126,9 @@ class RegulatorViolation {
     required this.region,
     required this.storeLocation,
     required this.imageUrl,
+    this.frontLabelUrl,
+    this.curvedSurfaceUrl,
+    this.scaleReferenceUrl,
     required this.severity,
     required this.riskLevel,
     required this.confidenceScore,
@@ -124,6 +149,9 @@ class RegulatorViolation {
     String? region,
     String? storeLocation,
     String? imageUrl,
+    String? frontLabelUrl,
+    String? curvedSurfaceUrl,
+    String? scaleReferenceUrl,
     String? severity,
     String? riskLevel,
     int? confidenceScore,
@@ -143,6 +171,9 @@ class RegulatorViolation {
       region: region ?? this.region,
       storeLocation: storeLocation ?? this.storeLocation,
       imageUrl: imageUrl ?? this.imageUrl,
+      frontLabelUrl: frontLabelUrl ?? this.frontLabelUrl,
+      curvedSurfaceUrl: curvedSurfaceUrl ?? this.curvedSurfaceUrl,
+      scaleReferenceUrl: scaleReferenceUrl ?? this.scaleReferenceUrl,
       severity: severity ?? this.severity,
       riskLevel: riskLevel ?? this.riskLevel,
       confidenceScore: confidenceScore ?? this.confidenceScore,
@@ -164,6 +195,9 @@ class RegulatorViolation {
         'region': region,
         'store_location': storeLocation,
         'image_url': imageUrl,
+        'front_label_url': frontLabelUrl,
+        'curved_surface_url': curvedSurfaceUrl,
+        'scale_reference_url': scaleReferenceUrl,
         'severity': severity,
         'risk_level': riskLevel,
         'confidence_score': confidenceScore,
@@ -185,6 +219,9 @@ class RegulatorViolation {
         region: json['region'] as String? ?? '',
         storeLocation: json['store_location'] as String? ?? '',
         imageUrl: json['image_url'] as String? ?? '',
+        frontLabelUrl: json['front_label_url'] as String?,
+        curvedSurfaceUrl: json['curved_surface_url'] as String?,
+        scaleReferenceUrl: json['scale_reference_url'] as String?,
         severity: json['severity'] as String? ?? 'Medium',
         riskLevel: json['risk_level'] as String? ?? 'Medium Risk',
         confidenceScore: json['confidence_score'] as int? ?? 85,

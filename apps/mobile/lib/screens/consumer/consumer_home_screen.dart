@@ -416,20 +416,21 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildTopAppBar(isDesktop),
-      body: RefreshIndicator(
-        onRefresh: _loadAllConsumerData,
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: AppSpacing.lg,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: _buildCurrentTabContent(isDesktop),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadAllConsumerData,
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: AppSpacing.lg,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: _buildCurrentTabContent(isDesktop),
+              ),
             ),
           ),
         ),
@@ -438,84 +439,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     );
   }
 
-  PreferredSizeWidget _buildTopAppBar(bool isDesktop) {
-    return AppBar(
-      backgroundColor: AppColors.surfaceContainerLowest,
-      elevation: 0,
-      scrolledUnderElevation: 1,
-      centerTitle: false,
-      title: Row(
-        children: [
-          const Icon(Icons.eco_rounded, color: AppColors.primary, size: 26),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            'FreshLabel Pro',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              letterSpacing: -0.3,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        if (isDesktop) ...[
-          _buildNavHeaderButton('Home', 0),
-          _buildNavHeaderButton('My Scans', 1),
-          _buildNavHeaderButton('My Complaints', 2),
-          _buildNavHeaderButton('Compare', 3),
-          const SizedBox(width: AppSpacing.sm),
-        ],
 
-        // Notification Bell Icon
-        IconButton(
-          icon: const Icon(Icons.notifications_none_rounded, color: AppColors.secondary),
-          tooltip: 'Notifications',
-          onPressed: _openNotificationsSheet,
-        ),
-
-        // User Avatar Button
-        InkWell(
-          onTap: _openProfileSheet,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primaryContainer.withValues(alpha: 0.3),
-              child: Text(
-                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-      ],
-    );
-  }
-
-  Widget _buildNavHeaderButton(String label, int index) {
-    final isActive = _currentNavIndex == index;
-    return TextButton(
-      onPressed: () => setState(() => _currentNavIndex = index),
-      style: TextButton.styleFrom(
-        foregroundColor: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-          color: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
 
   Widget _buildCurrentTabContent(bool isDesktop) {
     switch (_currentNavIndex) {
@@ -933,9 +857,19 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 12 : 6,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primaryContainer.withValues(alpha: 0.3)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

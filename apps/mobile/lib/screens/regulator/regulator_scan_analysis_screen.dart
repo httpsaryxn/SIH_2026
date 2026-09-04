@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
+import '../../core/models/capture_role.dart';
+import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../core/models/regulator_violation.dart';
-import '../../core/services/camera_capture_service.dart';
 import '../../core/services/legal_metrology_service.dart';
 import '../../core/services/regulator_data_service.dart';
+import '../shared/multi_capture_screen.dart';
 import 'regulator_violation_review_screen.dart';
 
 class RegulatorScanAnalysisScreen extends StatefulWidget {
   final PendingCapture pendingCapture;
+  final MultiCapturePayload? multiCapture;
   final String? prefilledProductName;
   final String? prefilledCompanyName;
   final String? prefilledCategory;
@@ -19,6 +21,7 @@ class RegulatorScanAnalysisScreen extends StatefulWidget {
   const RegulatorScanAnalysisScreen({
     super.key,
     required this.pendingCapture,
+    this.multiCapture,
     this.prefilledProductName,
     this.prefilledCompanyName,
     this.prefilledCategory,
@@ -36,10 +39,22 @@ class _RegulatorScanAnalysisScreenState
   late AnimationController _progressController;
   late Animation<double> _laserAnimation;
 
+  // Carousel state for multi-image display
+  final PageController _carouselController = PageController();
+  int _carouselPage = 0;
+
   int _currentStageIndex = 0;
   bool _isAnalysisFinished = false;
   String _statusMessage = 'Ingesting field evidence into forensic cache...';
   RegulatorViolation? _createdViolation;
+
+  /// Returns the list of captures for carousel display.
+  List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
+    if (widget.multiCapture != null) {
+      return widget.multiCapture!.capturedEntries;
+    }
+    return [MapEntry(CaptureRole.frontLabel, widget.pendingCapture)];
+  }
 
   final List<Map<String, dynamic>> _stages = [
     {
@@ -175,7 +190,8 @@ class _RegulatorScanAnalysisScreenState
                 : 'Packaged Food Commodity',
         companyName: widget.prefilledCompanyName?.isNotEmpty == true
             ? widget.prefilledCompanyName!
-            : 'Nestle India Ltd',
+            : 'Registered Packer / Importer',
+        multiCapture: widget.multiCapture,
         pendingCapture: widget.pendingCapture,
         imagePath: widget.pendingCapture.localPath,
         audit: audit,
@@ -219,17 +235,21 @@ class _RegulatorScanAnalysisScreenState
   }
 
   Future<void> _handleCaptureNew() async {
-    final capture = await CameraCaptureService.captureImage(
-      context: context,
-      sourceTag: 'regulator_field',
-      imageSource: ImageSource.camera,
+    final result = await Navigator.of(context).push<MultiCapturePayload?>(
+      MaterialPageRoute(
+        builder: (_) => const MultiCaptureScreen(
+          sourceTag: 'regulator_field',
+          flowLabel: 'Audit Evidence',
+        ),
+      ),
     );
 
-    if (capture != null && mounted) {
+    if (result != null && result.hasAnyCapture && mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RegulatorScanAnalysisScreen(
-            pendingCapture: capture,
+            multiCapture: result,
+            pendingCapture: result.primaryCapture!,
             prefilledProductName: widget.prefilledProductName,
             prefilledCompanyName: widget.prefilledCompanyName,
             prefilledCategory: widget.prefilledCategory,
@@ -365,140 +385,218 @@ class _RegulatorScanAnalysisScreenState
   }
 
   Widget _buildOpticalScanViewport() {
-    return Container(
-      height: 320,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceVariant),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Captured Image
-          if (widget.pendingCapture.existsSync)
-            Image.file(
-              widget.pendingCapture.file,
-              fit: BoxFit.cover,
-              errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
-            )
-          else
-            _buildFallbackPreview(),
+    final entries = _capturedEntries;
+    final showCarousel = entries.length > 1;
 
-          // Optical Vignette Overlay
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.35),
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.45),
-                ],
+    return Column(
+      children: [
+        Container(
+          height: 320,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.surfaceVariant),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
               ),
-            ),
+            ],
           ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Captured Images via Carousel PageView or single image
+              if (showCarousel)
+                PageView.builder(
+                  controller: _carouselController,
+                  itemCount: entries.length,
+                  onPageChanged: (i) => setState(() => _carouselPage = i),
+                  itemBuilder: (context, i) {
+                    final capture = entries[i].value;
+                    return _buildCaptureSlide(capture, entries[i].key);
+                  },
+                )
+              else if (entries.isNotEmpty && entries.first.value.existsSync)
+                _buildCaptureSlide(entries.first.value, entries.first.key)
+              else
+                _buildFallbackPreview(),
 
-          // High-Tech Corner Guides
-          ..._buildCornerGuides(),
-
-          // Animated Scanning Laser Bar
-          if (!_isAnalysisFinished)
-            AnimatedBuilder(
-              animation: _laserAnimation,
-              builder: (context, child) {
-                return Align(
-                  alignment: Alignment(0, (_laserAnimation.value * 2) - 1),
-                  child: Container(
-                    height: 3,
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      borderRadius: BorderRadius.circular(2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.85),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          spreadRadius: 6,
-                        ),
+              // Optical Vignette Overlay
+              IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.35),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.45),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
-
-          // Top Badge: Label Ingested
-          Positioned(
-            top: 14,
-            left: 14,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.6),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.check_circle_rounded,
-                    size: 13,
-                    color: Color(0xFF10B981),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Label Ingested ✓',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+
+              // High-Tech Corner Guides
+              ..._buildCornerGuides(),
+
+              // Animated Scanning Laser Bar
+              if (!_isAnalysisFinished)
+                AnimatedBuilder(
+                  animation: _laserAnimation,
+                  builder: (context, child) {
+                    return Align(
+                      alignment: Alignment(0, (_laserAnimation.value * 2) - 1),
+                      child: Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.85),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                              blurRadius: 20,
+                              spreadRadius: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+              // Top Badge: Role & Ingestion State
+              Positioned(
+                top: 14,
+                left: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.6),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom Filename Tag
-          Positioned(
-            bottom: 14,
-            right: 14,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                widget.pendingCapture.fileName,
-                style: GoogleFonts.firaCode(
-                  fontSize: 10,
-                  color: Colors.white.withValues(alpha: 0.9),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isAnalysisFinished
+                            ? Icons.check_circle_rounded
+                            : CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).icon,
+                        size: 13,
+                        color: const Color(0xFF10B981),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _isAnalysisFinished
+                            ? '${CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).label} ✓'
+                            : CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+
+              // Carousel Image Count Badge
+              if (showCarousel)
+                Positioned(
+                  top: 14,
+                  right: 14,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white24,
+                      ),
+                    ),
+                    child: Text(
+                      '${_carouselPage + 1}/${entries.length}',
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Bottom Filename Tag
+              Positioned(
+                bottom: 14,
+                right: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    widget.pendingCapture.fileName,
+                    style: GoogleFonts.firaCode(
+                      fontSize: 10,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Carousel Indicator Dots
+        if (showCarousel) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(entries.length, (i) {
+              final isActive = i == _carouselPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: isActive ? 24 : 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: isActive ? const Color(0xFF10B981) : AppColors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
           ),
         ],
-      ),
+      ],
     );
+  }
+
+  Widget _buildCaptureSlide(PendingCapture capture, CaptureRole role) {
+    if (capture.existsSync) {
+      return Image.file(
+        capture.file,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
+      );
+    }
+    return _buildFallbackPreview();
   }
 
   List<Widget> _buildCornerGuides() {
@@ -829,14 +927,28 @@ class _RegulatorScanAnalysisScreenState
                         color: AppColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Brand: $companyName',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.business_rounded,
+                          size: 14,
+                          color: AppColors.secondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Company: $companyName',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

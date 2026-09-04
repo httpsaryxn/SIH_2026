@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
+import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
-import '../../core/services/camera_capture_service.dart';
-import '../../widgets/regulator/regulator_top_app_bar.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
+import '../shared/multi_capture_screen.dart';
 import 'regulator_scan_analysis_screen.dart';
 
 class RegulatorAuditIntakeScreen extends StatefulWidget {
@@ -21,11 +22,30 @@ class _RegulatorAuditIntakeScreenState
     extends State<RegulatorAuditIntakeScreen> {
   int _selectedTabIndex = 0; // 0 = Photo Capture, 1 = URL / Batch Upload
   PendingCapture? _pendingCapture;
+  MultiCapturePayload? _multiCapture;
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _productNameController = TextEditingController();
   final TextEditingController _companyNameController = TextEditingController();
 
-  final int _processingStep = 0;
+  String? _productNameError;
+  String? _companyNameError;
+
+  @override
+  void initState() {
+    super.initState();
+    _productNameController.addListener(() {
+      if (_productNameError != null &&
+          _productNameController.text.trim().isNotEmpty) {
+        setState(() => _productNameError = null);
+      }
+    });
+    _companyNameController.addListener(() {
+      if (_companyNameError != null &&
+          _companyNameController.text.trim().isNotEmpty) {
+        setState(() => _companyNameError = null);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -35,29 +55,94 @@ class _RegulatorAuditIntakeScreenState
     super.dispose();
   }
 
+  /// Strictly validates that both Product Name and Registered Company Name
+  /// are provided prior to initiating any photo capture or verification pipeline.
+  bool _validateAuditIdentity() {
+    final prod = _productNameController.text.trim();
+    final comp = _companyNameController.text.trim();
+    bool isValid = true;
+
+    setState(() {
+      _productNameError =
+          prod.isEmpty ? 'Product name is mandatory to proceed' : null;
+      _companyNameError =
+          comp.isEmpty ? 'Registered company name is mandatory to proceed' : null;
+    });
+
+    if (prod.isEmpty || comp.isEmpty) {
+      isValid = false;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          content: Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Please enter both Product Name and Registered Company Name before proceeding.',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return isValid;
+  }
+
   Future<void> _handleCapture({ImageSource source = ImageSource.camera}) async {
-    final capture = await CameraCaptureService.captureImage(
-      context: context,
-      sourceTag: source == ImageSource.camera ? 'regulator_field' : 'regulator_gallery',
-      imageSource: source,
+    // 1. Mandatory requirement: Do not proceed without product name & registered company name
+    if (!_validateAuditIdentity()) return;
+
+    final productName = _productNameController.text.trim();
+    final companyName = _companyNameController.text.trim();
+
+    // Navigate to the 3-step guided multi-capture flow
+    final result = await Navigator.of(context).push<MultiCapturePayload?>(
+      MaterialPageRoute(
+        builder: (_) => MultiCaptureScreen(
+          sourceTag: 'regulator_field',
+          flowLabel: 'Audit Evidence',
+          productName: productName,
+          companyName: companyName,
+        ),
+      ),
     );
 
-    if (capture != null && mounted) {
+    if (!mounted) return;
+
+    if (result != null && result.hasAnyCapture) {
+      final primary = result.primaryCapture;
+      if (primary == null) return;
+
       setState(() {
-        _pendingCapture = capture;
+        _multiCapture = result;
+        _pendingCapture = primary;
       });
 
-      // Immediate redirect to RegulatorScanAnalysisScreen matching consumer flow
-      Navigator.of(context).push(
+      // Immediately navigate to the analysis/audit pipeline screen
+      if (!mounted) return;
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => RegulatorScanAnalysisScreen(
-            pendingCapture: capture,
-            prefilledProductName: _productNameController.text.trim().isNotEmpty
-                ? _productNameController.text.trim()
-                : null,
-            prefilledCompanyName: _companyNameController.text.trim().isNotEmpty
-                ? _companyNameController.text.trim()
-                : null,
+            multiCapture: result,
+            pendingCapture: primary,
+            prefilledProductName: productName,
+            prefilledCompanyName: companyName,
           ),
         ),
       );
@@ -65,17 +150,46 @@ class _RegulatorAuditIntakeScreenState
   }
 
   Future<void> _startAuditPipeline() async {
+    // 1. Mandatory requirement: Do not proceed without product name & registered company name
+    if (!_validateAuditIdentity()) return;
+
+    if (_selectedTabIndex == 1 && _urlController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'Please enter a valid product URL.',
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_multiCapture != null && _multiCapture!.hasAnyCapture && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RegulatorScanAnalysisScreen(
+            multiCapture: _multiCapture!,
+            pendingCapture: _multiCapture!.primaryCapture!,
+            prefilledProductName: _productNameController.text.trim(),
+            prefilledCompanyName: _companyNameController.text.trim(),
+          ),
+        ),
+      );
+      return;
+    }
     if (_pendingCapture != null && mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => RegulatorScanAnalysisScreen(
             pendingCapture: _pendingCapture!,
-            prefilledProductName: _productNameController.text.trim().isNotEmpty
-                ? _productNameController.text.trim()
-                : null,
-            prefilledCompanyName: _companyNameController.text.trim().isNotEmpty
-                ? _companyNameController.text.trim()
-                : null,
+            prefilledProductName: _productNameController.text.trim(),
+            prefilledCompanyName: _companyNameController.text.trim(),
           ),
         ),
       );
@@ -90,55 +204,52 @@ class _RegulatorAuditIntakeScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const RegulatorTopAppBar(),
-      body: ScrollConfiguration(
-        behavior: const ScrollBehavior().copyWith(overscroll: false),
-        child: ClipRect(
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.gutter,
-              vertical: AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Text(
-                  'Audit Intake',
-                  style: AppTypography.headlineLgMobile.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+      body: SafeArea(
+        child: ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(overscroll: false),
+          child: ClipRect(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.gutter,
+                vertical: AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Text(
+                    'Audit Intake',
+                    style: AppTypography.headlineLgMobile.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
-                  style: AppTypography.bodySm.copyWith(
-                    color: AppColors.onSurfaceVariant,
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.lg),
 
-                // Intake Tabs
-                _buildIntakeTabs(),
-                const SizedBox(height: AppSpacing.lg),
+                  // Intake Tabs
+                  _buildIntakeTabs(),
+                  const SizedBox(height: AppSpacing.lg),
 
-                _buildAuditIdentityFields(),
-                const SizedBox(height: AppSpacing.lg),
+                  _buildAuditIdentityFields(),
+                  const SizedBox(height: AppSpacing.lg),
 
-                // Viewfinder / Upload Section
-                if (_selectedTabIndex == 0)
-                  _buildCameraViewfinder()
-                else
-                  _buildUrlUploadSection(),
+                  // Viewfinder / Upload Section
+                  if (_selectedTabIndex == 0)
+                    _buildCameraViewfinder()
+                  else
+                    _buildUrlUploadSection(),
 
-                const SizedBox(height: AppSpacing.lg),
-
-                // Processing Pipeline Stepper
-                _buildProcessingStepper(),
-                const SizedBox(height: AppSpacing.xxl),
-              ],
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+              ),
             ),
           ),
         ),
@@ -560,30 +671,118 @@ class _RegulatorAuditIntakeScreenState
   }
 
   Widget _buildAuditIdentityFields() {
+    final hasErrors = _productNameError != null || _companyNameError != null;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.surfaceVariant),
+        border: Border.all(
+          color: hasErrors
+              ? AppColors.error.withValues(alpha: 0.7)
+              : AppColors.surfaceVariant,
+          width: hasErrors ? 1.5 : 1,
+        ),
+        boxShadow: AppSpacing.cardShadow,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: hasErrors
+                      ? AppColors.error.withValues(alpha: 0.12)
+                      : AppColors.primaryContainer.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Icon(
+                  hasErrors
+                      ? Icons.error_outline_rounded
+                      : Icons.assignment_turned_in_rounded,
+                  size: 15,
+                  color: hasErrors ? AppColors.error : AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'MANDATORY AUDIT IDENTIFIERS',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: hasErrors ? AppColors.error : AppColors.primary,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Text(
+                  'Required',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Both product name and registered company name are legally required before capturing label evidence.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           TextField(
             controller: _productNameController,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Product name',
-              hintText: 'Enter the label product name',
+            decoration: InputDecoration(
+              labelText: 'Product name *',
+              hintText: 'e.g. Britannia Good Day Butter Cookies',
+              errorText: _productNameError,
+              prefixIcon: const Icon(Icons.inventory_2_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
           TextField(
             controller: _companyNameController,
             textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(
-              labelText: 'Registered company name',
-              hintText: 'Must match the company compliance record',
+            decoration: InputDecoration(
+              labelText: 'Registered company name *',
+              hintText: 'e.g. Britannia Industries Ltd',
+              errorText: _companyNameError,
+              prefixIcon: const Icon(Icons.business_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
+              ),
             ),
           ),
         ],
@@ -646,191 +845,6 @@ class _RegulatorAuditIntakeScreenState
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
                 ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProcessingStepper() {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.surfaceVariant),
-        boxShadow: AppSpacing.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Processing Pipeline',
-            style: AppTypography.headlineSm.copyWith(
-              fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _buildPipelineStep(
-            stepNumber: 1,
-            title: 'Preprocessing',
-            subtitle: 'Image enhanced & perspective cropped',
-            state: _getStepState(1),
-          ),
-          _buildPipelineStep(
-            stepNumber: 2,
-            title: 'Text Detection',
-            subtitle: 'Mandatory principal panel blocks identified',
-            state: _getStepState(2),
-          ),
-          _buildPipelineStep(
-            stepNumber: 3,
-            title: 'OCR Extraction',
-            subtitle: 'Reading MRP, Net Quantity & Mfg Date...',
-            state: _getStepState(3),
-          ),
-          _buildPipelineStep(
-            stepNumber: 4,
-            title: 'Rule Validation',
-            subtitle: 'Evaluating against PCR 2011 & LMPC statutes',
-            isLast: true,
-            state: _getStepState(4),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 0 = pending, 1 = active, 2 = done
-  int _getStepState(int step) {
-    if (_processingStep == 0) {
-      // Default static illustration preview matching Stitch
-      if (step <= 2) return 2;
-      if (step == 3) return 1;
-      return 0;
-    }
-    if (_processingStep > step) return 2;
-    if (_processingStep == step) return 1;
-    return 0;
-  }
-
-  Widget _buildPipelineStep({
-    required int stepNumber,
-    required String title,
-    required String subtitle,
-    required int state, // 0 = pending, 1 = active, 2 = done
-    bool isLast = false,
-  }) {
-    Widget iconWidget;
-    Color titleColor = AppColors.onSurface;
-
-    if (state == 2) {
-      // Done
-      iconWidget = Container(
-        width: 32,
-        height: 32,
-        decoration: const BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.check_rounded, size: 18, color: Colors.white),
-      );
-    } else if (state == 1) {
-      // Active
-      iconWidget = Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.tertiaryContainer,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.tertiary, width: 2),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.tertiary,
-            ),
-          ),
-        ),
-      );
-      titleColor = AppColors.tertiary;
-    } else {
-      // Pending
-      iconWidget = Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerHighest,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: const Icon(
-          Icons.rule_rounded,
-          size: 16,
-          color: AppColors.outline,
-        ),
-      );
-      titleColor = AppColors.onSurfaceVariant.withValues(alpha: 0.6);
-    }
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 32,
-            child: Column(
-              children: [
-                iconWidget,
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: state == 2
-                          ? AppColors.primary
-                          : AppColors.surfaceContainerHighest,
-                      margin: const EdgeInsets.symmetric(vertical: 2),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom: isLast ? 0 : AppSpacing.md,
-                top: 4,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTypography.labelMd.copyWith(
-                      fontWeight: state == 1
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant.withValues(
-                        alpha: state == 0 ? 0.6 : 1.0,
-                      ),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
               ),
             ),
           ),

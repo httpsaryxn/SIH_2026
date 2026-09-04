@@ -5,9 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/consumer_scan_model.dart';
+import '../../../core/models/multi_capture_payload.dart';
 import '../../../core/models/pending_capture.dart';
-import '../../../core/services/camera_capture_service.dart';
 import '../../../core/services/consumer_data_service.dart';
+import '../../shared/multi_capture_screen.dart';
 import '../consumer_scan_analysis_screen.dart';
 
 class ScannerModalSheet extends StatefulWidget {
@@ -33,6 +34,7 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
 
   String _selectedCategory = 'Snacks';
   PendingCapture? _pendingCapture;
+  MultiCapturePayload? _multiCapture;
   Uint8List? _imageBytes;
 
   int _currentStep = 0; // 0: Details, 1: Camera/Photo, 2: AI Processing
@@ -68,26 +70,23 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final capture = await CameraCaptureService.captureImage(
-      context: context,
-      sourceTag: source == ImageSource.camera ? 'consumer_scan' : 'consumer_gallery',
-      imageSource: source,
+    // Navigate to the 3-step guided multi-capture flow
+    Navigator.of(context).pop();
+    final result = await Navigator.of(context).push<MultiCapturePayload?>(
+      MaterialPageRoute(
+        builder: (_) => const MultiCaptureScreen(
+          sourceTag: 'consumer_scan',
+          flowLabel: 'Product Label',
+        ),
+      ),
     );
 
-    if (capture != null && mounted) {
-      final bytes = await capture.file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _pendingCapture = capture;
-        _imageBytes = bytes;
-      });
-
-      // Redirect immediately to the full-screen scanning & analysis experience
-      Navigator.of(context).pop();
+    if (result != null && result.hasAnyCapture && mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ConsumerScanAnalysisScreen(
-            pendingCapture: capture,
+            multiCapture: result,
+            pendingCapture: result.primaryCapture!,
             prefilledProductName: _productNameController.text.trim().isNotEmpty
                 ? _productNameController.text.trim()
                 : null,
@@ -107,6 +106,30 @@ class _ScannerModalSheetState extends State<ScannerModalSheet> {
   }
 
   Future<void> _processAndSaveProduct() async {
+    if (_multiCapture != null && _multiCapture!.hasAnyCapture && mounted) {
+      Navigator.of(context).pop();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ConsumerScanAnalysisScreen(
+            multiCapture: _multiCapture!,
+            pendingCapture: _multiCapture!.primaryCapture!,
+            prefilledProductName: _productNameController.text.trim().isNotEmpty
+                ? _productNameController.text.trim()
+                : null,
+            prefilledBrand: _brandController.text.trim().isNotEmpty
+                ? _brandController.text.trim()
+                : null,
+            prefilledCategory: _selectedCategory,
+            prefilledNetQty: _netQtyController.text.trim().isNotEmpty
+                ? _netQtyController.text.trim()
+                : null,
+            prefilledMrp: double.tryParse(_mrpController.text.replaceAll('₹', '').trim()),
+            onScanCompleted: widget.onScanCompleted,
+          ),
+        ),
+      );
+      return;
+    }
     if (_pendingCapture != null && mounted) {
       Navigator.of(context).pop();
       Navigator.of(context).push(
