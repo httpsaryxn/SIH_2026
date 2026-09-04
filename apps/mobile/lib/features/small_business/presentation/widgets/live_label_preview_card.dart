@@ -169,16 +169,26 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
     // Extract formulation ingredients
     final ingredientsList = (labelModel != null && labelModel!.ingredients.isNotEmpty)
-        ? labelModel!.ingredients.map((i) => '${i.name} (${i.percentage ?? 0}%)').join(', ')
+        ? labelModel!.ingredients.map((i) {
+            if (i.percentage != null && i.percentage! > 0) {
+              return '${i.name} (${i.percentage}%)';
+            }
+            return i.name;
+          }).join(', ')
         : 'Formulation Ingredients, Permitted Seasoning, Edible Vegetable Oil, Common Salt';
 
     // Extract allergens
     final allergensList = (labelModel != null && labelModel!.allergens.isNotEmpty)
         ? labelModel!.allergens.join(', ')
-        : 'Mustard, Gluten';
+        : (labelModel != null ? 'Contains No Declared Major Allergens' : 'Mustard, Gluten');
 
     // Extract nutrients
     final nutrients = labelModel?.nutrients ?? [];
+
+    // Extract claims
+    final claims = (labelModel != null && labelModel!.claims.isNotEmpty)
+        ? labelModel!.claims.map((c) => c.title).toList()
+        : selectedClaims.map((c) => c.title).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -308,6 +318,31 @@ class LiveLabelPreviewCard extends StatelessWidget {
                             ),
                             softWrap: true,
                           ),
+                          if (claims.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: claims.map((c) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDCFCE7),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: const Color(0xFF86EFAC), width: 0.6),
+                                  ),
+                                  child: Text(
+                                    '✓ $c',
+                                    style: const TextStyle(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF15803D),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
                         ],
                       ),
                     ),

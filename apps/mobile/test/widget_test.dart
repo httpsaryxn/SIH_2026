@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/small_business/data/models/small_business_label_model.dart';
+import 'package:mobile/features/small_business/data/repositories/small_business_label_repository.dart';
 import 'package:mobile/features/small_business/data/services/file_download_service.dart';
 import 'package:mobile/features/small_business/data/services/gs1_ean13_encoder.dart';
 import 'package:mobile/features/small_business/presentation/screens/create_label_declaration_screen.dart';
@@ -14,7 +16,7 @@ import 'package:mobile/features/small_business/presentation/screens/manufacturer
 import 'package:mobile/features/small_business/presentation/screens/my_label_studio_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/nutritional_values_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/product_claims_screen.dart';
-import 'package:mobile/main.dart';
+import 'package:mobile/screens/onboarding/role_selection_screen.dart';
 
 class MockHttpOverrides extends HttpOverrides {
   @override
@@ -26,7 +28,11 @@ class MockHttpOverrides extends HttpOverrides {
 class _MockHttpClient implements HttpClient {
   @override
   noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #getUrl || invocation.memberName == #openUrl) {
+    if (invocation.memberName == #getUrl ||
+        invocation.memberName == #openUrl ||
+        invocation.memberName == #postUrl ||
+        invocation.memberName == #patchUrl ||
+        invocation.memberName == #deleteUrl) {
       return Future.value(_MockHttpClientRequest());
     }
     return super.noSuchMethod(invocation);
@@ -97,6 +103,8 @@ class _MockHttpClientResponse extends Stream<List<int>>
 
 void main() {
   setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
     HttpOverrides.global = MockHttpOverrides();
   });
 
@@ -131,7 +139,10 @@ void main() {
     tester.view.devicePixelRatio = 2.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(const MyLabelStudioApp());
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const MyLabelStudioScreen(),
+    ));
     await tester.pumpAndSettle();
 
     // Verify Screen 1 (Studio Hub)
@@ -326,12 +337,89 @@ void main() {
     expect(modules.sublist(92, 95), equals([true, false, true]));
   });
 
-  test('FileDownloadService generates valid PDF with absolute coordinates', () async {
+  test('SmallBusinessLabelRepository loads cache and formats labels', () async {
+    await SmallBusinessLabelRepository.loadLocalCache();
+    final repo = SmallBusinessLabelRepository();
+    final cached = repo.getCachedLabels();
+    expect(cached, isNotEmpty);
+
+    final filtered = repo.getCachedLabels(searchQuery: 'Mango');
+    expect(filtered, isA<List<SmallBusinessLabelModel>>());
+  });
+
+  testWidgets('RoleSelectionScreen displays roles and allows selecting Small Business',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const RoleSelectionScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('How will you use the platform?'), findsOneWidget);
+    expect(find.text('Small Business'), findsWidgets);
+
+    // Tap Small Business card
+    await tester.tap(find.text('Small Business').first);
+    await tester.pumpAndSettle();
+
+    // Verify Continue button is present and active
+    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Already have an account? Log in'), findsOneWidget);
+  });
+
+  test('FileDownloadService generates valid SVG, PDF, and JSON without errors', () async {
+    const model = SmallBusinessLabelModel(
+      brandName: 'Kaveri Pure',
+      productName: 'Roasted Makhana',
+      productCategory: 'Snacks & Namkeen',
+      netQuantity: '100',
+      netQuantityUnit: 'g',
+      mrp: '120.00',
+      fssaiLicenseNumber: '11521018000345',
+      manufacturerName: 'Kaveri Foods Pvt Ltd',
+      manufacturerAddress: 'Industrial Area, Pune, Maharashtra 411028',
+    );
+
+    // Test SVG Generation
+    final svgPath = await FileDownloadService.downloadSvgLabel(
+      model: model,
+      dimension: 'Standard Pouch (100 × 150 mm)',
+      shareOnMobile: false,
+    );
+    expect(svgPath, isNotNull);
+    final svgFile = File(svgPath!);
+    expect(await svgFile.exists(), isTrue);
+    final svgString = await svgFile.readAsString();
+    expect(svgString, contains('<svg'));
+    expect(svgString, contains('Roasted Makhana'));
+
+    // Test JSON Generation
+    final jsonPath = await FileDownloadService.downloadJsonMetadata(
+      model: model,
+      shareOnMobile: false,
+    );
+    expect(jsonPath, isNotNull);
+    final jsonFile = File(jsonPath!);
+    expect(await jsonFile.exists(), isTrue);
+    final jsonString = await jsonFile.readAsString();
+    expect(jsonString, contains('"product_name": "Roasted Makhana"'));
+
+    // Test PDF Generation
     final pdfPath = await FileDownloadService.downloadPdfLabel(
-      model: testModel,
-      dimension: '100x150mm',
+      model: model,
+      dimension: 'Standard Pouch (100 × 150 mm)',
+      shareOnMobile: false,
     );
     expect(pdfPath, isNotNull);
+    final pdfFile = File(pdfPath!);
+    expect(await pdfFile.exists(), isTrue);
+    final pdfBytes = await pdfFile.readAsBytes();
+    expect(pdfBytes.length, greaterThan(100));
+    expect(String.fromCharCodes(pdfBytes.take(8)), contains('%PDF'));
   });
 }
 

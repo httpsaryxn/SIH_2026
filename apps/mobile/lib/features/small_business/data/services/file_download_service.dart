@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
@@ -35,15 +34,14 @@ class FileDownloadService {
           rgb[rgbIdx++] = ((g * a) + (255 * (1.0 - a))).round().clamp(0, 255);
           rgb[rgbIdx++] = ((b * a) + (255 * (1.0 - a))).round().clamp(0, 255);
         }
-        final compressed = Uint8List.fromList(zlib.encode(rgb));
         return {
-          'bytes': compressed,
+          'bytes': rgb,
           'width': width,
           'height': height,
         };
       }
     } catch (e) {
-      debugPrint('FSSAI logo asset load note (fallback used in test): $e');
+      debugPrint('FSSAI logo asset load note: $e');
     }
     return null;
   }
@@ -54,6 +52,7 @@ class FileDownloadService {
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
+    bool shareOnMobile = true,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_artwork_${widthMm.toInt()}x${heightMm.toInt()}mm.svg';
@@ -69,6 +68,7 @@ class FileDownloadService {
       fileName: fileName,
       content: svgContent,
       mimeType: 'image/svg+xml;charset=utf-8',
+      shareOnMobile: shareOnMobile,
     );
   }
 
@@ -76,11 +76,13 @@ class FileDownloadService {
   static Future<String?> downloadPngBytes({
     required String fileName,
     required List<int> bytes,
+    bool shareOnMobile = true,
   }) async {
     return await platform_downloader.triggerBytesDownload(
       fileName: fileName,
       bytes: bytes,
       mimeType: 'image/png',
+      shareOnMobile: shareOnMobile,
     );
   }
 
@@ -91,12 +93,17 @@ class FileDownloadService {
     double widthMm = 100,
     double heightMm = 150,
     List<int>? preRenderedBytes,
+    bool shareOnMobile = true,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_highres_${widthMm.toInt()}x${heightMm.toInt()}mm.png';
 
     if (preRenderedBytes != null && preRenderedBytes.isNotEmpty) {
-      return await downloadPngBytes(fileName: fileName, bytes: preRenderedBytes);
+      return await downloadPngBytes(
+        fileName: fileName,
+        bytes: preRenderedBytes,
+        shareOnMobile: shareOnMobile,
+      );
     }
 
     final svgContent = _generateLabelSvg(
@@ -111,6 +118,7 @@ class FileDownloadService {
       svgContent: svgContent,
       width: (widthMm * 12).toInt().clamp(800, 2400),
       height: (heightMm * 12).toInt().clamp(1000, 3600),
+      shareOnMobile: shareOnMobile,
     );
   }
 
@@ -120,6 +128,7 @@ class FileDownloadService {
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
+    bool shareOnMobile = true,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_print_spec_300dpi.pdf';
@@ -138,11 +147,15 @@ class FileDownloadService {
       fileName: fileName,
       bytes: pdfBytes,
       mimeType: 'application/pdf',
+      shareOnMobile: shareOnMobile,
     );
   }
 
   /// Generates and triggers direct download of Legal Metrology JSON metadata
-  static Future<String?> downloadJsonMetadata({required SmallBusinessLabelModel model}) async {
+  static Future<String?> downloadJsonMetadata({
+    required SmallBusinessLabelModel model,
+    bool shareOnMobile = true,
+  }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_compliance_metadata.json';
 
@@ -152,6 +165,7 @@ class FileDownloadService {
       fileName: fileName,
       content: jsonContent,
       mimeType: 'application/json;charset=utf-8',
+      shareOnMobile: shareOnMobile,
     );
   }
 
@@ -667,7 +681,7 @@ class FileDownloadService {
       final imgBytes = fssaiImageData['bytes'] as Uint8List;
       final int imgW = fssaiImageData['width'] as int;
       final int imgH = fssaiImageData['height'] as int;
-      final obj7Header = '7 0 obj\n<< /Type /XObject /Subtype /Image /Width $imgW /Height $imgH /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ${imgBytes.length} >>\nstream\n';
+      final obj7Header = '7 0 obj\n<< /Type /XObject /Subtype /Image /Width $imgW /Height $imgH /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length ${imgBytes.length} >>\nstream\n';
       final obj7Footer = '\nendstream\nendobj\n';
 
       offsets.add(bytesBuilder.length);

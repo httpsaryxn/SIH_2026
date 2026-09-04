@@ -102,24 +102,42 @@ class SmallBusinessLabelRepository {
           .timeout(const Duration(seconds: 5));
       final List<dynamic> data = response as List<dynamic>;
 
-      var labels = data
+      final remoteLabels = data
           .map((json) => SmallBusinessLabelModel.fromMap(Map<String, dynamic>.from(json as Map)))
           .toList();
 
-      _cachedLabels = List.from(labels);
+      // Smart Merge: Remote labels take precedence, but keep locally created labels that are pending sync
+      final Set<String> remoteIds = remoteLabels
+          .map((l) => l.id ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final List<SmallBusinessLabelModel> merged = List.from(remoteLabels);
+      for (final local in _cachedLabels) {
+        if (local.id == null || !remoteIds.contains(local.id)) {
+          merged.add(local);
+        }
+      }
+
+      _cachedLabels = merged;
       _cachedActiveDraft = _cachedLabels.where((l) => l.status == 'draft').firstOrNull;
       await _saveLocalCache();
 
+      var result = List<SmallBusinessLabelModel>.from(_cachedLabels);
+      if (!includeDrafts) {
+        result = result.where((l) => l.status != 'draft').toList();
+      }
+
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final queryLower = searchQuery.trim().toLowerCase();
-        labels = labels.where((l) {
+        result = result.where((l) {
           return l.productName.toLowerCase().contains(queryLower) ||
               l.brandName.toLowerCase().contains(queryLower) ||
               l.productCategory.toLowerCase().contains(queryLower);
         }).toList();
       }
 
-      return labels;
+      return result;
     } catch (e) {
       debugPrint('Error fetching labels from Supabase ($e), returning local cache.');
       return getCachedLabels(searchQuery: searchQuery);
@@ -176,6 +194,15 @@ class SmallBusinessLabelRepository {
     }
   }
 
+  static final RegExp _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  bool _isValidUuid(String? id) {
+    if (id == null || id.isEmpty) return false;
+    return _uuidRegex.hasMatch(id);
+  }
+
   /// Saves or updates a draft
   Future<SmallBusinessLabelModel> saveDraft(SmallBusinessLabelModel draft) async {
     await loadLocalCache();
@@ -184,7 +211,7 @@ class SmallBusinessLabelRepository {
       final labelData = draft.copyWith(status: 'draft').toMap();
       final Map<String, dynamic> savedRecord;
 
-      if (draft.id != null && draft.id!.isNotEmpty) {
+      if (_isValidUuid(draft.id)) {
         final res = await _supabase
             .from('small_business_labels')
             .update(labelData)
@@ -194,9 +221,10 @@ class SmallBusinessLabelRepository {
             .timeout(const Duration(seconds: 5));
         savedRecord = Map<String, dynamic>.from(res);
       } else {
+        final insertData = Map<String, dynamic>.from(labelData)..remove('id');
         final res = await _supabase
             .from('small_business_labels')
-            .insert(labelData)
+            .insert(insertData)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
@@ -240,7 +268,7 @@ class SmallBusinessLabelRepository {
       final labelMap = finalizedData.toMap();
       final Map<String, dynamic> savedRecord;
 
-      if (label.id != null && label.id!.isNotEmpty) {
+      if (_isValidUuid(label.id)) {
         final res = await _supabase
             .from('small_business_labels')
             .update(labelMap)
@@ -250,9 +278,10 @@ class SmallBusinessLabelRepository {
             .timeout(const Duration(seconds: 5));
         savedRecord = Map<String, dynamic>.from(res);
       } else {
+        final insertData = Map<String, dynamic>.from(labelMap)..remove('id');
         final res = await _supabase
             .from('small_business_labels')
-            .insert(labelMap)
+            .insert(insertData)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
@@ -284,19 +313,26 @@ class SmallBusinessLabelRepository {
   }
 
   void _updateLocalCacheItem(SmallBusinessLabelModel model) {
-    final index = _cachedLabels.indexWhere((l) => l.id == model.id);
+    final index = _cachedLabels.indexWhere(
+      (l) =>
+          (model.id != null && model.id!.isNotEmpty && l.id == model.id) ||
+          (model.productName.trim().isNotEmpty &&
+              l.productName.trim().toLowerCase() ==
+                  model.productName.trim().toLowerCase() &&
+              l.brandName.trim().toLowerCase() ==
+                  model.brandName.trim().toLowerCase()),
+    );
     if (index >= 0) {
-      _cachedLabels[index] = model;
-    } else {
-      _cachedLabels.insert(0, model);
+      _cachedLabels.removeAt(index);
     }
+    _cachedLabels.insert(0, model);
   }
 
   /// Internal helper to sync ingredients, allergens, nutrients, claims
   Future<void> _syncChildRecords(String labelId, SmallBusinessLabelModel label) async {
-    try {
-      // 1. Ingredients
-      if (label.ingredients.isNotEmpty) {
+    // 1. Ingredients
+    if (label.ingredients.isNotEmpty) {
+      try {
         await _supabase.from('small_business_ingredients').delete().eq('label_id', labelId);
         final ingData = label.ingredients.asMap().entries.map((entry) {
           final idx = entry.key;
@@ -309,10 +345,14 @@ class SmallBusinessLabelRepository {
           };
         }).toList();
         await _supabase.from('small_business_ingredients').insert(ingData);
+      } catch (e) {
+        debugPrint('Error syncing ingredients: $e');
       }
+    }
 
-      // 2. Allergens
-      if (label.allergens.isNotEmpty) {
+    // 2. Allergens
+    if (label.allergens.isNotEmpty) {
+      try {
         await _supabase.from('small_business_allergens').delete().eq('label_id', labelId);
         final algData = label.allergens.map((alg) {
           return {
@@ -321,10 +361,14 @@ class SmallBusinessLabelRepository {
           };
         }).toList();
         await _supabase.from('small_business_allergens').insert(algData);
+      } catch (e) {
+        debugPrint('Error syncing allergens (table may not exist): $e');
       }
+    }
 
-      // 3. Nutrients
-      if (label.nutrients.isNotEmpty) {
+    // 3. Nutrients
+    if (label.nutrients.isNotEmpty) {
+      try {
         await _supabase.from('small_business_nutrients').delete().eq('label_id', labelId);
         final nutrData = label.nutrients.asMap().entries.map((entry) {
           final idx = entry.key;
@@ -340,10 +384,14 @@ class SmallBusinessLabelRepository {
           };
         }).toList();
         await _supabase.from('small_business_nutrients').insert(nutrData);
+      } catch (e) {
+        debugPrint('Error syncing nutrients: $e');
       }
+    }
 
-      // 4. Claims
-      if (label.claims.isNotEmpty) {
+    // 4. Claims
+    if (label.claims.isNotEmpty) {
+      try {
         await _supabase.from('small_business_claims').delete().eq('label_id', labelId);
         final claimsData = label.claims.map((c) {
           return {
@@ -357,9 +405,9 @@ class SmallBusinessLabelRepository {
           };
         }).toList();
         await _supabase.from('small_business_claims').insert(claimsData);
+      } catch (e) {
+        debugPrint('Error syncing claims: $e');
       }
-    } catch (e) {
-      debugPrint('Error syncing child records for label $labelId: $e');
     }
   }
 
@@ -373,11 +421,13 @@ class SmallBusinessLabelRepository {
     await _saveLocalCache();
 
     try {
-      await _supabase.from('small_business_ingredients').delete().eq('label_id', labelId);
-      await _supabase.from('small_business_allergens').delete().eq('label_id', labelId);
-      await _supabase.from('small_business_nutrients').delete().eq('label_id', labelId);
-      await _supabase.from('small_business_claims').delete().eq('label_id', labelId);
-      await _supabase.from('small_business_labels').delete().eq('id', labelId);
+      if (_isValidUuid(labelId)) {
+        await _supabase.from('small_business_ingredients').delete().eq('label_id', labelId);
+        await _supabase.from('small_business_allergens').delete().eq('label_id', labelId);
+        await _supabase.from('small_business_nutrients').delete().eq('label_id', labelId);
+        await _supabase.from('small_business_claims').delete().eq('label_id', labelId);
+        await _supabase.from('small_business_labels').delete().eq('id', labelId);
+      }
       return true;
     } catch (e) {
       debugPrint('Error deleting label $labelId: $e');

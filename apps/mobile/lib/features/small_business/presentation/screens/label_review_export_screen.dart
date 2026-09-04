@@ -1,4 +1,4 @@
-﻿import 'dart:ui' as ui;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +88,9 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
         : 'Standard Pouch (100 × 150 mm)';
 
     _parseDimensionsFromLabel(_selectedDimension);
+
+    // Immediately persist finalized label to both Supabase and Local Cache
+    _repository.publishLabel(_currentModel);
   }
 
   void _parseDimensionsFromLabel(String dim) {
@@ -109,7 +112,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
 
     try {
       final modelToPublish = _currentModel.copyWith(
-        status: 'published',
+        status: 'ready',
         currentStep: 6,
         completionPercentage: 100,
         exportFormat: _selectedFormat.name,
@@ -117,7 +120,11 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       );
 
       // 1. Save and publish label to repository
-      await _repository.publishLabel(modelToPublish);
+      try {
+        await _repository.publishLabel(modelToPublish);
+      } catch (e) {
+        debugPrint('Persist on export note: $e');
+      }
 
       // 2. Direct Browser / OS File Download to Downloads folder
       String? savedFilePath;
@@ -125,8 +132,12 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
         case ExportFormat.png:
           List<int>? pngBytes;
           try {
+            await WidgetsBinding.instance.endOfFrame;
             final boundary = _labelRepaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
             if (boundary != null) {
+              if (boundary.debugNeedsPaint) {
+                await Future.delayed(const Duration(milliseconds: 50));
+              }
               final image = await boundary.toImage(pixelRatio: 3.0);
               final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
               if (byteData != null) {
@@ -171,26 +182,26 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       _notificationService.notify(
         title: 'Label Downloaded to Device',
         message:
-            'Downloaded "${modelToPublish.productName}" packaging artwork (${_selectedFormat.name.toUpperCase()}) directly to your Downloads folder.',
+            'Downloaded "${modelToPublish.productName}" packaging artwork (${_selectedFormat.name.toUpperCase()}) directly to your device.',
         type: NotificationType.compliance,
       );
 
       if (!mounted) return;
       setState(() => _isExporting = false);
 
+      final displayFileName = savedFilePath != null
+          ? savedFilePath.split(r'/').last.split(r'\').last
+          : '${modelToPublish.productName}_artwork.${_selectedFormat.name}';
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            savedFilePath != null
-                ? 'Saved to Downloads: ${savedFilePath.split(r'/').last.split(r'\').last}'
-                : 'Artwork downloaded to your device Downloads folder!',
-          ),
+          content: Text('Saved: $displayFileName'),
           backgroundColor: AppColors.brandDeepGreen,
           duration: const Duration(seconds: 3),
         ),
       );
 
-      _showExportSuccessDialog();
+      _showExportSuccessDialog(savedFilePath);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isExporting = false);
@@ -349,6 +360,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                       widthMm: _customWidthMm,
                       heightMm: _customHeightMm,
                       preRenderedBytes: pngBytes,
+                      shareOnMobile: false,
                     );
 
                     FileDownloadService.shareLabel(
@@ -386,7 +398,11 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     );
   }
 
-  void _showExportSuccessDialog() {
+  void _showExportSuccessDialog([String? savedFilePath]) {
+    final fileName = savedFilePath != null
+        ? savedFilePath.split(r'/').last.split(r'\').last
+        : '${_currentModel.productName}_artwork.${_selectedFormat.name}';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -408,7 +424,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your print-ready ${_selectedFormat.name.toUpperCase()} file for "${_currentModel.productName}" has been saved directly to your device Downloads folder.',
+              'Your print-ready ${_selectedFormat.name.toUpperCase()} file "$fileName" has been generated and saved to your device.',
               style: const TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 12),
@@ -420,7 +436,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.folder_open_rounded, size: 18, color: AppColors.brandDeepGreen),
+                  const Icon(Icons.insert_drive_file_outlined, size: 18, color: AppColors.brandDeepGreen),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -431,6 +447,25 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                 ],
               ),
             ),
+            if (savedFilePath != null) ...[
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: () {
+                  FileDownloadService.shareLabel(
+                    title: 'Packaging Label: $fileName',
+                    text: 'Exported packaging label artwork: $fileName',
+                    filePath: savedFilePath,
+                  );
+                },
+                icon: const Icon(Icons.share_rounded, size: 18),
+                label: const Text('Share / Open / Save to Device'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.brandDeepGreen,
+                  side: const BorderSide(color: AppColors.brandDeepGreen),
+                  minimumSize: const Size(double.infinity, 42),
+                ),
+              ),
+            ],
           ],
         ),
         actions: [

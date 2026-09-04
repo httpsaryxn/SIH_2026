@@ -35,7 +35,7 @@ class LabelItemData {
         ? model.productCategory.trim()
         : 'General Food';
     final subtitle = '$brandDisplay • $catDisplay';
-    final isReady = model.status == 'ready';
+    final isReady = model.status == 'ready' || model.status == 'published';
     final isNeedsReview = model.status == 'needs_review';
     final statusText = isReady
         ? 'Ready'

@@ -37,15 +37,21 @@ class ContinueWorkingSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Continue working',
-              style: TextStyle(
-                color: AppColors.onBackground,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+            const Expanded(
+              child: Text(
+                'Continue working',
+                style: TextStyle(
+                  color: AppColors.onBackground,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (onDeleteDraft != null)
                   IconButton(

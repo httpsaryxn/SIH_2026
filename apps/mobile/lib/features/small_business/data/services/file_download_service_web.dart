@@ -2,11 +2,12 @@
 import 'dart:async';
 import 'dart:html' as html;
 
-void triggerDownload({
+Future<String?> triggerDownload({
   required String fileName,
   required String content,
   required String mimeType,
-}) {
+  bool shareOnMobile = true,
+}) async {
   final href = content.startsWith('data:')
       ? content
       : 'data:$mimeType;charset=utf-8,${Uri.encodeComponent(content)}';
@@ -18,13 +19,15 @@ void triggerDownload({
   html.document.body?.children.add(anchor);
   anchor.click();
   html.document.body?.children.remove(anchor);
+  return fileName;
 }
 
-void triggerBytesDownload({
+Future<String?> triggerBytesDownload({
   required String fileName,
   required List<int> bytes,
   required String mimeType,
-}) {
+  bool shareOnMobile = true,
+}) async {
   final blob = html.Blob([bytes], mimeType);
   final url = html.Url.createObjectUrlFromBlob(blob);
   final anchor = html.AnchorElement(href: url)
@@ -35,20 +38,22 @@ void triggerBytesDownload({
   anchor.click();
   html.document.body?.children.remove(anchor);
   html.Url.revokeObjectUrl(url);
+  return fileName;
 }
 
 /// Renders SVG directly to a canvas and exports genuine binary PNG
-Future<void> triggerSvgToPngDownload({
+Future<String?> triggerSvgToPngDownload({
   required String fileName,
   required String svgContent,
   int width = 1200,
   int height = 1800,
+  bool shareOnMobile = true,
 }) async {
   final svgBlob = html.Blob([svgContent], 'image/svg+xml;charset=utf-8');
   final url = html.Url.createObjectUrlFromBlob(svgBlob);
   final img = html.ImageElement();
 
-  final completer = Completer<void>();
+  final completer = Completer<String?>();
 
   img.onLoad.listen((_) {
     final canvas = html.CanvasElement(width: width, height: height);
@@ -66,7 +71,7 @@ Future<void> triggerSvgToPngDownload({
     html.document.body?.children.add(anchor);
     anchor.click();
     html.document.body?.children.remove(anchor);
-    completer.complete();
+    completer.complete(fileName);
   });
 
   img.onError.listen((e) {
@@ -77,18 +82,19 @@ Future<void> triggerSvgToPngDownload({
       content: svgContent,
       mimeType: 'image/svg+xml',
     );
-    completer.complete();
+    completer.complete(fileName);
   });
 
   img.src = url;
   return completer.future;
 }
 
-void triggerNativeShare({
+Future<void> triggerNativeShare({
   required String title,
   required String text,
   String? url,
-}) {
+  String? filePath,
+}) async {
   try {
     html.window.navigator.share({
       'title': title,

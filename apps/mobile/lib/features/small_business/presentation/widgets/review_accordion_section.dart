@@ -47,29 +47,53 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final model = widget.labelModel;
-    final ingredientsText = (model != null && model.ingredients.isNotEmpty)
-        ? model.ingredients.map((i) => '${i.name} (${i.percentage ?? 0}%)').join(', ')
-        : 'Raw Mango Pieces (60%), Mustard Oil (20%), Salt (10%), Spices (10%)';
-    final allergensText = (model != null && model.allergens.isNotEmpty)
-        ? model.allergens.join(', ')
-        : 'Mustard';
+    final ingredientsList = model?.ingredients ?? [];
+    final ingredientsText = ingredientsList.isNotEmpty
+        ? ingredientsList.map((i) {
+            if (i.percentage != null && i.percentage! > 0) {
+              return '${i.name} (${i.percentage}%)';
+            }
+            return i.name;
+          }).join(', ')
+        : 'No ingredients entered';
+
+    final allergensList = model?.allergens ?? [];
+    final allergensText = allergensList.isNotEmpty
+        ? allergensList.join(', ')
+        : 'No major allergens declared';
+
     final manufacturerName = (model != null && model.manufacturerName.isNotEmpty)
         ? model.manufacturerName
         : widget.brandName;
     final facilityAddress = (model != null && model.manufacturerAddress.isNotEmpty)
         ? model.manufacturerAddress
-        : 'Plot 12, Greenfield Organic Estate, Phase 3, Pune, MH, 411028';
+        : 'Not provided';
     final fssaiNumber = (model != null && model.fssaiLicenseNumber.isNotEmpty)
         ? model.fssaiLicenseNumber
-        : '12345678901234';
+        : 'Pending';
     final phone = (model != null && model.consumerCarePhone.isNotEmpty)
         ? model.consumerCarePhone
-        : '+91 98765 43210';
+        : 'Not provided';
     final email = (model != null && model.consumerCareEmail.isNotEmpty)
         ? model.consumerCareEmail
-        : 'care@desiharvest.in';
+        : 'Not provided';
+
+    // Collect claims from model or widget.selectedClaims
+    final claims = <Map<String, String>>[];
+    if (model != null && model.claims.isNotEmpty) {
+      for (final c in model.claims) {
+        claims.add({'title': c.title, 'description': c.description});
+      }
+    } else if (widget.selectedClaims.isNotEmpty) {
+      for (final c in widget.selectedClaims) {
+        claims.add({'title': c.title, 'description': c.description});
+      }
+    }
+
+    final nutrientsList = model?.nutrients ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,6 +129,10 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
                 _InfoRow('Unit Sale Price (USP)', model.usp),
               if (model != null && model.batchNumber.isNotEmpty)
                 _InfoRow('Batch / Lot No.', model.batchNumber),
+              if (model != null && model.mfgDate.isNotEmpty)
+                _InfoRow('Mfg Date', model.mfgDate),
+              if (model != null && model.bestBefore.isNotEmpty)
+                _InfoRow('Best Before', model.bestBefore),
             ],
           ),
         ),
@@ -113,7 +141,7 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 2: Ingredients & Allergens
         _AccordionCard(
           title: 'Ingredients & Allergens',
-          subtitle: '${model?.ingredients.length ?? 5} declared ingredients • ${model?.allergens.length ?? 1} allergen alert',
+          subtitle: '${ingredientsList.length} declared ingredients • ${allergensList.length} allergen alert(s)',
           icon: Icons.eco_rounded,
           isExpanded: _expandedIndex == 1,
           onToggle: () => _toggle(1),
@@ -122,9 +150,9 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _InfoRow('Major Ingredients', ingredientsText),
-              _InfoRow('Preservative Class', 'Natural (Spices & Edible Oil)'),
-              _InfoRow('Declared Allergens', '$allergensText (Bold on label)'),
-              _InfoRow('Cross-Contamination Alert', 'Sesame Seeds, Tree Nuts'),
+              _InfoRow('Declared Allergens', allergensText),
+              if (model != null && model.storageInstructions.isNotEmpty)
+                _InfoRow('Storage Instructions', model.storageInstructions),
             ],
           ),
         ),
@@ -133,7 +161,7 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 3: Nutritional Values
         _AccordionCard(
           title: 'Nutritional Values Table',
-          subtitle: 'Per 100g & per ${model?.servingSize ?? 30}${model?.servingSizeUnit ?? 'g'} serving • Table format',
+          subtitle: 'Per 100g & per ${model?.servingSize ?? "30"}${model?.servingSizeUnit ?? "g"} serving (${nutrientsList.length} parameters)',
           icon: Icons.analytics_rounded,
           isExpanded: _expandedIndex == 2,
           onToggle: () => _toggle(2),
@@ -141,11 +169,14 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _InfoRow('Serving Size', '${model?.servingSize ?? 30} ${model?.servingSizeUnit ?? 'g'}'),
-              _InfoRow('Energy per serving', '180 kcal (9.0% RDA)'),
-              _InfoRow('Total Fat', '12 g (Trans Fat: 0g)'),
-              _InfoRow('Added Sugars', '0 g (Zero Added Sugar)'),
-              _InfoRow('Sodium', '980 mg per serving'),
+              _InfoRow('Serving Size', '${model?.servingSize ?? "30"} ${model?.servingSizeUnit ?? "g"}'),
+              if (nutrientsList.isEmpty)
+                const _InfoRow('Nutrients', 'Standard mandatory baseline')
+              else
+                ...nutrientsList.map((n) {
+                  final indent = n.isSubNutrient ? '  - ' : '';
+                  return _InfoRow('$indent${n.label}', '${n.value} ${n.unit}');
+                }),
             ],
           ),
         ),
@@ -175,7 +206,7 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
         // Section 5: Product Claims
         _AccordionCard(
           title: 'Product Claims',
-          subtitle: '${widget.selectedClaims.length} verified claims attached',
+          subtitle: '${claims.length} verified claim(s) attached',
           icon: Icons.verified_rounded,
           isExpanded: _expandedIndex == 4,
           onToggle: () => _toggle(4),
@@ -183,13 +214,13 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.selectedClaims.isEmpty)
+              if (claims.isEmpty)
                 const Text(
-                  'No claims selected',
+                  'No claims selected for front-of-pack display.',
                   style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
                 )
               else
-                ...widget.selectedClaims.map((claim) {
+                ...claims.map((claim) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6.0),
                     child: Row(
@@ -206,20 +237,21 @@ class _ReviewAccordionSectionState extends State<ReviewAccordionSection> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                claim.title,
+                                claim['title'] ?? '',
                                 style: const TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.onSurface,
                                 ),
                               ),
-                              Text(
-                                claim.description,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.onSurfaceVariant,
+                              if ((claim['description'] ?? '').isNotEmpty)
+                                Text(
+                                  claim['description'] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),

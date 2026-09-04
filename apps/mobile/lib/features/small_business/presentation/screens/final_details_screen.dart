@@ -318,6 +318,9 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
 
     final updatedModel = _buildCurrentState();
 
+    // Auto-save draft so it is persisted
+    _repository.saveDraft(updatedModel);
+
     _notificationService.notify(
       title: 'Step 5 Complete',
       message:

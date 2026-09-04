@@ -40,38 +40,45 @@ class ReviewProgressHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandDeepGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'STEP 0$currentStep OF 0$totalSteps',
-                      style: const TextStyle(
-                        color: AppColors.brandDeepGreen,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandDeepGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'STEP 0$currentStep OF 0$totalSteps',
+                        style: const TextStyle(
+                          color: AppColors.brandDeepGreen,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    stepTitle,
-                    style: const TextStyle(
-                      color: AppColors.onSurface,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        stepTitle,
+                        style: const TextStyle(
+                          color: AppColors.onSurface,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(

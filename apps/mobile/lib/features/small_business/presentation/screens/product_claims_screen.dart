@@ -354,6 +354,9 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
   void _onContinue() {
     final updatedModel = _buildCurrentState();
 
+    // Auto-save draft so it is immediately persisted
+    _repository.saveDraft(updatedModel);
+
     final selectedClaims = _allClaims
         .where((c) => _selectedClaimIds.contains(c.id))
         .toList();

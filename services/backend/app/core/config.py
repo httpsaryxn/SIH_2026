@@ -12,14 +12,14 @@ class Settings:
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://juthxodcpmlrcphnjihc.supabase.co")
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://tyshfugxmwvhbmoydlnl.supabase.co")
     SUPABASE_KEY: str = os.getenv(
         "SUPABASE_KEY",
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1dGh4b2RjcG1scmNwaG5qaWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5ODY1OTcsImV4cCI6MjEwMzU2MjU5N30.AypIEimyFQMZWuyMIaOtva2__BpX1WGfYBDVt7WiNoc"
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5c2hmdWd4bXd2aGJtb3lkbG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NDkzMDQsImV4cCI6MjEwMzQyNTMwNH0.URx0CbCB5qqRk_S3gUTIG8h2xevzrruGwmPYQYqCAik"
     )
     SUPABASE_PUBLISHABLE_KEY: str = os.getenv(
         "SUPABASE_PUBLISHABLE_KEY",
-        "sb_publishable_GHtjFJFIsAJ9OustSIMWdw_f9j1ZFxc"
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5c2hmdWd4bXd2aGJtb3lkbG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NDkzMDQsImV4cCI6MjEwMzQyNTMwNH0.URx0CbCB5qqRk_S3gUTIG8h2xevzrruGwmPYQYqCAik"
     )
 
 

@@ -5,8 +5,8 @@ from app.core.supabase import check_supabase_connection
 from app.api.v1.endpoints.small_business_labels import router as small_business_router
 
 app = FastAPI(
-    title="SIH 2026 Small Business API",
-    description="Backend service for Smart India Hackathon 2026 - Small Business Label Studio, FSSAI & Legal Metrology Compliance, and Supabase integration.",
+    title="SIH 2026 Backend API",
+    description="Backend service for Smart India Hackathon 2026 - Food & Ingredient Analysis with Barcode and OCR support.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -39,7 +39,7 @@ class HealthResponse(BaseModel):
 )
 def read_root():
     return {
-        "message": "Welcome to SIH 2026 Small Business API",
+        "message": "Welcome to SIH 2026 Backend API",
         "status": "online",
         "version": "1.0.0",
         "docs": "/docs",
