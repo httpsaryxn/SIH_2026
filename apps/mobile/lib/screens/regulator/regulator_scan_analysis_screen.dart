@@ -7,6 +7,7 @@ import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../core/models/regulator_violation.dart';
 import '../../core/services/legal_metrology_service.dart';
+import '../../core/services/ml_scanner_client.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../shared/multi_capture_screen.dart';
 import 'regulator_violation_review_screen.dart';
@@ -47,6 +48,7 @@ class _RegulatorScanAnalysisScreenState
   bool _isAnalysisFinished = false;
   String _statusMessage = 'Ingesting field evidence into forensic cache...';
   RegulatorViolation? _createdViolation;
+  MlScannerResult? _mlScannerResult;
 
   /// Returns the list of captures for carousel display.
   List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
@@ -137,10 +139,18 @@ class _RegulatorScanAnalysisScreenState
     });
 
     _progressController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
+      if (status == AnimationStatus.completed && !_isAnalysisFinished) {
+        // Default completion message — may be overwritten by pipeline results
         setState(() {
           _isAnalysisFinished = true;
-          _statusMessage = 'Analysis Complete! 2 Legal Metrology Deviations Flagged.';
+          if (_mlScannerResult != null) {
+            final s = _mlScannerResult!.score;
+            _statusMessage =
+                'Analysis Complete! Score: ${s.finalScore.toStringAsFixed(1)}% '
+                '(${s.starLabel}) — ${s.failedRules} violation(s) flagged.';
+          } else {
+            _statusMessage = 'Analysis Complete!';
+          }
         });
         _laserController.stop();
       }
@@ -159,35 +169,94 @@ class _RegulatorScanAnalysisScreenState
   Future<void> _startPipelineExecution() async {
     _progressController.forward();
 
-    // On-device Legal Metrology (PCR 2011) pipeline: ML Kit OCR + bar code +
-    // the deterministic rulebook. Offline-capable; registries enrich when online.
-    LmAuditResult? audit;
+    // ── Stage 1: Try remote ML Scanner service first ───────────────────────
+    MlScannerResult? remoteResult;
     try {
       if (mounted) {
         setState(() => _statusMessage =
-            'Multi-zone OCR & bar code extraction (on device)...');
+            'Connecting to ML Scanner service...');
       }
-      audit = await LegalMetrologyService.auditCapture(
+      remoteResult = await LegalMetrologyService.auditCaptureRemote(
         capture: widget.pendingCapture,
+        multiCapture: widget.multiCapture,
         productName: widget.prefilledProductName,
       );
-      if (mounted) {
-        setState(() => _statusMessage =
-            'Validating mandatory declarations against LM(PC) Rules 2011...');
-      }
     } catch (_) {
-      // OCR/model unavailable — fall through with audit == null
+      // Service unreachable — will fall back to on-device
+    }
+
+    if (remoteResult != null && mounted) {
+      setState(() {
+        _mlScannerResult = remoteResult;
+        _statusMessage =
+            'ML Scanner analysis complete — compiling regulatory dossier...';
+      });
+    }
+
+    // ── Stage 2: Fall back to on-device audit if remote unavailable ────────
+    LmAuditResult? audit;
+    if (remoteResult == null) {
+      try {
+        if (mounted) {
+          setState(() => _statusMessage =
+              'Multi-zone OCR & bar code extraction (on device)...');
+        }
+        audit = await LegalMetrologyService.auditCapture(
+          capture: widget.pendingCapture,
+          productName: widget.prefilledProductName,
+        );
+        if (mounted) {
+          setState(() => _statusMessage =
+              'Validating mandatory declarations against LM(PC) Rules 2011...');
+        }
+      } catch (_) {
+        // OCR/model unavailable — fall through with audit == null
+      }
+    }
+
+    // ── Stage 3: Create violation record ───────────────────────────────────
+    String? violationSummary;
+    int confidenceScore = 94;
+    String severity = 'High';
+    String riskLevel = 'High Risk';
+
+    if (remoteResult != null) {
+      final s = remoteResult.score;
+      confidenceScore = s.finalScore.round();
+      if (s.finalScore >= 85) {
+        severity = 'Low';
+        riskLevel = 'Low Risk';
+      } else if (s.finalScore >= 70) {
+        severity = 'Medium';
+        riskLevel = 'Medium Risk';
+      }
+      final failedNames =
+          remoteResult.rules.failed.map((r) => r.ruleName).take(3);
+      violationSummary = s.failedRules > 0
+          ? 'ML Analysis: ${s.failedRules} rule(s) failed — ${failedNames.join("; ")}'
+          : 'ML Analysis: All ${s.passedRules} checked rules passed.';
     }
 
     try {
+      // Determine product name from remote result, on-device audit, or prefilled
+      String resolvedProductName;
+      if (remoteResult != null &&
+          (remoteResult.product['name'] as String?)?.isNotEmpty == true) {
+        resolvedProductName = remoteResult.product['name'] as String;
+      } else if (audit != null &&
+          (audit.detectedDeclarations['commodity_name'] as String?)
+                  ?.isNotEmpty ==
+              true) {
+        resolvedProductName =
+            audit.detectedDeclarations['commodity_name'] as String;
+      } else {
+        resolvedProductName = widget.prefilledProductName?.isNotEmpty == true
+            ? widget.prefilledProductName!
+            : 'Packaged Food Commodity';
+      }
+
       final violation = await RegulatorDataService.createAuditViolation(
-        productName: (audit?.detectedDeclarations['commodity_name'] as String?)
-                    ?.isNotEmpty ==
-                true
-            ? audit!.detectedDeclarations['commodity_name'] as String
-            : widget.prefilledProductName?.isNotEmpty == true
-                ? widget.prefilledProductName!
-                : 'Packaged Food Commodity',
+        productName: resolvedProductName,
         companyName: widget.prefilledCompanyName?.isNotEmpty == true
             ? widget.prefilledCompanyName!
             : 'Registered Packer / Importer',
@@ -195,15 +264,47 @@ class _RegulatorScanAnalysisScreenState
         pendingCapture: widget.pendingCapture,
         imagePath: widget.pendingCapture.localPath,
         audit: audit,
+        mlResult: remoteResult,
       );
 
       if (mounted) {
         setState(() {
           _createdViolation = violation;
+          _isAnalysisFinished = true;
+          if (remoteResult != null) {
+            final s = remoteResult.score;
+            _statusMessage =
+                'Analysis Complete! Score: ${s.finalScore.toStringAsFixed(1)}% '
+                '(${s.starLabel}) — ${s.failedRules} violation(s) flagged.';
+          } else if (audit != null) {
+            _statusMessage =
+                'Analysis Complete! ${audit.complianceIssues.length} issue(s) detected.';
+          } else {
+            _statusMessage = 'Analysis Complete!';
+          }
         });
+        _laserController.stop();
       }
     } catch (_) {
       // Fallback: If DB write encountered issues, generate safe stub instance
+      List<RegulatorDeclaration> fallbackDecls = [];
+      if (remoteResult != null) {
+        final allRules = [
+          ...remoteResult.rules.failed,
+          ...remoteResult.rules.warnings,
+          ...remoteResult.rules.inconclusive,
+          ...remoteResult.rules.passed,
+        ];
+        fallbackDecls = allRules.map((r) => RegulatorDeclaration(
+          fieldName: r.ruleName,
+          extractedValue: r.evidence ?? (r.status.toUpperCase() == 'PASS' ? 'Compliant' : 'Not detected'),
+          confidencePercent: remoteResult!.score.finalScore.round(),
+          status: r.standardStatus,
+          ruleCitation: r.legalReference ?? r.ruleId,
+          ruleDescription: r.detail,
+        )).toList();
+      }
+
       if (mounted) {
         setState(() {
           _createdViolation = RegulatorViolation(
@@ -211,25 +312,31 @@ class _RegulatorScanAnalysisScreenState
             scanId: 'SCN-${widget.pendingCapture.fileName.hashCode.abs()}',
             productName: widget.prefilledProductName?.isNotEmpty == true
                 ? widget.prefilledProductName!
-                : 'Packaged Food Commodity',
+                : (remoteResult?.product['name'] as String? ?? 'Packaged Food Commodity'),
             companyName: widget.prefilledCompanyName?.isNotEmpty == true
                 ? widget.prefilledCompanyName!
-                : 'Registered Packer / Importer',
+                : (remoteResult?.product['manufacturer'] as String? ?? 'Registered Packer / Importer'),
             category: widget.prefilledCategory ?? 'Packaged Food',
             region: 'North Zone',
             storeLocation: 'Retail Outlet Sector 18',
             imageUrl: widget.pendingCapture.localPath,
-            severity: 'High',
-            riskLevel: 'High Risk',
-            confidenceScore: 94,
-            violationType: 'PCR 2011 Non-Compliance',
-            violationSummary: 'Font size below minimum threshold; missing importer declaration.',
+            severity: severity,
+            riskLevel: riskLevel,
+            confidenceScore: confidenceScore,
+            violationType: remoteResult != null && remoteResult.rules.failed.isNotEmpty
+                ? remoteResult.rules.failed.first.ruleName
+                : 'PCR 2011 Non-Compliance',
+            violationSummary: violationSummary ??
+                'Font size below minimum threshold; missing importer declaration.',
             capturedAt: widget.pendingCapture.capturedAt,
             status: 'pending_review',
-            declarations: [],
+            declarations: fallbackDecls,
             overlayBoxes: [],
           );
+          _isAnalysisFinished = true;
+          _statusMessage = 'Analysis Complete!';
         });
+        _laserController.stop();
       }
     }
   }

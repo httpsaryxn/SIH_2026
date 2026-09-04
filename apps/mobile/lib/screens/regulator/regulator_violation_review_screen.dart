@@ -6,7 +6,6 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/regulator_violation.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
-import '../../widgets/regulator/regulator_declaration_card.dart';
 import 'regulator_notice_generator_screen.dart';
 
 class RegulatorViolationReviewScreen extends StatefulWidget {
@@ -186,37 +185,25 @@ class _RegulatorViolationReviewScreenState
                 // Product Context
                 _buildProductContext(violation, formattedDate),
 
-                // Extracted Declarations List
+                // Extracted Declarations Section Title
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.gutter,
-                    vertical: AppSpacing.md,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.gutter,
+                    AppSpacing.md,
+                    AppSpacing.gutter,
+                    0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Extracted Declarations',
-                        style: AppTypography.headlineSm.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: violation.declarations.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (context, index) {
-                          final declaration = violation.declarations[index];
-                          return RegulatorDeclarationCard(declaration: declaration);
-                        },
-                      ),
-                    ],
+                  child: Text(
+                    'Extracted Declarations',
+                    style: AppTypography.headlineSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
                   ),
                 ),
+
+                // Extracted Declarations Groups (Compliant vs Non-Compliant)
+                _buildDeclarationGroups(violation),
                 const SizedBox(height: AppSpacing.md),
               ],
             ),
@@ -741,6 +728,277 @@ class _RegulatorViolationReviewScreenState
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeclarationGroups(RegulatorViolation violation) {
+    final nonCompliant = violation.declarations.where((d) =>
+        d.isViolation ||
+        d.isWarning ||
+        d.status.toLowerCase().contains('violation') ||
+        d.status.toLowerCase().contains('fail') ||
+        d.status.toLowerCase().contains('missing') ||
+        d.status.toLowerCase().contains('unable') ||
+        d.status.toLowerCase().contains('inconclusive')).toList();
+
+    final compliant = violation.declarations.where((d) =>
+        d.isCompliant ||
+        d.status.toLowerCase() == 'pass' ||
+        d.status.toLowerCase() == 'compliant').toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.gutter,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Group 1: Non-Compliant / Missing Declarations ──
+          _buildGroupHeader(
+            title: 'Non-Compliant & Missing Declarations',
+            count: nonCompliant.length,
+            isError: true,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (nonCompliant.isEmpty)
+            _buildEmptyGroupPlaceholder('No violations or missing declarations found.')
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: nonCompliant.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) => _buildDeclarationRow(
+                declaration: nonCompliant[index],
+                isNonCompliant: true,
+              ),
+            ),
+
+          const SizedBox(height: AppSpacing.xl),
+
+          // ── Group 2: Compliant Declarations ──
+          _buildGroupHeader(
+            title: 'Compliant Declarations',
+            count: compliant.length,
+            isError: false,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (compliant.isEmpty)
+            _buildEmptyGroupPlaceholder('No declarations verified as compliant.')
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: compliant.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) => _buildDeclarationRow(
+                declaration: compliant[index],
+                isNonCompliant: false,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader({
+    required String title,
+    required int count,
+    required bool isError,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: AppTypography.headlineSm.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 15.5,
+              color: AppColors.onSurface,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: isError
+                ? AppColors.errorContainer
+                : AppColors.primaryContainer.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          ),
+          child: Text(
+            '$count',
+            style: AppTypography.labelSm.copyWith(
+              color: isError
+                  ? AppColors.onErrorContainer
+                  : AppColors.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyGroupPlaceholder(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Text(
+        message,
+        style: AppTypography.bodySm.copyWith(
+          color: AppColors.secondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeclarationRow({
+    required RegulatorDeclaration declaration,
+    required bool isNonCompliant,
+  }) {
+    final statusColor = isNonCompliant ? AppColors.error : AppColors.primary;
+    final statusBg = isNonCompliant
+        ? AppColors.errorContainer
+        : AppColors.primaryContainer.withValues(alpha: 0.25);
+    final statusText = isNonCompliant
+        ? AppColors.onErrorContainer
+        : AppColors.onPrimaryContainer;
+
+    final extractedValue = declaration.extractedValue.trim();
+    final displayText = extractedValue.isNotEmpty
+        ? extractedValue
+        : (isNonCompliant ? 'Not detected' : 'Verified');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: isNonCompliant
+              ? AppColors.error.withValues(alpha: 0.35)
+              : AppColors.borderSubtle,
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Left color status indicator bar
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppSpacing.radiusMd),
+                  bottomLeft: Radius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+            ),
+            // Row content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm + 2,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Field Name and Status Badge
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            declaration.fieldName,
+                            style: AppTypography.labelMd.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBg,
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                          ),
+                          child: Text(
+                            declaration.status,
+                            style: AppTypography.labelSm.copyWith(
+                              color: statusText,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Extracted Value
+                    Text(
+                      displayText,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: extractedValue.isEmpty && isNonCompliant
+                            ? AppColors.error
+                            : AppColors.onSurface,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    // Secondary info: Rule citation & Confidence
+                    if (declaration.ruleCitation.isNotEmpty || declaration.confidencePercent > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (declaration.ruleCitation.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                declaration.ruleCitation,
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.secondary,
+                                  fontSize: 11.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          if (declaration.confidencePercent > 0) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              '${declaration.confidencePercent}% conf',
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.secondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

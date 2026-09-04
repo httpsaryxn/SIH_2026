@@ -13,6 +13,7 @@ import '../models/regulator_complaint.dart';
 import '../models/regulator_notice.dart';
 import '../models/regulator_violation.dart';
 import 'legal_metrology_service.dart';
+import 'ml_scanner_client.dart';
 import 'storage_service.dart';
 
 class RegulatorDashboardMetrics {
@@ -855,6 +856,7 @@ class RegulatorDataService {
     String? imagePath,
     String? imageUrl,
     LmAuditResult? audit,
+    MlScannerResult? mlResult,
   }) async {
     final name = companyName.trim();
     var companies = name.isNotEmpty
@@ -878,12 +880,11 @@ class RegulatorDataService {
     }
     final company = Map<String, dynamic>.from(companies.first);
 
-    // Upload images to Supabase Storage
+    // If we have a multiCapture payload, upload all 3 role-specific captures to Supabase Storage
     String? uploadedImageUrl = imageUrl;
-    final tempScanCode = 'SCN-${DateTime.now().millisecondsSinceEpoch}';
-
-    // Multi-image upload (3 role-specific captures)
     Map<CaptureRole, String?>? multiImageUrls;
+    final tempScanCode = 'REG-${DateTime.now().millisecondsSinceEpoch}';
+
     if (multiCapture != null && multiCapture.hasAnyCapture) {
       multiImageUrls = await StorageService.uploadMultiCapture(
         payload: multiCapture,
@@ -913,6 +914,10 @@ class RegulatorDataService {
         ? name
         : (company['company_name'] as String? ?? 'Registered Company');
 
+    final confidenceScore = mlResult != null
+        ? mlResult.score.finalScore.round()
+        : (audit?.scorePercent ?? 0);
+
     final scan = await _client
         .from('regulator_scans')
         .insert({
@@ -940,7 +945,7 @@ class RegulatorDataService {
           'region': company['region'],
           'store_location': '',
           'ocr_text': audit != null ? _ocrTextFromAudit(audit) : null,
-          'confidence_score': audit?.scorePercent ?? 0,
+          'confidence_score': confidenceScore,
           'status': 'completed',
         })
         .select()
@@ -949,7 +954,16 @@ class RegulatorDataService {
 
     // Persist each rule outcome as a declaration_check so the review screen
     // renders the real Legal Metrology findings.
-    if (audit != null) {
+    if (mlResult != null) {
+      final checks = mlResult.toDeclarationChecks(scanRow['id'] as String);
+      if (checks.isNotEmpty) {
+        try {
+          await _client.from('declaration_checks').insert(checks);
+        } catch (_) {
+          // non-fatal — the violation row still carries the summary
+        }
+      }
+    } else if (audit != null) {
       final checks = _declarationChecks(scanRow['id'] as String, audit);
       if (checks.isNotEmpty) {
         try {
@@ -960,7 +974,46 @@ class RegulatorDataService {
       }
     }
 
-    final tier = audit == null ? _AuditTier.medium : _tierFor(audit);
+    final _AuditTier tier;
+    final String violationType;
+    final String violationSummary;
+    final String violationStatus;
+
+    if (mlResult != null) {
+      final s = mlResult.score;
+      if (s.failedRules > 0 && s.finalScore < 60) {
+        tier = _AuditTier.critical;
+      } else if (s.failedRules > 0) {
+        tier = _AuditTier.high;
+      } else if (mlResult.rules.warnings.isNotEmpty) {
+        tier = _AuditTier.medium;
+      } else {
+        tier = _AuditTier.low;
+      }
+      violationType = s.failedRules > 0
+          ? (mlResult.rules.failed.first.ruleName)
+          : 'No deviation detected';
+      final failedNames = mlResult.rules.failed.map((r) => r.ruleName).take(3);
+      violationSummary = s.failedRules > 0
+          ? 'ML Scanner: ${s.failedRules} violation(s) flagged — ${failedNames.join("; ")}'
+          : 'ML Scanner: All ${s.passedRules} checked rules compliant under PCR 2011.';
+      violationStatus = s.failedRules > 0 ? 'pending' : 'manual_review';
+    } else {
+      tier = audit == null ? _AuditTier.medium : _tierFor(audit);
+      violationType = audit == null
+          ? 'Manual review required'
+          : (audit.complianceIssues.isEmpty
+              ? 'No deviation detected'
+              : (audit.complianceIssues.first['type'] as String? ??
+                  'PCR 2011 non-compliance'));
+      violationSummary = audit == null
+          ? 'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.'
+          : _violationSummaryFromAudit(audit);
+      violationStatus = audit != null && audit.report.diff.failed.isNotEmpty
+          ? 'pending'
+          : 'manual_review';
+    }
+
     final violation = await _client
         .from('regulator_violations')
         .insert({
@@ -968,19 +1021,10 @@ class RegulatorDataService {
           'company_id': company['company_id'],
           'severity': tier.severity,
           'risk_level': tier.riskLevel,
-          'confidence_score': audit?.scorePercent ?? 0,
-          'violation_type': audit == null
-              ? 'Manual review required'
-              : (audit.complianceIssues.isEmpty
-                  ? 'No deviation detected'
-                  : (audit.complianceIssues.first['type'] as String? ??
-                      'PCR 2011 non-compliance')),
-          'violation_summary': audit == null
-              ? 'Field audit recorded for "${productName.trim()}" (Registered Company: "$effectiveCompanyName"); awaiting OCR and declaration validation.'
-              : _violationSummaryFromAudit(audit),
-          'status': audit != null && audit.report.diff.failed.isNotEmpty
-              ? 'pending'
-              : 'manual_review',
+          'confidence_score': confidenceScore,
+          'violation_type': violationType,
+          'violation_summary': violationSummary,
+          'status': violationStatus,
         })
         .select()
         .single();
@@ -1011,7 +1055,49 @@ class RegulatorDataService {
       await StorageService.deleteLocalCacheAfterSync(pendingCapture);
     }
 
-    return getViolationById((violation as Map)['id'] as String);
+    final fetched = await getViolationById(violationId);
+    if (fetched.declarations.isEmpty && mlResult != null) {
+      // If DB declaration checks weren't returned by the join query, hydrate them in-memory
+      final allRules = [
+        ...mlResult.rules.failed,
+        ...mlResult.rules.warnings,
+        ...mlResult.rules.inconclusive,
+        ...mlResult.rules.passed,
+      ];
+      final decls = allRules.map((r) => RegulatorDeclaration(
+        fieldName: r.ruleName,
+        extractedValue: r.evidence ?? (r.status.toUpperCase() == 'PASS' ? 'Compliant' : 'Not detected'),
+        confidencePercent: mlResult.score.finalScore.round(),
+        status: r.standardStatus,
+        ruleCitation: r.legalReference ?? r.ruleId,
+        ruleDescription: r.detail,
+      )).toList();
+
+      return RegulatorViolation(
+        id: fetched.id,
+        scanId: fetched.scanId,
+        productName: fetched.productName,
+        companyName: fetched.companyName,
+        category: fetched.category,
+        region: fetched.region,
+        storeLocation: fetched.storeLocation,
+        imageUrl: fetched.imageUrl,
+        frontLabelUrl: fetched.frontLabelUrl,
+        curvedSurfaceUrl: fetched.curvedSurfaceUrl,
+        scaleReferenceUrl: fetched.scaleReferenceUrl,
+        severity: fetched.severity,
+        riskLevel: fetched.riskLevel,
+        confidenceScore: fetched.confidenceScore,
+        violationType: fetched.violationType,
+        violationSummary: fetched.violationSummary,
+        capturedAt: fetched.capturedAt,
+        status: fetched.status,
+        declarations: decls,
+        overlayBoxes: fetched.overlayBoxes,
+      );
+    }
+
+    return fetched;
   }
 
   static Stream<List<RegulatorViolation>> watchPriorityQueue() {
