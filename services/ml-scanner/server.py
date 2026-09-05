@@ -32,7 +32,6 @@ load_dotenv()
 # Pipeline import (verbatim ML code)
 # ---------------------------------------------------------------------------
 from legal_metrology_ml.main import run_pipeline
-from legal_metrology_ml.layer1_feature_extraction.ocr_engine import OCREngine
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -67,10 +66,18 @@ REPORT_DIR = Path(tempfile.gettempdir()) / "lmc_reports"
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Shared singleton — EasyOCR loads ~200 MB of models; build once at startup
+# Lazy-loaded OCR Engine (only instantiated when fallback local OCR runs)
 # ---------------------------------------------------------------------------
-logger.info("Loading OCREngine at startup (this takes ~30s on first run)…")
-_ocr_engine = OCREngine()
+_ocr_engine = None
+
+
+def get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        logger.info("Initializing OCREngine on demand...")
+        from legal_metrology_ml.layer1_feature_extraction.ocr_engine import OCREngine
+        _ocr_engine = OCREngine(engine="tesseract", gpu=False)
+    return _ocr_engine
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +223,7 @@ async def analyze(
             barcode_number=barcode_number,
             package_height_mm=height_mm,
             output_path=report_path,
-            ocr_engine=_ocr_engine,
+            ocr_engine=get_ocr_engine() if not api_key else None,
             api_key=api_key,
         )
 
