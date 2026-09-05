@@ -5,7 +5,6 @@ import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
 import '../../core/models/user_role.dart';
 import '../../core/services/auth_service.dart';
-import '../../widgets/regulator/regulator_top_app_bar.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../onboarding/role_selection_screen.dart';
 
@@ -27,7 +26,6 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
   String _designation = 'Senior Legal Metrology Inspector';
   String _officialId = 'LM-GOV-2026-9042';
   String _jurisdiction = 'National & State Compliance Division';
-  String _verificationStatus = 'Verified Active';
   String _createdAt = '2026';
 
   @override
@@ -79,9 +77,6 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
         }
         if (roleData['jurisdiction_region'] != null && (roleData['jurisdiction_region'] as String).isNotEmpty) {
           _jurisdiction = roleData['jurisdiction_region'] as String;
-        }
-        if (roleData['verification_status'] != null && (roleData['verification_status'] as String).isNotEmpty) {
-          _verificationStatus = roleData['verification_status'] == 'verified' ? 'Verified Official' : 'Official Officer';
         }
       }
     } catch (_) {
@@ -177,21 +172,38 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
     );
   }
 
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      toolbarHeight: 60.0,
+      automaticallyImplyLeading: false,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1.0),
+        child: Container(
+          color: AppColors.surfaceVariant.withValues(alpha: 0.6),
+          height: 1.0,
+        ),
+      ),
+      title: Text(
+        'Regulator Profile',
+        style: AppTypography.headlineSm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: RegulatorTopAppBar(
-        customTitle: 'Regulator Profile',
-        showBackButton: true,
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            RegulatorBottomNavBar.navigateToTab(context, _currentTab, RegulatorNavTab.home);
-          }
-        },
-      ),
+      appBar: _buildAppBar(),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
@@ -300,62 +312,6 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
               color: AppColors.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Role & Verification Badges
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.shield_rounded, size: 14, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Enforcement Officer',
-                      style: AppTypography.labelSm.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
-                    const SizedBox(width: 4),
-                    Text(
-                      _verificationStatus,
-                      style: AppTypography.labelSm.copyWith(
-                        color: const Color(0xFF059669),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -460,7 +416,7 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
           _buildInfoRow(
             icon: Icons.terminal_rounded,
             label: 'App Version',
-            value: 'FreshLabel Pro v1.0.0 (SIH 2026)',
+            value: 'LabelLens v1.0.0 (SIH 2026)',
           ),
         ],
       ),
@@ -542,7 +498,7 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
                 const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  'Log Out of Regulator Account',
+                  'Log Out',
                   style: AppTypography.labelMd.copyWith(
                     color: AppColors.error,
                     fontWeight: FontWeight.w700,

@@ -6,8 +6,8 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/regulator_violation.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
-import '../../widgets/regulator/regulator_declaration_card.dart';
 import 'regulator_notice_generator_screen.dart';
+import 'regulator_company_tracking_screen.dart';
 
 class RegulatorViolationReviewScreen extends StatefulWidget {
   final String violationId;
@@ -28,10 +28,20 @@ class _RegulatorViolationReviewScreenState
   bool _isLoading = true;
   bool _isActionInProgress = false;
 
+  // Carousel state
+  final PageController _carouselController = PageController();
+  int _carouselPage = 0;
+
   @override
   void initState() {
     super.initState();
     _fetchViolation();
+  }
+
+  @override
+  void dispose() {
+    _carouselController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchViolation() async {
@@ -95,6 +105,13 @@ class _RegulatorViolationReviewScreenState
         content: Text('Violation escalated to Senior Metrology Controller.'),
         backgroundColor: AppColors.tertiary,
       ),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const RegulatorCompanyTrackingScreen(initialTabIndex: 0),
+      ),
+      (route) => false,
     );
   }
 
@@ -170,43 +187,31 @@ class _RegulatorViolationReviewScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Product Image & Bounding Box Overlays
-                _buildImageOverlaySection(violation),
+                // Evidence Image Carousel
+                _buildImageCarousel(violation),
 
                 // Product Context
                 _buildProductContext(violation, formattedDate),
 
-                // Extracted Declarations List
+                // Extracted Declarations Section Title
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.gutter,
-                    vertical: AppSpacing.md,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.gutter,
+                    AppSpacing.md,
+                    AppSpacing.gutter,
+                    0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Extracted Declarations',
-                        style: AppTypography.headlineSm.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: violation.declarations.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (context, index) {
-                          final declaration = violation.declarations[index];
-                          return RegulatorDeclarationCard(declaration: declaration);
-                        },
-                      ),
-                    ],
+                  child: Text(
+                    'Extracted Declarations',
+                    style: AppTypography.headlineSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
                   ),
                 ),
+
+                // Extracted Declarations Groups (Compliant vs Non-Compliant)
+                _buildDeclarationGroups(violation),
                 const SizedBox(height: AppSpacing.md),
               ],
             ),
@@ -217,118 +222,294 @@ class _RegulatorViolationReviewScreenState
     );
   }
 
-  Widget _buildImageOverlaySection(RegulatorViolation violation) {
+  /// Smooth horizontal carousel showing all captured evidence images
+  /// with role labels, page indicators, and zoom support.
+  Widget _buildImageCarousel(RegulatorViolation violation) {
+    final images = violation.allLabeledImages;
+    final imageCount = images.length;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final imageWidth = constraints.maxWidth;
-        final imageHeight = imageWidth; // Aspect square
+        final imageHeight = imageWidth * 0.85; // Slightly shorter than square
 
         return Container(
-          width: imageWidth,
-          height: imageHeight,
-          color: AppColors.surfaceContainerHigh,
-          child: Stack(
+          color: const Color(0xFF0F172A),
+          child: Column(
             children: [
-              // Product Image
-              Positioned.fill(
-                child: Image.network(
-                  violation.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.image_not_supported_rounded,
-                            size: 48, color: AppColors.outline),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Inspection Image Preview',
-                          style: AppTypography.bodySm.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // ── PageView Carousel ──
+              SizedBox(
+                width: imageWidth,
+                height: imageHeight,
+                child: Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _carouselController,
+                      itemCount: imageCount,
+                      onPageChanged: (index) {
+                        setState(() => _carouselPage = index);
+                      },
+                      physics: const BouncingScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        final entry = images[index];
+                        final url = entry.value;
 
-              // Overlay Bounding Boxes
-              for (final box in violation.overlayBoxes)
-                Positioned(
-                  top: imageHeight * box.topPercent,
-                  left: imageWidth * box.leftPercent,
-                  width: imageWidth * box.widthPercent,
-                  height: imageHeight * box.heightPercent,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Box outline & tinted fill
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: box.isViolation
-                                ? AppColors.error
-                                : AppColors.primary,
-                            width: 2,
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            // Image
+                            Image.network(
+                              url,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.primaryFixed,
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.image_not_supported_rounded,
+                                        size: 48, color: Colors.white38),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Image unavailable',
+                                      style: AppTypography.bodySm.copyWith(
+                                        color: Colors.white54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Subtle bottom gradient for readability
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    stops: const [0.55, 1.0],
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withValues(alpha: 0.55),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Overlay bounding boxes (only on the first image / front label)
+                            if (index == 0)
+                              for (final box in violation.overlayBoxes)
+                                Positioned(
+                                  top: imageHeight * box.topPercent,
+                                  left: imageWidth * box.leftPercent,
+                                  width: imageWidth * box.widthPercent,
+                                  height: imageHeight * box.heightPercent,
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: box.isViolation
+                                                ? AppColors.error
+                                                : AppColors.primary,
+                                            width: 2,
+                                          ),
+                                          color: (box.isViolation
+                                                  ? AppColors.error
+                                                  : AppColors.primary)
+                                              .withValues(alpha: 0.15),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: -24,
+                                        left: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: box.isViolation
+                                                ? AppColors.error
+                                                : AppColors.primary,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            box.label,
+                                            style: AppTypography.labelSm.copyWith(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    // ── Role Label Pill (top-left) ──
+                    Positioned(
+                      top: 14,
+                      left: 14,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Container(
+                          key: ValueKey(_carouselPage),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                           ),
-                          color: (box.isViolation
-                                  ? AppColors.error
-                                  : AppColors.primary)
-                              .withValues(alpha: 0.15),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _carouselPage == 0
+                                    ? Icons.label_rounded
+                                    : (_carouselPage == 1
+                                        ? Icons.panorama_horizontal_rounded
+                                        : Icons.straighten_rounded),
+                                size: 14,
+                                color: AppColors.primaryFixed,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                images[_carouselPage].key,
+                                style: AppTypography.labelSm.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      // Pill Label
+                    ),
+
+                    // ── Image Counter Pill (top-right) ──
+                    if (imageCount > 1)
                       Positioned(
-                        top: -24,
-                        left: 0,
+                        top: 14,
+                        right: 14,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: box.isViolation
-                                ? AppColors.error
-                                : AppColors.primary,
-                            borderRadius: BorderRadius.circular(4),
+                            color: Colors.black.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                           ),
                           child: Text(
-                            box.label,
+                            '${_carouselPage + 1} / $imageCount',
                             style: AppTypography.labelSm.copyWith(
                               color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
 
-              // Zoom In Action Button
-              Positioned(
-                bottom: AppSpacing.md,
-                right: AppSpacing.md,
-                child: InkWell(
-                  onTap: () => _showZoomDialog(violation.imageUrl),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLowest.withValues(alpha: 0.9),
-                      shape: BoxShape.circle,
-                      boxShadow: AppSpacing.cardShadow,
+                    // ── Zoom Button (bottom-right) ──
+                    Positioned(
+                      bottom: 14,
+                      right: 14,
+                      child: InkWell(
+                        onTap: () => _showZoomDialog(images[_carouselPage].value),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        child: Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceContainerLowest.withValues(alpha: 0.92),
+                            shape: BoxShape.circle,
+                            boxShadow: AppSpacing.cardShadow,
+                          ),
+                          child: const Icon(
+                            Icons.zoom_in_rounded,
+                            color: AppColors.onSurface,
+                            size: 22,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.zoom_in_rounded,
-                      color: AppColors.onSurface,
-                      size: 22,
-                    ),
-                  ),
+
+                    // ── Swipe hint on first image ──
+                    if (imageCount > 1 && _carouselPage == 0)
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.swipe_rounded, size: 14, color: Colors.white70),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Swipe for more evidence',
+                                  style: AppTypography.labelSm.copyWith(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+
+              // ── Smooth Page Dots ──
+              if (imageCount > 1)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  color: const Color(0xFF0F172A),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(imageCount, (i) {
+                      final isActive = i == _carouselPage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        width: isActive ? 24 : 8,
+                        height: 8,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? AppColors.primaryFixed
+                              : Colors.white.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
             ],
           ),
         );
@@ -368,6 +549,30 @@ class _RegulatorViolationReviewScreenState
                       ),
                     ),
                     const SizedBox(height: 4),
+                    if (violation.companyName.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.business_rounded,
+                            size: 15,
+                            color: AppColors.secondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Company: ${violation.companyName}',
+                              style: AppTypography.bodyMd.copyWith(
+                                color: AppColors.secondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Text(
                       'Scan ID: ${violation.scanId}',
                       style: AppTypography.bodySm.copyWith(
@@ -531,6 +736,277 @@ class _RegulatorViolationReviewScreenState
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeclarationGroups(RegulatorViolation violation) {
+    final nonCompliant = violation.declarations.where((d) =>
+        d.isViolation ||
+        d.isWarning ||
+        d.status.toLowerCase().contains('violation') ||
+        d.status.toLowerCase().contains('fail') ||
+        d.status.toLowerCase().contains('missing') ||
+        d.status.toLowerCase().contains('unable') ||
+        d.status.toLowerCase().contains('inconclusive')).toList();
+
+    final compliant = violation.declarations.where((d) =>
+        d.isCompliant ||
+        d.status.toLowerCase() == 'pass' ||
+        d.status.toLowerCase() == 'compliant').toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.gutter,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Group 1: Non-Compliant / Missing Declarations ──
+          _buildGroupHeader(
+            title: 'Non-Compliant & Missing Declarations',
+            count: nonCompliant.length,
+            isError: true,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (nonCompliant.isEmpty)
+            _buildEmptyGroupPlaceholder('No violations or missing declarations found.')
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: nonCompliant.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) => _buildDeclarationRow(
+                declaration: nonCompliant[index],
+                isNonCompliant: true,
+              ),
+            ),
+
+          const SizedBox(height: AppSpacing.xl),
+
+          // ── Group 2: Compliant Declarations ──
+          _buildGroupHeader(
+            title: 'Compliant Declarations',
+            count: compliant.length,
+            isError: false,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (compliant.isEmpty)
+            _buildEmptyGroupPlaceholder('No declarations verified as compliant.')
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: compliant.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) => _buildDeclarationRow(
+                declaration: compliant[index],
+                isNonCompliant: false,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader({
+    required String title,
+    required int count,
+    required bool isError,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: AppTypography.headlineSm.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 15.5,
+              color: AppColors.onSurface,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: isError
+                ? AppColors.errorContainer
+                : AppColors.primaryContainer.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          ),
+          child: Text(
+            '$count',
+            style: AppTypography.labelSm.copyWith(
+              color: isError
+                  ? AppColors.onErrorContainer
+                  : AppColors.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyGroupPlaceholder(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Text(
+        message,
+        style: AppTypography.bodySm.copyWith(
+          color: AppColors.secondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeclarationRow({
+    required RegulatorDeclaration declaration,
+    required bool isNonCompliant,
+  }) {
+    final statusColor = isNonCompliant ? AppColors.error : AppColors.primary;
+    final statusBg = isNonCompliant
+        ? AppColors.errorContainer
+        : AppColors.primaryContainer.withValues(alpha: 0.25);
+    final statusText = isNonCompliant
+        ? AppColors.onErrorContainer
+        : AppColors.onPrimaryContainer;
+
+    final extractedValue = declaration.extractedValue.trim();
+    final displayText = extractedValue.isNotEmpty
+        ? extractedValue
+        : (isNonCompliant ? 'Not detected' : 'Verified');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: isNonCompliant
+              ? AppColors.error.withValues(alpha: 0.35)
+              : AppColors.borderSubtle,
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Left color status indicator bar
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppSpacing.radiusMd),
+                  bottomLeft: Radius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+            ),
+            // Row content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm + 2,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Field Name and Status Badge
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            declaration.fieldName,
+                            style: AppTypography.labelMd.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBg,
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                          ),
+                          child: Text(
+                            declaration.status,
+                            style: AppTypography.labelSm.copyWith(
+                              color: statusText,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Extracted Value
+                    Text(
+                      displayText,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: extractedValue.isEmpty && isNonCompliant
+                            ? AppColors.error
+                            : AppColors.onSurface,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    // Secondary info: Rule citation & Confidence
+                    if (declaration.ruleCitation.isNotEmpty || declaration.confidencePercent > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (declaration.ruleCitation.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                declaration.ruleCitation,
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.secondary,
+                                  fontSize: 11.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          if (declaration.confidencePercent > 0) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              '${declaration.confidencePercent}% conf',
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.secondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

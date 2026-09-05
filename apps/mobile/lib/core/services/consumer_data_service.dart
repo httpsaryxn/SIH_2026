@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/capture_role.dart';
 import '../models/consumer_complaint_model.dart';
 import '../models/consumer_notification_model.dart';
 import '../models/consumer_saved_product.dart';
 import '../models/consumer_scan_model.dart';
+import '../models/multi_capture_payload.dart';
 import '../models/pending_capture.dart';
 import '../models/product_model.dart';
 import 'auth_service.dart';
@@ -58,6 +60,7 @@ class ConsumerDataService {
     String? netQuantity,
     double? mrp,
     PendingCapture? pendingCapture,
+    MultiCapturePayload? multiCapture,
     String? imageUrl,
     String? manufacturerName,
     String? manufacturerAddress,
@@ -117,12 +120,27 @@ class ConsumerDataService {
     final fssaiNo = '115${nowMs.substring(nowMs.length - 11)}';
     final tempScanId = 'scan_$nowMs';
 
-    // 1. Upload PendingCapture to Supabase Storage if provided
+    // 1. Upload images to Supabase Storage
     String resolvedImage = (imageUrl != null && imageUrl.isNotEmpty)
         ? imageUrl
         : _getPlaceholderImageFor(resolvedCategory);
 
-    if (pendingCapture != null && pendingCapture.existsSync) {
+    // Multi-image upload (3 role-specific captures)
+    Map<CaptureRole, String?>? multiImageUrls;
+    if (multiCapture != null && multiCapture.hasAnyCapture) {
+      multiImageUrls = await StorageService.uploadMultiCapture(
+        payload: multiCapture,
+        source: 'consumer_scans',
+        recordId: tempScanId,
+        customUserId: uid,
+      );
+      // Use front_label as the primary image_url for backward compat
+      final frontUrl = multiImageUrls[CaptureRole.frontLabel];
+      if (frontUrl != null) {
+        resolvedImage = frontUrl;
+      }
+    } else if (pendingCapture != null && pendingCapture.existsSync) {
+      // Legacy single-capture path
       final storageUrl = await StorageService.uploadPendingCapture(
         pendingCapture: pendingCapture,
         source: 'consumer_scans',
@@ -170,12 +188,16 @@ class ConsumerDataService {
 
       // 3. Insert into public.consumer_scans
       final scanData = {
-        'consumer_id': ?uid,
+        'consumer_id': uid,
         'product_id': newProduct.id,
         'product_name': newProduct.productName,
         'brand': newProduct.brand,
         'net_quantity': newProduct.netQuantity ?? resolvedNetQty,
         'image_url': newProduct.imageUrl,
+        // Multi-image URLs (3 role-specific captures)
+        'front_label_url': multiImageUrls?[CaptureRole.frontLabel] ?? newProduct.imageUrl,
+        'curved_surface_url': multiImageUrls?[CaptureRole.curvedSurface],
+        'scale_reference_url': multiImageUrls?[CaptureRole.scaleReference],
         'compliance_status': newProduct.complianceStatus,
         'detected_declarations': {
           'ingredients': newProduct.ingredients,
@@ -203,9 +225,25 @@ class ConsumerDataService {
           .select()
           .single();
 
-      // Only delete local cached file after confirmed DB persistence
-      if (pendingCapture != null && resolvedImage.startsWith('http')) {
+      // Delete local cached files after confirmed DB persistence
+      if (multiCapture != null) {
+        await StorageService.deleteMultiCaptureLocalCache(multiCapture);
+      } else if (pendingCapture != null && resolvedImage.startsWith('http')) {
         await StorageService.deleteLocalCacheAfterSync(pendingCapture);
+      }
+
+      // If the scan detected violations, automatically register a complaint record
+      if (compliance.status != 'compliant' && compliance.issues.isNotEmpty) {
+        try {
+          final issueMsg = compliance.issues.map((i) => i['message'] ?? '').where((m) => m.isNotEmpty).join('; ');
+          await submitComplaint(
+            productName: trimmedName,
+            brand: trimmedBrand,
+            issueCategory: compliance.issues.first['type'] ?? 'Legal Metrology Non-Compliance',
+            description: issueMsg.isNotEmpty ? issueMsg : 'Automated scan detected compliance issues on label declarations.',
+            evidenceImageUrl: resolvedImage.startsWith('http') ? resolvedImage : null,
+          );
+        } catch (_) {}
       }
 
       return ConsumerScanModel.fromJson(insertedScan);
@@ -434,7 +472,7 @@ class ConsumerDataService {
       final evidenceList = resolvedEvidenceUrl != null ? [resolvedEvidenceUrl] : <String>[];
       final data = {
         'complaint_code': code,
-        'consumer_id': ?uid,
+        'consumer_id': uid,
         'product_name': productName.trim(),
         'brand': (brand != null && brand.trim().isNotEmpty) ? brand.trim() : 'Packaged Goods Brand',
         'issue_category': issueCategory.trim(),
@@ -464,7 +502,7 @@ class ConsumerDataService {
       // Create notification
       try {
         await _client.from('consumer_notifications').insert({
-          'consumer_id': ?uid,
+          'consumer_id': uid,
           'title': 'Complaint Submitted',
           'message':
               'Your complaint $code for $productName has been logged with authorities.',

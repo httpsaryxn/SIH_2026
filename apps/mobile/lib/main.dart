@@ -9,21 +9,25 @@ import 'screens/onboarding/role_selection_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    publishableKey: SupabaseConfig.supabasePublishableKey,
-  );
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      publishableKey: SupabaseConfig.supabasePublishableKey,
+    );
+  } catch (e) {
+    debugPrint('Supabase initialization warning: $e');
+  }
 
-  runApp(const FreshLabelApp());
+  runApp(const LabelLensApp());
 }
 
-class FreshLabelApp extends StatelessWidget {
-  const FreshLabelApp({super.key});
+class LabelLensApp extends StatelessWidget {
+  const LabelLensApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FreshLabel Pro',
+      title: 'LabelLens',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const AuthGate(),

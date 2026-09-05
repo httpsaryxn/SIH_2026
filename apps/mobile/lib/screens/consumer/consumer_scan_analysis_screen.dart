@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
+import '../../core/models/capture_role.dart';
 import '../../core/models/consumer_scan_model.dart';
+import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
-import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
 import '../../core/services/legal_metrology_service.dart';
+import '../../core/services/ml_scanner_client.dart';
+import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
-import 'package:image_picker/image_picker.dart';
 
 class ConsumerScanAnalysisScreen extends StatefulWidget {
   final PendingCapture pendingCapture;
+  final MultiCapturePayload? multiCapture;
   final String? prefilledProductName;
   final String? prefilledBrand;
   final String? prefilledCategory;
@@ -24,6 +27,7 @@ class ConsumerScanAnalysisScreen extends StatefulWidget {
   const ConsumerScanAnalysisScreen({
     super.key,
     required this.pendingCapture,
+    this.multiCapture,
     this.prefilledProductName,
     this.prefilledBrand,
     this.prefilledCategory,
@@ -45,12 +49,24 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
 
+  // Carousel state for multi-image display
+  final PageController _carouselController = PageController();
+  int _carouselPage = 0;
+
   int _currentStageIndex = 0;
   String _statusMessage = 'Uploading image to local ingestion cache...';
   ConsumerScanModel? _completedScan;
   bool _isAnalysisFinished = false;
   bool _hasError = false;
   String _errorMessage = '';
+
+  /// Returns the list of captures for carousel display.
+  List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
+    if (widget.multiCapture != null) {
+      return widget.multiCapture!.capturedEntries;
+    }
+    return [MapEntry(CaptureRole.frontLabel, widget.pendingCapture)];
+  }
 
   final List<Map<String, dynamic>> _stages = [
     {
@@ -149,56 +165,106 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     try {
       _progressController.forward();
 
-      // On-device Legal Metrology (PCR 2011) pipeline: ML Kit OCR + bar code +
-      // the deterministic rulebook. Runs fully offline; product registries and
-      // GS1 India enrich the result when a network is available.
-      if (mounted) {
-        setState(() {
-          _currentStageIndex = 1;
-          _statusMessage =
-              'Reading label with on-device OCR & bar code scanner...';
-        });
+      // ── Stage 1: Try remote ML Scanner service ──
+      MlScannerResult? remoteResult;
+      try {
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 0;
+            _statusMessage = 'Uploading captured label images to ML Scanner...';
+          });
+        }
+        remoteResult = await LegalMetrologyService.auditCaptureRemote(
+          capture: widget.pendingCapture,
+          multiCapture: widget.multiCapture,
+          productName: widget.prefilledProductName,
+        );
+      } catch (_) {
+        // remote service unavailable — will fall back to on-device
       }
-      final audit = await LegalMetrologyService.auditCapture(
-        capture: widget.pendingCapture,
-        productName: widget.prefilledProductName,
-        netQuantity: widget.prefilledNetQty,
-        mrp: widget.prefilledMrp,
-      );
-      if (mounted) {
+
+      if (remoteResult != null && mounted) {
         setState(() {
           _currentStageIndex = 2;
-          _statusMessage =
-              'Verifying mandatory declarations against LM(PC) Rules 2011...';
+          _statusMessage = 'Parsing ML compliance model findings & rule checks...';
         });
       }
 
-      final pName = (audit.detectedDeclarations['commodity_name'] as String?)
+      // ── Stage 2: Fall back to on-device audit if remote unavailable ──
+      LmAuditResult? audit;
+      if (remoteResult == null) {
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 1;
+            _statusMessage =
+                'Reading label with on-device OCR & bar code scanner...';
+          });
+        }
+        audit = await LegalMetrologyService.auditCapture(
+          capture: widget.pendingCapture,
+          productName: widget.prefilledProductName,
+          netQuantity: widget.prefilledNetQty,
+          mrp: widget.prefilledMrp,
+        );
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 2;
+            _statusMessage =
+                'Verifying mandatory declarations against LM(PC) Rules 2011...';
+          });
+        }
+      }
+
+      final String pName;
+      if (remoteResult != null &&
+          (remoteResult.product['name'] as String?)?.trim().isNotEmpty == true) {
+        pName = (remoteResult.product['name'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['commodity_name'] as String?)
                   ?.trim()
                   .isNotEmpty ==
-              true
-          ? (audit.detectedDeclarations['commodity_name'] as String).trim()
-          : (widget.prefilledProductName != null &&
-                  widget.prefilledProductName!.trim().isNotEmpty)
-              ? widget.prefilledProductName!.trim()
-              : _deriveProductNameFromFileName(widget.pendingCapture.fileName);
+              true) {
+        pName = (audit.detectedDeclarations['commodity_name'] as String).trim();
+      } else if (widget.prefilledProductName != null &&
+          widget.prefilledProductName!.trim().isNotEmpty) {
+        pName = widget.prefilledProductName!.trim();
+      } else {
+        pName = _deriveProductNameFromFileName(widget.pendingCapture.fileName);
+      }
 
-      final pBrand = (widget.prefilledBrand != null &&
-              widget.prefilledBrand!.trim().isNotEmpty)
-          ? widget.prefilledBrand!.trim()
-          : 'Packaged Foods Co.';
+      final String pBrand;
+      if (remoteResult != null &&
+          (remoteResult.product['manufacturer'] as String?)?.trim().isNotEmpty == true) {
+        pBrand = (remoteResult.product['manufacturer'] as String).trim();
+      } else if (widget.prefilledBrand != null &&
+          widget.prefilledBrand!.trim().isNotEmpty) {
+        pBrand = widget.prefilledBrand!.trim();
+      } else {
+        pBrand = 'Packaged Foods Co.';
+      }
 
       final pCategory = (widget.prefilledCategory != null &&
               widget.prefilledCategory!.trim().isNotEmpty)
           ? widget.prefilledCategory!.trim()
           : 'Snacks';
 
-      final pNetQty = (widget.prefilledNetQty != null &&
-              widget.prefilledNetQty!.trim().isNotEmpty)
-          ? widget.prefilledNetQty!.trim()
-          : '200 g';
+      final String pNetQty;
+      if (remoteResult != null &&
+          (remoteResult.product['net_quantity'] as String?)?.trim().isNotEmpty == true) {
+        pNetQty = (remoteResult.product['net_quantity'] as String).trim();
+      } else if (widget.prefilledNetQty != null &&
+              widget.prefilledNetQty!.trim().isNotEmpty) {
+        pNetQty = widget.prefilledNetQty!.trim();
+      } else {
+        pNetQty = '200 g';
+      }
 
-      final pMrp = widget.prefilledMrp ?? 65.0;
+      final double pMrp;
+      if (remoteResult != null && remoteResult.product['mrp'] is num) {
+        pMrp = (remoteResult.product['mrp'] as num).toDouble();
+      } else {
+        pMrp = widget.prefilledMrp ?? 65.0;
+      }
 
       // Create live product & scan record in Supabase (with Storage upload)
       final createdScan = await ConsumerDataService.createNewProductAndScan(
@@ -207,6 +273,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         category: pCategory,
         netQuantity: pNetQty,
         mrp: pMrp,
+        multiCapture: widget.multiCapture,
         pendingCapture: widget.pendingCapture,
         imageUrl: widget.pendingCapture.localPath,
         audit: audit,
@@ -219,9 +286,18 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         setState(() {
           _completedScan = createdScan;
           _isAnalysisFinished = true;
-          _statusMessage =
-              'Analysis complete — ${audit.scorePercent}% (${audit.starLabel}), '
-              'verified against LM(PC) Rules 2011.';
+          if (remoteResult != null) {
+            final s = remoteResult.score;
+            _statusMessage =
+                'Analysis complete — ${s.finalScore.toStringAsFixed(1)}% (${s.starLabel}), '
+                'verified against LM(PC) Rules 2011.';
+          } else if (audit != null) {
+            _statusMessage =
+                'Analysis complete — ${audit.scorePercent}% (${audit.starLabel}), '
+                'verified against LM(PC) Rules 2011.';
+          } else {
+            _statusMessage = 'Analysis complete — verified against LM(PC) Rules 2011.';
+          }
         });
 
         if (createdScan != null && widget.onScanCompleted != null) {
@@ -286,17 +362,22 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   }
 
   Future<void> _scanAnother() async {
-    final nextCapture = await CameraCaptureService.captureImage(
-      context: context,
-      sourceTag: 'consumer_scan',
-      imageSource: ImageSource.camera,
+    // Navigate to multi-capture screen for next scan
+    final result = await Navigator.of(context).push<MultiCapturePayload?>(
+      MaterialPageRoute(
+        builder: (_) => const MultiCaptureScreen(
+          sourceTag: 'consumer_scan',
+          flowLabel: 'Product Label',
+        ),
+      ),
     );
 
-    if (nextCapture != null && mounted) {
+    if (result != null && result.hasAnyCapture && mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ConsumerScanAnalysisScreen(
-            pendingCapture: nextCapture,
+            multiCapture: result,
+            pendingCapture: result.primaryCapture!,
             onScanCompleted: widget.onScanCompleted,
           ),
         ),
@@ -399,138 +480,209 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   }
 
   Widget _buildScanningViewport() {
-    return Container(
-      height: 280,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(
-          color: _isAnalysisFinished ? AppColors.primary : AppColors.outlineVariant,
-          width: 2,
-        ),
-        boxShadow: AppSpacing.cardShadow,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Captured Image
-          if (widget.pendingCapture.existsSync)
-            Positioned.fill(
-              child: Image.file(
-                widget.pendingCapture.file,
-                fit: BoxFit.cover,
-                errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
-              ),
-            )
-          else
-            _buildFallbackPreview(),
+    final entries = _capturedEntries;
+    final showCarousel = entries.length > 1;
 
-          // Dark vignette overlay
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.3),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
+    return Column(
+      children: [
+        Container(
+          height: 280,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(
+              color: _isAnalysisFinished ? AppColors.primary : AppColors.outlineVariant,
+              width: 2,
             ),
+            boxShadow: AppSpacing.cardShadow,
           ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Carousel PageView or single image
+              if (showCarousel)
+                PageView.builder(
+                  controller: _carouselController,
+                  itemCount: entries.length,
+                  onPageChanged: (i) => setState(() => _carouselPage = i),
+                  itemBuilder: (context, i) {
+                    final capture = entries[i].value;
+                    return _buildCaptureSlide(capture, entries[i].key);
+                  },
+                )
+              else if (entries.isNotEmpty && entries.first.value.existsSync)
+                _buildCaptureSlide(entries.first.value, entries.first.key)
+              else
+                _buildFallbackPreview(),
 
-          // Corner Frame Guides
-          _buildCornerGuides(),
-
-          // Animated Scanning Laser Bar
-          if (!_isAnalysisFinished)
-            AnimatedBuilder(
-              animation: _laserAnimation,
-              builder: (context, child) {
-                return Positioned(
-                  top: _laserAnimation.value * 260,
-                  left: 16,
-                  right: 16,
+              // Dark vignette overlay
+              Positioned.fill(
+                child: IgnorePointer(
                   child: Container(
-                    height: 3,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryFixed,
-                      borderRadius: BorderRadius.circular(2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryFixed.withValues(alpha: 0.8),
-                          blurRadius: 12,
-                          spreadRadius: 3,
-                        ),
-                      ],
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.3),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.5),
+                        ],
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-
-          // Top Badge (Local Cache & Filename)
-          Positioned(
-            top: 12,
-            left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _isAnalysisFinished
-                        ? Icons.check_circle_rounded
-                        : Icons.filter_center_focus_rounded,
-                    size: 14,
-                    color: _isAnalysisFinished
-                        ? const Color(0xFF10B981)
-                        : AppColors.primaryFixedDim,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    _isAnalysisFinished ? 'Label Ingested ✓' : 'Analyzing Frame...',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom Filename Tag
-          Positioned(
-            bottom: 12,
-            right: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                widget.pendingCapture.fileName,
-                style: GoogleFonts.firaCode(
-                  fontSize: 10,
-                  color: Colors.white70,
                 ),
               ),
-            ),
+
+              // Corner Frame Guides
+              _buildCornerGuides(),
+
+              // Animated Scanning Laser Bar
+              if (!_isAnalysisFinished)
+                AnimatedBuilder(
+                  animation: _laserAnimation,
+                  builder: (context, child) {
+                    return Positioned(
+                      top: _laserAnimation.value * 260,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryFixed,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryFixed.withValues(alpha: 0.8),
+                              blurRadius: 12,
+                              spreadRadius: 3,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+              // Top Badge — role label for current carousel slide
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isAnalysisFinished
+                            ? Icons.check_circle_rounded
+                            : CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).icon,
+                        size: 14,
+                        color: _isAnalysisFinished
+                            ? const Color(0xFF10B981)
+                            : AppColors.primaryFixedDim,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _isAnalysisFinished
+                            ? '${CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).label} ✓'
+                            : CaptureRoleInfo.forRole(entries[showCarousel ? _carouselPage : 0].key).label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Image count badge
+              if (showCarousel)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    ),
+                    child: Text(
+                      '${_carouselPage + 1}/${entries.length}',
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Bottom Filename Tag
+              Positioned(
+                bottom: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    widget.pendingCapture.formattedSize,
+                    style: GoogleFonts.firaCode(
+                      fontSize: 10,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Page indicator dots (only for carousel)
+        if (showCarousel) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(entries.length, (i) {
+              final isActive = i == _carouselPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: isActive ? 24 : 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.primary : AppColors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
           ),
         ],
-      ),
+      ],
     );
+  }
+
+  Widget _buildCaptureSlide(PendingCapture capture, CaptureRole role) {
+    if (capture.existsSync) {
+      return Image.file(
+        capture.file,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (ctx, err, stack) => _buildFallbackPreview(),
+      );
+    }
+    return _buildFallbackPreview();
   }
 
   Widget _buildFallbackPreview() {

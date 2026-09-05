@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import Dict, Any
+from app.core.supabase import check_supabase_connection
+from app.api.v1.endpoints.small_business_labels import router as small_business_router
 
 app = FastAPI(
     title="SIH 2026 Backend API",
@@ -9,6 +11,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Include Small Business endpoints
+app.include_router(small_business_router, prefix="/api/v1")
 
 
 class RootResponse(BaseModel):
@@ -49,7 +54,12 @@ def read_root():
     tags=["System"],
 )
 def health_check():
+    supabase_status = check_supabase_connection()
     return {
         "status": "ok",
-        "details": {"service": "backend", "alive": True},
+        "details": {
+            "service": "backend",
+            "alive": True,
+            "supabase": supabase_status,
+        },
     }

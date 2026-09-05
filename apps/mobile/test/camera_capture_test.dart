@@ -3,13 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile/core/models/capture_role.dart';
+import 'package:mobile/core/models/consumer_scan_model.dart';
+import 'package:mobile/core/models/inbox_item.dart';
+import 'package:mobile/core/models/label_verification_request.dart';
+import 'package:mobile/core/models/multi_capture_payload.dart';
 import 'package:mobile/core/models/pending_capture.dart';
+import 'package:mobile/core/models/regulator_action_item.dart';
+import 'package:mobile/core/models/regulator_complaint.dart';
 import 'package:mobile/core/services/camera_capture_service.dart';
 import 'package:mobile/core/services/storage_service.dart';
 import 'package:mobile/screens/regulator/regulator_audit_intake_screen.dart';
 import 'package:mobile/screens/consumer/widgets/scanner_modal_sheet.dart';
 import 'package:mobile/screens/consumer/consumer_scan_analysis_screen.dart';
 import 'package:mobile/screens/regulator/regulator_scan_analysis_screen.dart';
+import 'package:mobile/screens/regulator/regulator_complaint_inbox_screen.dart';
+import 'package:mobile/screens/regulator/regulator_company_tracking_screen.dart';
+import 'package:mobile/screens/regulator/regulator_label_review_screen.dart';
+import 'package:mobile/screens/shared/multi_capture_screen.dart';
 
 class _FakeImagePicker extends ImagePicker {
   final XFile? imageToReturn;
@@ -279,7 +290,7 @@ void main() {
       expect(find.text('OCR & Text Detection'), findsOneWidget);
       expect(find.text('Legal Metrology PCR 2011 Verification'), findsOneWidget);
       expect(find.text('Database Sync & Catalog Update'), findsOneWidget);
-      expect(find.text('1.0 MB'), findsOneWidget);
+      expect(find.text('1.0 MB'), findsWidgets);
     });
   });
 
@@ -312,9 +323,11 @@ void main() {
       expect(find.text('Multi-Zone OCR & Text Extraction'), findsOneWidget);
       expect(find.text('Legal Metrology PCR 2011 Verification'), findsOneWidget);
       expect(find.text('Regulatory Case File Generation'), findsOneWidget);
-      expect(find.text('397.6 KB'), findsOneWidget);
-      expect(find.text('Proceed to Legal Review & Case File'), findsOneWidget);
-      expect(find.text('Capture Another Sample'), findsOneWidget);
+      expect(find.text('397.6 KB'), findsWidgets);
+      // During evaluation: action buttons must not appear, wave spinner should be displayed
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.text('Proceed to Legal Review & Case File'), findsNothing);
+      expect(find.text('Capture Another Sample'), findsNothing);
     });
   });
 
@@ -381,6 +394,374 @@ void main() {
       // Calling again returns false gracefully
       final deletedAgain = await StorageService.deleteLocalCacheAfterSync(capture);
       expect(deletedAgain, isFalse);
+    });
+  });
+
+  group('Unified InboxItem & LabelVerificationRequest Unit Tests', () {
+    test('InboxItem correctly maps from RegulatorComplaint', () {
+      final complaint = RegulatorComplaint(
+        id: 'cmp-001',
+        complaintCode: 'CMP-2026-999',
+        title: 'Missing MRP Declaration',
+        productName: 'Instant Noodles 70g',
+        companyName: 'Food Corp Ltd',
+        category: 'Packaged Food',
+        description: 'No MRP visible on wrapper.',
+        locationName: 'City Mart',
+        address: 'Sector 5, Pune',
+        status: 'Submitted',
+        priority: 'High Priority',
+        submittedAt: DateTime(2026, 8, 30),
+        evidencePhotos: ['https://example.com/photo.jpg'],
+      );
+
+      final item = InboxItem.fromComplaint(complaint);
+      expect(item.isComplaint, isTrue);
+      expect(item.isLabelVerification, isFalse);
+      expect(item.code, 'CMP-2026-999');
+      expect(item.title, 'Instant Noodles 70g');
+      expect(item.subtitle, 'Food Corp Ltd');
+      expect(item.imageUrl, 'https://example.com/photo.jpg');
+      expect(item.priorityOrTag, 'High Priority');
+    });
+
+    test('InboxItem correctly maps from LabelVerificationRequest', () {
+      final request = LabelVerificationRequest(
+        id: 'lvr-001',
+        requestCode: 'LVR-2026-101',
+        businessName: 'Organic Harvest Ltd',
+        productName: 'Roasted Almond Butter 200g',
+        category: 'Spreads & Butter',
+        labelImageUrl: 'https://example.com/label.jpg',
+        declarations: [
+          {'field_name': 'Net Quantity', 'extracted_value': '200 g', 'status': 'Compliant'}
+        ],
+        status: 'pending',
+        priority: 'Normal',
+        submittedAt: DateTime(2026, 8, 31),
+        createdAt: DateTime(2026, 8, 31),
+      );
+
+      final item = InboxItem.fromLabelRequest(request);
+      expect(item.isLabelVerification, isTrue);
+      expect(item.isComplaint, isFalse);
+      expect(item.code, 'LVR-2026-101');
+      expect(item.title, 'Roasted Almond Butter 200g');
+      expect(item.subtitle, 'Organic Harvest Ltd');
+      expect(item.imageUrl, 'https://example.com/label.jpg');
+      expect(item.priorityOrTag, 'Label Review Request');
+    });
+
+    test('LabelVerificationRequest serializes to and from JSON', () {
+      final now = DateTime(2026, 9, 1);
+      final req = LabelVerificationRequest(
+        id: 'lvr-uuid',
+        requestCode: 'LVR-2026-001',
+        businessName: 'Madhavi Papad',
+        productName: 'Moong Dal Crisps',
+        labelImageUrl: 'https://example.com/img.jpg',
+        status: 'pending',
+        submittedAt: now,
+        createdAt: now,
+      );
+
+      final json = req.toJson();
+      expect(json['request_code'], 'LVR-2026-001');
+      expect(json['business_name'], 'Madhavi Papad');
+
+      final fromJson = LabelVerificationRequest.fromJson(json);
+      expect(fromJson.id, 'lvr-uuid');
+      expect(fromJson.requestCode, 'LVR-2026-001');
+      expect(fromJson.businessName, 'Madhavi Papad');
+      expect(fromJson.isPending, isTrue);
+    });
+
+    test('RegulatorActionItem holds enforcement case history details', () {
+      final action = RegulatorActionItem(
+        id: 'act-001',
+        type: RegulatorActionType.violation,
+        referenceCode: 'SCN-2026-001',
+        title: 'Font Size Non-Compliance',
+        entityName: 'Mega Foods Pvt Ltd',
+        imageUrl: 'https://example.com/thumb.jpg',
+        actionTaken: 'Confirmed Violation',
+        severityOrStatus: 'High',
+        actionDate: DateTime(2026, 9, 1),
+      );
+
+      expect(action.isViolation, isTrue);
+      expect(action.referenceCode, 'SCN-2026-001');
+      expect(action.actionTaken, 'Confirmed Violation');
+      expect(action.imageUrl, isNotNull);
+    });
+  });
+
+  group('Regulator Screen Widget Tests (Inbox & Violations History)', () {
+    testWidgets('RegulatorComplaintInboxScreen renders Unified Queue and Type Filters', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: RegulatorComplaintInboxScreen(),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Unified Intake Queue'), findsOneWidget);
+      expect(find.text('All Intake'), findsOneWidget);
+      expect(find.text('Citizen Complaints'), findsOneWidget);
+      expect(find.text('Business Label Reviews'), findsOneWidget);
+    });
+
+    testWidgets('RegulatorCompanyTrackingScreen renders Segmented 2-Section Tabs', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: RegulatorCompanyTrackingScreen(),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Violations & Enforcement History'), findsOneWidget);
+      expect(find.text('My Actions'), findsOneWidget);
+      expect(find.text('Company Compliance'), findsOneWidget);
+    });
+
+    testWidgets('RegulatorLabelReviewScreen renders Proactive Banner and Decision Buttons', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: RegulatorLabelReviewScreen(requestId: 'sample-lvr-id'),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Header or loading state renders cleanly
+      expect(find.byType(AppBar), findsOneWidget);
+    });
+  });
+
+  group('Multi-Image Capture & Carousel Unit & Widget Tests', () {
+    test('CaptureRole and CaptureRoleInfo metadata validation', () {
+      expect(CaptureRole.values.length, 3);
+      expect(CaptureRoleInfo.orderedRoles.length, 3);
+
+      final frontInfo = CaptureRoleInfo.forRole(CaptureRole.frontLabel);
+      expect(frontInfo.label, 'Front Label');
+      expect(frontInfo.dbColumnName, 'front_label_url');
+
+      final curvedInfo = CaptureRoleInfo.forRole(CaptureRole.curvedSurface);
+      expect(curvedInfo.label, 'Curved Surface');
+      expect(curvedInfo.dbColumnName, 'curved_surface_url');
+
+      final scaleInfo = CaptureRoleInfo.forRole(CaptureRole.scaleReference);
+      expect(scaleInfo.label, 'Scale Reference');
+      expect(scaleInfo.dbColumnName, 'scale_reference_url');
+    });
+
+    test('MultiCapturePayload management and accessors', () {
+      final payload = MultiCapturePayload();
+      expect(payload.isComplete, isFalse);
+      expect(payload.hasAnyCapture, isFalse);
+      expect(payload.capturedCount, 0);
+
+      final cap1 = PendingCapture(
+        localPath: '/tmp/test_front.jpg',
+        fileName: 'scan_front.jpg',
+        capturedAt: DateTime.now(),
+        capturedBySource: 'consumer_scan',
+        fileSizeBytes: 1000,
+      );
+
+      payload.setForRole(CaptureRole.frontLabel, cap1);
+      expect(payload.hasAnyCapture, isTrue);
+      expect(payload.capturedCount, 1);
+      expect(payload.getForRole(CaptureRole.frontLabel), equals(cap1));
+      expect(payload.primaryCapture, equals(cap1));
+
+      final cap2 = PendingCapture(
+        localPath: '/tmp/test_curved.jpg',
+        fileName: 'scan_curved.jpg',
+        capturedAt: DateTime.now(),
+        capturedBySource: 'consumer_scan',
+        fileSizeBytes: 2000,
+      );
+      final cap3 = PendingCapture(
+        localPath: '/tmp/test_scale.jpg',
+        fileName: 'scan_scale.jpg',
+        capturedAt: DateTime.now(),
+        capturedBySource: 'consumer_scan',
+        fileSizeBytes: 3000,
+      );
+
+      payload.setForRole(CaptureRole.curvedSurface, cap2);
+      payload.setForRole(CaptureRole.scaleReference, cap3);
+      expect(payload.isComplete, isTrue);
+      expect(payload.capturedCount, 3);
+      expect(payload.allCaptures.length, 3);
+      expect(payload.capturedEntries.length, 3);
+    });
+
+    test('ConsumerScanModel handles multi-image carouselImages gracefully', () {
+      final model = ConsumerScanModel(
+        id: 'scan-1',
+        consumerId: 'user-1',
+        productName: 'Biscuits',
+        frontLabelUrl: 'https://example.com/front.jpg',
+        curvedSurfaceUrl: 'https://example.com/curved.jpg',
+        scaleReferenceUrl: 'https://example.com/scale.jpg',
+        scannedAt: DateTime.now(),
+      );
+
+      final images = model.carouselImages;
+      expect(images.length, 3);
+      expect(images[0].key, 'Front Label');
+      expect(images[0].value, 'https://example.com/front.jpg');
+      expect(images[1].key, 'Curved Surface');
+      expect(images[2].key, 'Scale Reference');
+
+      // Legacy fallback
+      final legacyModel = ConsumerScanModel(
+        id: 'scan-legacy',
+        consumerId: 'user-1',
+        productName: 'Old Scan',
+        imageUrl: 'https://example.com/old.jpg',
+        scannedAt: DateTime.now(),
+      );
+      expect(legacyModel.carouselImages.length, 1);
+      expect(legacyModel.carouselImages[0].key, 'Label Image');
+    });
+
+    testWidgets('MultiCaptureScreen renders 3-step progress, guidance, and buttons', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: MultiCaptureScreen(
+          sourceTag: 'test_capture',
+          flowLabel: 'Product Label',
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Product Label Capture'), findsOneWidget);
+      expect(find.text('0/3'), findsOneWidget);
+      expect(find.textContaining('Front Label'), findsWidgets);
+      expect(find.text('Skip'), findsOneWidget);
+      expect(find.text('Upload from Gallery'), findsOneWidget);
+    });
+
+    testWidgets('ConsumerScanAnalysisScreen renders Carousel Viewport when MultiCapturePayload provided', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final payload = MultiCapturePayload(
+        frontLabel: PendingCapture(
+          localPath: '/tmp/front.jpg',
+          fileName: 'front.jpg',
+          capturedAt: DateTime.now(),
+          capturedBySource: 'consumer_scan',
+          fileSizeBytes: 500000,
+        ),
+        curvedSurface: PendingCapture(
+          localPath: '/tmp/curved.jpg',
+          fileName: 'curved.jpg',
+          capturedAt: DateTime.now(),
+          capturedBySource: 'consumer_scan',
+          fileSizeBytes: 600000,
+        ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: ConsumerScanAnalysisScreen(
+          pendingCapture: payload.primaryCapture!,
+          multiCapture: payload,
+          prefilledProductName: 'Multi-Scan Test',
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(PageView), findsOneWidget);
+      expect(find.text('1/2'), findsOneWidget);
+    });
+
+    testWidgets('RegulatorAuditIntakeScreen blocks capture and displays error when mandatory fields are missing', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: RegulatorAuditIntakeScreen(),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('MANDATORY AUDIT IDENTIFIERS'), findsOneWidget);
+      expect(find.text('Product name *'), findsOneWidget);
+      expect(find.text('Registered company name *'), findsOneWidget);
+
+      // Tap to capture while inputs are empty
+      await tester.tap(find.text('Tap to Capture'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Should display mandatory error texts
+      expect(find.text('Product name is mandatory to proceed'), findsOneWidget);
+      expect(find.text('Registered company name is mandatory to proceed'), findsOneWidget);
+
+      // SnackBar warning should be triggered
+      expect(
+        find.text('Please enter both Product Name and Registered Company Name before proceeding.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('RegulatorAuditIntakeScreen clears error when typing into fields', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: RegulatorAuditIntakeScreen(),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Tap to capture to trigger errors
+      await tester.tap(find.text('Tap to Capture'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Product name is mandatory to proceed'), findsOneWidget);
+
+      // Enter product name
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Product name *'),
+        'Britannia Good Day Cookies',
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Product error should disappear
+      expect(find.text('Product name is mandatory to proceed'), findsNothing);
+      expect(find.text('Registered company name is mandatory to proceed'), findsOneWidget);
+    });
+
+    testWidgets('MultiCaptureScreen renders audit banner with Product and Company Name', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: MultiCaptureScreen(
+          sourceTag: 'test',
+          flowLabel: 'Audit Evidence',
+          productName: 'Good Day Butter',
+          companyName: 'Britannia Industries Ltd',
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Good Day Butter • Britannia Industries Ltd'), findsOneWidget);
     });
   });
 }

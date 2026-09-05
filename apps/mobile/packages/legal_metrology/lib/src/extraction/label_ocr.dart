@@ -25,8 +25,16 @@ class OcrResult {
 
 class LabelOcrService {
   final TextRecognizer _latin = TextRecognizer(script: TextRecognitionScript.latin);
-  final TextRecognizer _devanagari =
-      TextRecognizer(script: TextRecognitionScript.devanagiri);
+  TextRecognizer? _devanagari;
+
+  TextRecognizer? _getDevanagari() {
+    try {
+      _devanagari ??= TextRecognizer(script: TextRecognitionScript.devanagiri);
+      return _devanagari;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<OcrResult> recognise(String imagePath) async {
     final input = InputImage.fromFilePath(imagePath);
@@ -36,7 +44,10 @@ class LabelOcrService {
       results.add(await _latin.processImage(input));
     } catch (_) {/* keep going */}
     try {
-      results.add(await _devanagari.processImage(input));
+      final dev = _getDevanagari();
+      if (dev != null) {
+        results.add(await dev.processImage(input));
+      }
     } catch (_) {/* Devanagari model may be unavailable */}
 
     final lines = <OcrLine>[];
@@ -62,6 +73,6 @@ class LabelOcrService {
 
   Future<void> dispose() async {
     await _latin.close();
-    await _devanagari.close();
+    await _devanagari?.close();
   }
 }

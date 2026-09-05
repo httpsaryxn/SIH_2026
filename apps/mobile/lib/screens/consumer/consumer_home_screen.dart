@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
+import '../../core/constants/app_typography.dart';
 import '../../core/models/consumer_complaint_model.dart';
 import '../../core/models/consumer_saved_product.dart';
 import '../../core/models/consumer_scan_model.dart';
@@ -10,9 +11,10 @@ import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
+import '../onboarding/role_selection_screen.dart';
+import 'consumer_profile_screen.dart';
 import 'consumer_scan_analysis_screen.dart';
 import 'widgets/complaint_detail_modal.dart';
-import 'widgets/consumer_profile_sheet.dart';
 import 'widgets/my_complaints_section.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/product_comparison_modal.dart';
@@ -33,10 +35,13 @@ class ConsumerHomeScreen extends StatefulWidget {
 }
 
 class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
-  int _currentNavIndex = 0; // 0: Home, 1: My Scans, 2: Complaints, 3: Compare
+  int _currentNavIndex = 0; // 0: Home, 1: My Scans, 2: Complaints, 3: Compare, 4: Profile
   bool _isLoading = true;
+  bool _isSigningOut = false;
   String _userName = 'Consumer';
+  String _fullProfileName = 'Consumer';
   String _userEmail = 'consumer@labellens.in';
+  String _createdAt = '2026';
 
   List<ConsumerScanModel> _recentScans = [];
   List<ConsumerSavedProduct> _savedProducts = [];
@@ -56,15 +61,34 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     // Fetch user profile name
     final userProfile = await AuthService.fetchUserProfile();
-    if (userProfile != null &&
-        userProfile['full_name'] != null &&
-        (userProfile['full_name'] as String).isNotEmpty) {
-      _userName = (userProfile['full_name'] as String).split(' ').first;
+    if (userProfile != null) {
+      if (userProfile['full_name'] != null &&
+          (userProfile['full_name'] as String).isNotEmpty) {
+        _fullProfileName = userProfile['full_name'] as String;
+        _userName = _fullProfileName.split(' ').first;
+      }
+      if (userProfile['email'] != null &&
+          (userProfile['email'] as String).isNotEmpty) {
+        _userEmail = userProfile['email'] as String;
+      }
+      if (userProfile['created_at'] != null) {
+        final dt = DateTime.tryParse(userProfile['created_at'].toString());
+        if (dt != null) {
+          _createdAt = '${dt.day}/${dt.month}/${dt.year}';
+        }
+      }
     } else {
-      final email = AuthService.currentUser?.email;
-      if (email != null && email.contains('@')) {
-        _userName = email.split('@').first;
-        _userEmail = email;
+      final user = AuthService.currentUser;
+      if (user != null) {
+        final email = user.email;
+        if (email != null && email.contains('@')) {
+          _userName = email.split('@').first;
+          _userEmail = email;
+        }
+        if (user.userMetadata != null && user.userMetadata!['full_name'] != null) {
+          _fullProfileName = user.userMetadata!['full_name'] as String;
+          _userName = _fullProfileName.split(' ').first;
+        }
       }
     }
 
@@ -295,12 +319,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     );
   }
 
-  void _openReportDialog({String? prefilledProductName, String? prefilledBrand}) {
+  void _openReportDialog({
+    String? prefilledProductName,
+    String? prefilledBrand,
+    ConsumerScanModel? prefilledScan,
+    String? prefilledEvidenceUrl,
+  }) {
     showDialog(
       context: context,
       builder: (context) => ReportComplaintDialog(
-        prefilledProductName: prefilledProductName,
-        prefilledBrand: prefilledBrand,
+        prefilledProductName: prefilledProductName ?? prefilledScan?.productName,
+        prefilledBrand: prefilledBrand ?? prefilledScan?.brand,
+        prefilledScan: prefilledScan,
+        prefilledEvidenceUrl: prefilledEvidenceUrl ?? prefilledScan?.imageUrl,
+        recentScans: _recentScans,
         onComplaintSubmitted: (newComplaint) {
           setState(() {
             _myComplaints.insert(0, newComplaint);
@@ -331,9 +363,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       builder: (context) => ProductSummaryModal(
         scan: scan,
         onReportIssue: () {
+          Navigator.of(context).pop();
           _openReportDialog(
-            prefilledProductName: scan.productName,
-            prefilledBrand: scan.brand,
+            prefilledScan: scan,
           );
         },
         onCompare: () => _openComparisonModal(),
@@ -372,17 +404,115 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   }
 
   void _openProfileSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ConsumerProfileSheet(
-        userName: _userName,
-        userEmail: _userEmail,
-        onNavigateToScans: () => setState(() => _currentNavIndex = 1),
-        onNavigateToComplaints: () => setState(() => _currentNavIndex = 2),
-        onOpenNotifications: _openNotificationsSheet,
+    setState(() => _currentNavIndex = 4);
+  }
+
+  PreferredSizeWidget _buildProfileAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      toolbarHeight: 60.0,
+      automaticallyImplyLeading: false,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1.0),
+        child: Container(
+          color: AppColors.surfaceVariant.withValues(alpha: 0.6),
+          height: 1.0,
+        ),
       ),
+      title: Text(
+        'Consumer Profile',
+        style: AppTypography.headlineSm.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSignOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusLg)),
+        title: Row(
+          children: [
+            const Icon(Icons.logout_rounded, color: AppColors.error, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Sign Out',
+              style: AppTypography.headlineSm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of your consumer session?',
+          style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.labelMd.copyWith(color: AppColors.outline),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusDefault)),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Log Out',
+              style: AppTypography.labelMd.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSigningOut = true);
+    try {
+      await AuthService.signOut();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.onSurface,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          'Logged out successfully.',
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
     );
   }
 
@@ -416,104 +546,28 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildTopAppBar(isDesktop),
-      body: RefreshIndicator(
-        onRefresh: _loadAllConsumerData,
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: AppSpacing.lg,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: _buildCurrentTabContent(isDesktop),
+      appBar: _currentNavIndex == 4 ? _buildProfileAppBar() : null,
+      body: SafeArea(
+        top: _currentNavIndex != 4,
+        child: RefreshIndicator(
+          onRefresh: _loadAllConsumerData,
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: _currentNavIndex == 4 ? AppSpacing.gutter : horizontalPadding,
+              vertical: _currentNavIndex == 4 ? AppSpacing.md : AppSpacing.lg,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: _buildCurrentTabContent(isDesktop),
+              ),
             ),
           ),
         ),
       ),
       bottomNavigationBar: isDesktop ? null : _buildMobileBottomNav(),
-    );
-  }
-
-  PreferredSizeWidget _buildTopAppBar(bool isDesktop) {
-    return AppBar(
-      backgroundColor: AppColors.surfaceContainerLowest,
-      elevation: 0,
-      scrolledUnderElevation: 1,
-      centerTitle: false,
-      title: Row(
-        children: [
-          const Icon(Icons.eco_rounded, color: AppColors.primary, size: 26),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            'FreshLabel Pro',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              letterSpacing: -0.3,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        if (isDesktop) ...[
-          _buildNavHeaderButton('Home', 0),
-          _buildNavHeaderButton('My Scans', 1),
-          _buildNavHeaderButton('My Complaints', 2),
-          _buildNavHeaderButton('Compare', 3),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-
-        // Notification Bell Icon
-        IconButton(
-          icon: const Icon(Icons.notifications_none_rounded, color: AppColors.secondary),
-          tooltip: 'Notifications',
-          onPressed: _openNotificationsSheet,
-        ),
-
-        // User Avatar Button
-        InkWell(
-          onTap: _openProfileSheet,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primaryContainer.withValues(alpha: 0.3),
-              child: Text(
-                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-      ],
-    );
-  }
-
-  Widget _buildNavHeaderButton(String label, int index) {
-    final isActive = _currentNavIndex == index;
-    return TextButton(
-      onPressed: () => setState(() => _currentNavIndex = index),
-      style: TextButton.styleFrom(
-        foregroundColor: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-          color: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
-        ),
-      ),
     );
   }
 
@@ -525,6 +579,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         return _buildMyComplaintsView();
       case 3:
         return _buildCompareView();
+      case 4:
+        return ConsumerProfileBody(
+          userName: _fullProfileName.isNotEmpty ? _fullProfileName : _userName,
+          userEmail: _userEmail,
+          createdAt: _createdAt,
+          onSignOut: _handleSignOut,
+          isSigningOut: _isSigningOut,
+        );
       case 0:
       default:
         return _buildHomeDashboard(isDesktop);
@@ -630,8 +692,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                     const SizedBox(height: AppSpacing.xl),
                     MyComplaintsSection(
                       complaints: _myComplaints,
+                      recentScans: _recentScans,
                       isLoading: _isLoading,
                       onComplaintTap: _showComplaintDetail,
+                      onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
                       onViewAllTap: () => setState(() => _currentNavIndex = 2),
                       onReportNewTap: () => _openReportDialog(),
                     ),
@@ -679,8 +743,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           const SizedBox(height: AppSpacing.xl),
           MyComplaintsSection(
             complaints: _myComplaints,
+            recentScans: _recentScans,
             isLoading: _isLoading,
             onComplaintTap: _showComplaintDetail,
+            onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
             onViewAllTap: () => setState(() => _currentNavIndex = 2),
             onReportNewTap: () => _openReportDialog(),
           ),
@@ -705,16 +771,18 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'My Scan History',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+            Expanded(
+              child: Text(
+                'My Scan History',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _openScanLauncher,
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
@@ -722,6 +790,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
             ),
           ],
@@ -761,16 +830,18 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'My Reported Complaints',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+            Expanded(
+              child: Text(
+                'My Complaints',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: () => _openReportDialog(),
               icon: const Icon(Icons.campaign_rounded, size: 18),
@@ -778,19 +849,186 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
+        if (_recentScans.isNotEmpty) ...[
+          _buildRecentlyScannedForComplaints(),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         MyComplaintsSection(
           complaints: _myComplaints,
+          recentScans: _recentScans,
           isLoading: _isLoading,
           onComplaintTap: _showComplaintDetail,
+          onReportScan: (scan) => _openReportDialog(prefilledScan: scan),
           onViewAllTap: () {},
           onReportNewTap: () => _openReportDialog(),
         ),
       ],
+    );
+  }
+
+  Widget _buildRecentlyScannedForComplaints() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: AppSpacing.roundedMd,
+        border: Border.all(color: AppColors.surfaceVariant, width: 1),
+        boxShadow: AppSpacing.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  'Recently Scanned Products',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_recentScans.length} available',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select any scanned product to file a Legal Metrology complaint or report non-compliance:',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _recentScans.length,
+              separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (context, index) {
+                final scan = _recentScans[index];
+                return InkWell(
+                  onTap: () => _openReportDialog(prefilledScan: scan),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 210,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.surfaceVariant, width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: scan.imageUrl != null && scan.imageUrl!.isNotEmpty
+                                  ? Image.network(
+                                      scan.imageUrl!,
+                                      width: 36,
+                                      height: 36,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        width: 36,
+                                        height: 36,
+                                        color: AppColors.surfaceVariant,
+                                        child: const Icon(Icons.inventory_2_outlined, size: 20),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 36,
+                                      height: 36,
+                                      color: AppColors.surfaceVariant,
+                                      child: const Icon(Icons.inventory_2_outlined, size: 20),
+                                    ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    scan.productName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.onSurface,
+                                    ),
+                                  ),
+                                  Text(
+                                    scan.brand,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openReportDialog(prefilledScan: scan),
+                            icon: const Icon(Icons.campaign_outlined, size: 14),
+                            label: const Text('Report Issue', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.errorContainer.withValues(alpha: 0.7),
+                              foregroundColor: AppColors.error,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -836,14 +1074,26 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '$_greeting, $_userName 👋',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-            letterSpacing: -0.5,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                '$_greeting, $_userName 👋',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.notifications_none_rounded, color: AppColors.onSurfaceVariant),
+              tooltip: 'Notifications',
+              onPressed: _openNotificationsSheet,
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(
@@ -933,9 +1183,19 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 12 : 6,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primaryContainer.withValues(alpha: 0.3)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
 import '../../core/services/auth_service.dart';
+import '../../features/small_business/presentation/screens/my_label_studio_screen.dart';
 import '../onboarding/role_selection_screen.dart';
 
 class BusinessOwnerHomeScreen extends StatelessWidget {
@@ -23,7 +24,7 @@ class BusinessOwnerHomeScreen extends StatelessWidget {
             const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              'FreshLabel Pro',
+              'LabelLens',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -85,9 +86,9 @@ class BusinessOwnerHomeScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               ElevatedButton.icon(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Business compliance workspace is active.'),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MyLabelStudioScreen(),
                     ),
                   );
                 },

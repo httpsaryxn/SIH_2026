@@ -116,6 +116,24 @@ class RegulatorTimelineTile extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
+                  if (event.imageUrl != null && event.imageUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                      child: Container(
+                        height: 72,
+                        width: 120,
+                        color: AppColors.surfaceContainerLow,
+                        child: Image.network(
+                          event.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const Center(
+                            child: Icon(Icons.image_not_supported_outlined, size: 20, color: AppColors.secondary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   if (event.officerName.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
