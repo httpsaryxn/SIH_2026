@@ -125,6 +125,13 @@ def _serialise_results(results):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+@app.get("/ping")
+@app.get("/healthz")
+async def ping():
+    """Ultra-lightweight ping endpoint for keep-alive cron jobs."""
+    return "pong"
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""
