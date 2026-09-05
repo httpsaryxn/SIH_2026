@@ -28,12 +28,37 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 MODELS_TO_TRY = [
+    "gemini-flash-lite-latest",
     "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-2.5-pro",
-    "gemini-3.6-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.1-pro-preview",
 ]
+
+
+def _optimize_image_for_vision(path: str, max_size: int = 1600, quality: int = 85) -> Tuple[str, str]:
+    """Resize and compress phone camera images to prevent massive base64 payloads and timeouts."""
+    try:
+        from PIL import Image
+        import io
+        with Image.open(path) as img:
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            w, h = img.size
+            if max(w, h) > max_size:
+                ratio = max_size / float(max(w, h))
+                new_w = int(w * ratio)
+                new_h = int(h * ratio)
+                img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality, optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            return "image/jpeg", b64
+    except Exception as e:
+        logger.warning("Image optimization failed for %s, using raw bytes: %s", path, e)
+        raw = Path(path).read_bytes()
+        mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
+        return mime, base64.b64encode(raw).decode("utf-8")
 
 
 def get_api_key(api_key: Optional[str] = None) -> Optional[str]:
@@ -202,13 +227,8 @@ Respond ONLY with the JSON object. No surrounding markdown fences.
         image_parts = []
         for path in [front_path, back_path]:
             if path and Path(path).is_file():
-                try:
-                    raw = Path(path).read_bytes()
-                    mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
-                    b64 = base64.b64encode(raw).decode("utf-8")
-                    image_parts.append({"mime_type": mime, "data": b64})
-                except Exception as e:
-                    logger.warning("Failed to read image %s: %s", path, e)
+                mime, b64 = _optimize_image_for_vision(path)
+                image_parts.append({"mime_type": mime, "data": b64})
 
         if not image_parts:
             raise ValueError("No valid packaging images could be loaded for Vision analysis.")
@@ -318,7 +338,7 @@ Respond ONLY with the JSON object. No markdown backticks.
         for model in MODELS_TO_TRY:
             url = GEMINI_API_URL.format(model=model, key=key)
             try:
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=18)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
