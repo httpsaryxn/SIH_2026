@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 MODELS_TO_TRY = [
-    "gemini-flash-lite-latest",
-    "gemini-2.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite",  # 15 RPM, 500 RPD (Fastest & highest daily quota)
+    "gemini-3.5-flash-lite",  # 15 RPM, 500 RPD
+    "gemini-2.5-flash",       # 5 RPM, 20 RPD
+    "gemini-3.7-flash",       # 5 RPM, 20 RPD
+    "gemini-3.6-flash",       # 5 RPM, 20 RPD
 ]
 
 
