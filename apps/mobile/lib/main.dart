@@ -6,6 +6,8 @@ import 'core/services/auth_service.dart';
 import 'core/services/role_router.dart';
 import 'screens/onboarding/role_selection_screen.dart';
 
+import 'screens/splash/splash_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -22,15 +24,17 @@ void main() async {
 }
 
 class LabelLensApp extends StatelessWidget {
-  const LabelLensApp({super.key});
+  final Widget? home;
+
+  const LabelLensApp({super.key, this.home});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LabelLens',
+      title: 'Label Lens',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const AuthGate(),
+      home: home ?? const SplashScreen(),
     );
   }
 }

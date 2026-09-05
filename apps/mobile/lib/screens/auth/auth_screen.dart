@@ -7,6 +7,7 @@ import '../../core/constants/app_spacing.dart';
 import '../../core/models/user_role.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/role_router.dart';
+import '../../core/widgets/label_lens_brand.dart';
 import '../../widgets/custom_button.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -266,26 +267,10 @@ class _AuthScreenState extends State<AuthScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Brand Logo / Header
-                      Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.eco_rounded,
-                              color: AppColors.primary,
-                              size: 30,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              'LabelLens',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
+                      const Center(
+                        child: LabelLensBrand(
+                          logoSize: 42,
+                          fontSize: 28,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),

@@ -18,6 +18,8 @@ import 'package:mobile/features/small_business/presentation/screens/my_label_stu
 import 'package:mobile/features/small_business/presentation/screens/nutritional_values_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/product_claims_screen.dart';
 import 'package:mobile/screens/onboarding/role_selection_screen.dart';
+import 'package:mobile/core/widgets/label_lens_brand.dart';
+import 'package:mobile/screens/splash/splash_screen.dart';
 
 class MockHttpOverrides extends HttpOverrides {
   @override
@@ -425,11 +427,11 @@ void main() {
 
   testWidgets('Role Selection screen displays all 3 roles and title',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const LabelLensApp());
+    await tester.pumpWidget(const LabelLensApp(home: RoleSelectionScreen()));
     await tester.pumpAndSettle();
 
     // Verify Brand title & Header
-    expect(find.text('LabelLens'), findsWidgets);
+    expect(find.byType(LabelLensBrand), findsWidgets);
     expect(find.text('How will you use the platform?'), findsOneWidget);
 
     // Verify 3 Role cards exist
@@ -440,6 +442,24 @@ void main() {
     // Verify Continue button & Login link
     expect(find.text('Continue'), findsOneWidget);
     expect(find.text('Already have an account? Log in'), findsOneWidget);
+  });
+
+  testWidgets('SplashScreen renders LabelLensBrand and Department info',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SplashScreen(minDuration: Duration(milliseconds: 50)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(LabelLensBrand), findsOneWidget);
+    expect(find.text('Department of Consumer Affairs • SIH 2026'), findsOneWidget);
+    expect(find.text('Legal Metrology & Packaging Compliance'), findsOneWidget);
+
+    // Allow timer and animation to complete cleanly
+    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pumpAndSettle();
   });
 }
 

@@ -4,7 +4,7 @@
     <!-- Bar code / label capture for the on-device Legal Metrology audit -->
     <uses-permission android:name="android.permission.CAMERA" />
     <application
-        android:label="LabelLens"
+        android:label="Label Lens"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Bundle the ML Kit models at install time (barcode + Latin & Devanagari OCR) -->

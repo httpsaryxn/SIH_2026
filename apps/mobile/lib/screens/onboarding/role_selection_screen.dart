@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/models/user_role.dart';
+import '../../core/widgets/label_lens_brand.dart';
 import '../../widgets/custom_button.dart';
 import '../auth/auth_screen.dart';
 import 'widgets/ambient_background.dart';
@@ -62,22 +63,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   horizontal: horizontalPadding,
                   vertical: AppSpacing.md,
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(
-                      Icons.eco_rounded,
-                      color: AppColors.primary,
-                      size: 28,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      'LabelLens',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                        letterSpacing: -0.2,
-                      ),
+                    LabelLensBrand(
+                      logoSize: 30,
+                      fontSize: 20,
                     ),
                   ],
                 ),

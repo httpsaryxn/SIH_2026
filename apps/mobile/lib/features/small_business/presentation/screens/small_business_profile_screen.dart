@@ -416,7 +416,7 @@ class _SmallBusinessProfileScreenState extends State<SmallBusinessProfileScreen>
           _buildInfoRow(
             icon: Icons.terminal_rounded,
             label: 'App Version',
-            value: 'LabelLens v1.0.0 (SIH 2026)',
+            value: 'Label Lens v1.0.0 (SIH 2026)',
           ),
         ],
       ),

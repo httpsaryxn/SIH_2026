@@ -11,6 +11,7 @@ import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
+import '../../core/widgets/label_lens_brand.dart';
 import '../onboarding/role_selection_screen.dart';
 import 'consumer_profile_screen.dart';
 import 'consumer_scan_analysis_screen.dart';
@@ -1077,16 +1078,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Text(
-                '$_greeting, $_userName 👋',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
-                  letterSpacing: -0.5,
-                ),
-              ),
+            const LabelLensBrand(
+              logoSize: 28,
+              fontSize: 20,
             ),
             IconButton(
               icon: const Icon(Icons.notifications_none_rounded, color: AppColors.onSurfaceVariant),
@@ -1094,6 +1088,16 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               onPressed: _openNotificationsSheet,
             ),
           ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          '$_greeting, $_userName 👋',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+            letterSpacing: -0.5,
+          ),
         ),
         const SizedBox(height: 4),
         Text(

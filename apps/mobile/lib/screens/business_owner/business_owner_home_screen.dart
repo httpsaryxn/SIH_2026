@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/widgets/label_lens_brand.dart';
 import '../../features/small_business/presentation/screens/my_label_studio_screen.dart';
 import '../onboarding/role_selection_screen.dart';
 
@@ -19,20 +19,7 @@ class BusinessOwnerHomeScreen extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 1,
         centerTitle: false,
-        title: Row(
-          children: [
-            const Icon(Icons.eco_rounded, color: AppColors.primary, size: 24),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              'LabelLens',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
+        title: const LabelLensBrand.appBar(),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded, color: AppColors.outline),
