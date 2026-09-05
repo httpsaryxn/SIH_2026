@@ -393,9 +393,10 @@ async def download_report(report_id: str):
 # ---------------------------------------------------------------------------
 def main():
     import uvicorn
-    print("\n  Legal Metrology ML Scanner (FastAPI)")
-    print("  ➜  API docs at http://localhost:8000/docs\n")
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", "8000"))
+    print(f"\n  Legal Metrology ML Scanner (FastAPI)")
+    print(f"  ➜  Listening on port {port} (docs at /docs)\n")
+    uvicorn.run("server:app", host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
