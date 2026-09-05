@@ -221,10 +221,7 @@ class MlScannerClient {
   static String get baseUrl => _baseUrl;
 
   static String _defaultBaseUrl() {
-    // Android emulator maps 10.0.2.2 → host machine's localhost.
-    // However, on physical devices, the host LAN IP or adb reverse is used.
-    if (Platform.isAndroid) return 'http://192.168.0.116:8000';
-    return 'http://127.0.0.1:8000';
+    return 'https://labellens-ml-scanner.onrender.com';
   }
 
   /// Allow overriding the base URL and persisting it to SharedPreferences.
@@ -243,7 +240,7 @@ class MlScannerClient {
     try {
       final res = await http
           .get(Uri.parse('$cleanUrl/health'))
-          .timeout(const Duration(milliseconds: 2000));
+          .timeout(const Duration(seconds: 8));
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -264,6 +261,7 @@ class MlScannerClient {
 
     final candidates = <String>[
       _baseUrl,
+      'https://labellens-ml-scanner.onrender.com', // Cloud hosted on Render
       'http://192.168.0.116:8000', // Workstation LAN IP (reachable by physical phone on same Wi-Fi)
       if (Platform.isAndroid) ...[
         'http://127.0.0.1:8000', // Physical Android phone via `adb reverse tcp:8000 tcp:8000`
@@ -278,9 +276,10 @@ class MlScannerClient {
     for (final url in candidates.toSet()) {
       try {
         final uri = Uri.parse('$url/health');
-        final response = await http
-            .get(uri)
-            .timeout(const Duration(milliseconds: 1800));
+        final timeout = url.startsWith('https://')
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 2);
+        final response = await http.get(uri).timeout(timeout);
         if (response.statusCode == 200) {
           debugPrint('[MlScannerClient] ✓ Connected to ML Scanner service at $url');
           _baseUrl = url;

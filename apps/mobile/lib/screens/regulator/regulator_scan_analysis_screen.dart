@@ -437,7 +437,7 @@ class _RegulatorScanAnalysisScreenState
                       tooltip: 'Reset to default',
                       onPressed: () {
                         setDialogState(() {
-                          urlController.text = 'http://192.168.0.116:8000';
+                          urlController.text = 'https://labellens-ml-scanner.onrender.com';
                           testResult = null;
                         });
                       },
@@ -448,6 +448,16 @@ class _RegulatorScanAnalysisScreenState
                 Wrap(
                   spacing: 6,
                   children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.cloud_done_rounded, size: 16),
+                      label: const Text('Render Cloud'),
+                      onPressed: () {
+                        setDialogState(() {
+                          urlController.text = 'https://labellens-ml-scanner.onrender.com';
+                          testResult = null;
+                        });
+                      },
+                    ),
                     ActionChip(
                       label: const Text('192.168.0.116'),
                       onPressed: () {
