@@ -101,32 +101,27 @@ class LegalMetrologyService {
     String? productName,
     String? geminiApiKey,
   }) async {
-    try {
-      final isUp = await MlScannerClient.isAvailable();
-      if (!isUp) {
-        debugPrint('[LegalMetrologyService] ML Scanner service is not reachable at ${MlScannerClient.baseUrl}');
-        return null;
-      }
-
-      final frontPath = multiCapture?.frontLabel?.localPath ?? capture.localPath;
-      final backPath = multiCapture?.curvedSurface?.localPath;
-      final rulerPath = multiCapture?.scaleReference?.localPath;
-
-      debugPrint('[LegalMetrologyService] Transmitting 3 captured samples to ML Scanner:');
-      debugPrint('  - Front: $frontPath');
-      debugPrint('  - Back/Side: $backPath');
-      debugPrint('  - Ruler/Scale: $rulerPath');
-
-      return await MlScannerClient.analyzeLabels(
-        frontImagePath: frontPath,
-        backImagePath: backPath,
-        rulerImagePath: rulerPath,
-        geminiApiKey: geminiApiKey,
-      );
-    } catch (e, st) {
-      debugPrint('[LegalMetrologyService] auditCaptureRemote failed: $e\n$st');
-      return null;
+    final isUp = await MlScannerClient.isAvailable();
+    if (!isUp) {
+      debugPrint('[LegalMetrologyService] ML Scanner service is not reachable at ${MlScannerClient.baseUrl}');
+      throw Exception('Server health check failed at ${MlScannerClient.baseUrl}/health');
     }
+
+    final frontPath = multiCapture?.frontLabel?.localPath ?? capture.localPath;
+    final backPath = multiCapture?.curvedSurface?.localPath;
+    final rulerPath = multiCapture?.scaleReference?.localPath;
+
+    debugPrint('[LegalMetrologyService] Transmitting 3 captured samples to ML Scanner:');
+    debugPrint('  - Front: $frontPath');
+    debugPrint('  - Back/Side: $backPath');
+    debugPrint('  - Ruler/Scale: $rulerPath');
+
+    return await MlScannerClient.analyzeLabels(
+      frontImagePath: frontPath,
+      backImagePath: backPath,
+      rulerImagePath: rulerPath,
+      geminiApiKey: geminiApiKey,
+    );
   }
 
   /// Deterministic audit from a bar code / GTIN alone (no photo).

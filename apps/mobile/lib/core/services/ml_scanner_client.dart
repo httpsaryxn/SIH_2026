@@ -240,7 +240,7 @@ class MlScannerClient {
     try {
       final res = await http
           .get(Uri.parse('$cleanUrl/health'))
-          .timeout(const Duration(milliseconds: 3000));
+          .timeout(const Duration(seconds: 8));
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -276,9 +276,10 @@ class MlScannerClient {
     for (final url in candidates.toSet()) {
       try {
         final uri = Uri.parse('$url/health');
-        final response = await http
-            .get(uri)
-            .timeout(const Duration(milliseconds: 1800));
+        final timeout = url.startsWith('https://')
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 2);
+        final response = await http.get(uri).timeout(timeout);
         if (response.statusCode == 200) {
           debugPrint('[MlScannerClient] ✓ Connected to ML Scanner service at $url');
           _baseUrl = url;
