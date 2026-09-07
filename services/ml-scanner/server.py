@@ -59,6 +59,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Mount AI Summary & PDF Reports Router (Groq + ReportLab)
+# ---------------------------------------------------------------------------
+from summary_gen.router import router as summary_router
+app.include_router(summary_router)
+
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "lmc_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

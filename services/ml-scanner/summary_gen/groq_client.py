@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from groq import Groq
-from config import settings
+from .config import settings
 
 logger = logging.getLogger(__name__)
 

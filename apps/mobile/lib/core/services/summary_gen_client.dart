@@ -79,8 +79,9 @@ class RegulatorSummaryResult {
 }
 
 class SummaryGenClient {
+  static const String cloudUrl = 'https://labellens-ml-scanner.onrender.com';
   static const String prefKey = 'summary_gen_base_url';
-  static String _baseUrl = 'http://127.0.0.1:8001';
+  static String _baseUrl = cloudUrl;
 
   static String get baseUrl => _baseUrl;
 
@@ -92,7 +93,7 @@ class SummaryGenClient {
     } catch (_) {}
   }
 
-  /// Automatically detect candidate service URLs
+  /// Automatically detect candidate service URLs (local USB/LAN dev vs Render cloud)
   static Future<bool> isAvailable() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -102,29 +103,58 @@ class SummaryGenClient {
       }
     } catch (_) {}
 
-    final candidates = <String>{
-      _baseUrl,
+    // First, fast probe for local development servers (USB adb reverse, emulator, LAN)
+    final localCandidates = <String>[
       if (Platform.isAndroid) ...[
         'http://127.0.0.1:8001',
-        'http://localhost:8001',
+        'http://127.0.0.1:8000',
         'http://10.0.2.2:8001',
+        'http://10.0.2.2:8000',
       ],
+      'http://localhost:8001',
+      'http://localhost:8000',
       'http://192.168.0.104:8001',
       'http://192.168.0.116:8001',
-      'http://localhost:8001',
-    };
+    ];
 
-    for (final url in candidates) {
+    // If _baseUrl was previously set to a local URL, check it first
+    if (_baseUrl.contains('127.0.0.1') || _baseUrl.contains('localhost') || _baseUrl.contains('192.168.')) {
+      if (!localCandidates.contains(_baseUrl)) {
+        localCandidates.insert(0, _baseUrl);
+      }
+    }
+
+    for (final url in localCandidates) {
       try {
         final res = await http
             .get(Uri.parse('$url/health'))
-            .timeout(const Duration(seconds: 2));
+            .timeout(const Duration(milliseconds: 700));
         if (res.statusCode == 200) {
           _baseUrl = url;
+          debugPrint('[SummaryGenClient] Connected to local service at $url');
           return true;
         }
       } catch (_) {}
     }
+
+    // Next, check Render cloud URL
+    try {
+      final res = await http
+          .get(Uri.parse('$cloudUrl/health'))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        _baseUrl = cloudUrl;
+        debugPrint('[SummaryGenClient] Connected to cloud service at $cloudUrl');
+        return true;
+      }
+    } catch (_) {}
+
+    // If cloud URL check timed out (e.g. cold start), still default to cloudUrl so request gets 45s timeout
+    if (_baseUrl.startsWith('https://') || _baseUrl.isEmpty) {
+      _baseUrl = cloudUrl;
+      return true;
+    }
+
     return false;
   }
 

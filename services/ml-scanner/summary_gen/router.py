@@ -1,35 +1,19 @@
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from config import settings
-from groq_client import classify_and_summarize_consumer, generate_regulator_summary
-from pdf_generator import generate_compliance_pdf
-import supabase_client
+from .config import settings
+from .groq_client import classify_and_summarize_consumer, generate_regulator_summary
+from .pdf_generator import generate_compliance_pdf
+from . import supabase_client
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="LabelLens Summary & Report Generation Service",
-    description="Groq-powered product classification, consumer health scoring, and regulatory compliance PDF reports under Legal Metrology Rules.",
-    version="1.0.0",
-)
+router = APIRouter(tags=["AI Summary & PDF Reports"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ── Request Schemas ──────────────────────────────────────────────────
+# In-memory buffer for local streaming fallback
+_local_pdf_cache: Dict[str, bytes] = {}
 
 class ConsumerSummaryRequest(BaseModel):
     scan_id: Optional[str] = Field(None, description="UUID of the consumer_scans record for DB caching")
@@ -50,23 +34,19 @@ class RegulatorSummaryRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="Inspector / Regulator user ID")
     force_regenerate: bool = Field(False, description="Bypass cache and force regeneration")
 
-# ── In-Memory PDF buffer fallback for local testing ───────────────────
-_local_pdf_cache: Dict[str, bytes] = {}
 
-# ── Routes ────────────────────────────────────────────────────────────
-
-@app.get("/health")
-async def health():
+@router.get("/summarize/health")
+async def summary_health():
     return {
         "status": "ok",
-        "service": "summary-gen",
-        "version": "1.0.0",
+        "module": "summary-gen",
         "groq_configured": bool(settings.GROQ_API_KEY),
-        "model": settings.GROQ_MODEL,
+        "primary_model": settings.GROQ_MODEL,
         "supabase_configured": bool(settings.SUPABASE_KEY),
     }
 
-@app.post("/summarize/consumer")
+
+@router.post("/summarize/consumer")
 async def summarize_consumer(req: ConsumerSummaryRequest):
     """
     Classifies the product into food / medicinal / general and generates
@@ -80,7 +60,7 @@ async def summarize_consumer(req: ConsumerSummaryRequest):
                 logger.info(f"Returning cached consumer summary for scan {req.scan_id}")
                 return cached
 
-        # Generate via Groq LLM
+        # Generate via Groq LLM (with multi-model fallback and heuristic backup)
         result = classify_and_summarize_consumer(
             product_name=req.product_name,
             manufacturer=req.manufacturer,
@@ -112,7 +92,8 @@ async def summarize_consumer(req: ConsumerSummaryRequest):
         logger.exception("Error in consumer summary generation")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/summarize/regulator")
+
+@router.post("/summarize/regulator")
 async def summarize_regulator(req: RegulatorSummaryRequest):
     """
     Generates an executive regulatory analysis and compiles a formal tabular
@@ -150,6 +131,7 @@ async def summarize_regulator(req: RegulatorSummaryRequest):
             image_urls=req.image_urls,
         )
 
+        # Store in memory cache
         _local_pdf_cache[req.scan_id] = pdf_bytes
 
         # Persist to disk
@@ -162,18 +144,18 @@ async def summarize_regulator(req: RegulatorSummaryRequest):
         except Exception as disk_err:
             logger.warning(f"Could not persist PDF to disk: {disk_err}")
 
-        # 3. Upload PDF to Supabase Storage
+        # 3. Upload PDF to Supabase Storage if configured
         pdf_url = supabase_client.upload_report_pdf(
             scan_id=req.scan_id,
             user_id=req.user_id or "regulator",
             pdf_bytes=pdf_bytes,
         )
 
-        # Fallback local URL if Supabase upload unavailable
+        # Fallback server endpoint if Supabase upload unavailable
         if not pdf_url:
             pdf_url = f"/report/{req.scan_id}/download"
 
-        # 4. Persist to Supabase regulator_scans
+        # 4. Persist to Supabase regulator_scans if valid UUID
         supabase_client.update_regulator_summary(
             scan_id=req.scan_id,
             product_type=req.category or "general",
@@ -193,7 +175,8 @@ async def summarize_regulator(req: RegulatorSummaryRequest):
         logger.exception("Error in regulator summary generation")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/report/{scan_id}/download")
+
+@router.get("/report/{scan_id}/download")
 async def download_pdf(scan_id: str):
     """Directly stream generated PDF for in-app or browser preview."""
     if scan_id in _local_pdf_cache:
@@ -211,8 +194,4 @@ async def download_pdf(scan_id: str):
             media_type="application/pdf",
             headers={"Content-Disposition": f"inline; filename=audit_report_{scan_id}.pdf", "Cache-Control": "public, max-age=3600"}
         )
-    raise HTTPException(status_code=404, detail="PDF report not found in local cache.")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+    raise HTTPException(status_code=404, detail="PDF report not found.")
