@@ -8,6 +8,7 @@ import '../../core/models/regulator_violation.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../core/services/summary_gen_client.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
+import '../../core/widgets/markdown_content_view.dart';
 import 'regulator_notice_generator_screen.dart';
 import 'regulator_company_tracking_screen.dart';
 
@@ -1146,8 +1147,8 @@ class _RegulatorViolationReviewScreenState
                     icon: const Icon(Icons.download_rounded, size: 16),
                     label: const Text('Open PDF'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0284C7),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
@@ -1197,68 +1198,66 @@ class _RegulatorViolationReviewScreenState
     );
   }
 
-  Future<void> _handleGenerateFormalReport(
-      {bool forceRegenerate = false}) async {
-    if (_violation == null || _isGeneratingPdf) return;
+  Future<void> _handleGenerateFormalReport() async {
+    if (_violation == null) return;
 
     setState(() => _isGeneratingPdf = true);
 
     try {
-      final checks = _violation!.declarations
-          .map((d) => {
-                'field_name': d.fieldName,
-                'extracted_value': d.extractedValue,
-                'confidence_percent': d.confidencePercent,
-                'status': d.status,
-                'rule_citation': d.ruleCitation,
-                'rule_description': d.ruleDescription,
-              })
-          .toList();
+      final checks = _violation!.declarations.map((d) {
+        return {
+          'field_name': d.fieldName,
+          'extracted_value': d.extractedValue,
+          'status': d.status.toUpperCase(),
+          'rule_citation': d.ruleCitation,
+          'rule_description': d.ruleDescription,
+          'confidence_percent': d.confidencePercent,
+        };
+      }).toList();
 
       final imageUrls = <String, String?>{
-        'front_label': _violation!.frontLabelUrl ?? _violation!.imageUrl,
-        'curved_surface': _violation!.curvedSurfaceUrl,
-        'scale_reference': _violation!.scaleReferenceUrl,
+        'front': _violation!.frontLabelUrl ?? _violation!.imageUrl,
+        'curved': _violation!.curvedSurfaceUrl,
+        'scale': _violation!.scaleReferenceUrl,
       };
 
       final result = await SummaryGenClient.summarizeRegulator(
-        scanId: _violation!.scanId.isNotEmpty
-            ? _violation!.scanId
-            : _violation!.id,
+        scanId: widget.violationId,
         productName: _violation!.productName,
         companyName: _violation!.companyName,
         category: _violation!.category,
         declarationChecks: checks,
         imageUrls: imageUrls,
-        forceRegenerate: forceRegenerate,
+        forceRegenerate: false,
       );
 
-      if (!mounted) return;
-      setState(() {
-        _isGeneratingPdf = false;
-        _regulatorSummary = result;
-      });
+      if (mounted) {
+        setState(() {
+          _isGeneratingPdf = false;
+          _regulatorSummary = result;
+        });
 
-      if (result != null) {
-        _showReportDialog(result);
-      } else {
+        if (result != null) {
+          _showReportDialog(result);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: AppColors.error,
+              content: Text('Failed to generate audit report. Please check summary-gen service.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isGeneratingPdf = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Failed to generate audit report. Please check summary-gen service.'),
+          SnackBar(
             backgroundColor: AppColors.error,
+            content: Text('Error generating report: $e'),
           ),
         );
       }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isGeneratingPdf = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating report: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
     }
   }
 
@@ -1299,12 +1298,12 @@ class _RegulatorViolationReviewScreenState
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(
                 Icons.picture_as_pdf_rounded,
-                color: Color(0xFF0284C7),
+                color: AppColors.primary,
                 size: 20,
               ),
             ),
@@ -1351,14 +1350,9 @@ class _RegulatorViolationReviewScreenState
                     color: AppColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  result.summaryText,
-                  style: AppTypography.bodySm.copyWith(
-                    fontSize: 13,
-                    height: 1.45,
-                    color: AppColors.onSurface,
-                  ),
+                const SizedBox(height: 8),
+                MarkdownContentView(
+                  text: result.summaryText,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Container(
@@ -1371,7 +1365,7 @@ class _RegulatorViolationReviewScreenState
                   child: Row(
                     children: [
                       const Icon(Icons.table_chart_rounded,
-                          size: 18, color: Color(0xFF0284C7)),
+                          size: 18, color: AppColors.primary),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1392,6 +1386,9 @@ class _RegulatorViolationReviewScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.secondary,
+            ),
             child: const Text('Close'),
           ),
           ElevatedButton.icon(
@@ -1402,8 +1399,13 @@ class _RegulatorViolationReviewScreenState
             icon: const Icon(Icons.open_in_new_rounded, size: 16),
             label: const Text('Open Formal PDF'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0284C7),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.onPrimary,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              ),
             ),
           ),
         ],

@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/consumer_scan_model.dart';
 import '../../../core/models/product_model.dart';
 import '../../../core/services/consumer_data_service.dart';
+import '../../../core/widgets/markdown_content_view.dart';
 
 class ProductSummaryModal extends StatefulWidget {
   final ConsumerScanModel scan;
@@ -576,9 +577,9 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            text,
-            style: GoogleFonts.plusJakartaSans(
+          MarkdownContentView(
+            text: text,
+            baseStyle: GoogleFonts.plusJakartaSans(
               fontSize: 12.5,
               height: 1.45,
               color: AppColors.onSurface,
