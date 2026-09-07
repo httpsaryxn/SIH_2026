@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v1.0.6)'
+        description: 'Release version tag (e.g. v1.0.7)'
         required: true
-        default: 'v1.0.6'
+        default: 'v1.0.7'
   push:
     tags:
       - 'v*'
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: 🚀 Build APK & IPA and Release
+    name: 🚀 Build APKs & IPA and Release
     runs-on: macos-latest
     defaults:
       run:
@@ -53,15 +53,23 @@ jobs:
       - name: Prepare Artifacts Directory
         run: mkdir -p "$GITHUB_WORKSPACE/release-assets"
 
-      # ── 1. Build Android APK ──
-      - name: Build Android Release APK
+      # ── 1. Build Universal Android APK ──
+      - name: Build Universal Android APK
         run: flutter build apk --release
 
-      - name: Prepare APK Artifact
+      - name: Prepare Universal APK Artifact
         run: |
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk"
 
-      # ── 2. Build iOS Unsigned IPA ──
+      # ── 2. Build Split Android APK (arm64-v8a slim) ──
+      - name: Build Split Android APKs (arm64-v8a)
+        run: flutter build apk --split-per-abi --release
+
+      - name: Prepare arm64-v8a APK Artifact
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk"
+
+      # ── 3. Build iOS Unsigned IPA ──
       - name: Disable Apple Team Requirement
         run: |
           sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;//g' ios/Runner.xcodeproj/project.pbxproj
@@ -78,23 +86,29 @@ jobs:
           zip -qq -r -9 "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.ipa" Payload
         working-directory: apps/mobile/build/ios/iphoneos
 
-      # ── 3. Publish GitHub Release ──
+      # ── 4. Publish GitHub Release ──
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ steps.vars.outputs.VERSION }}" \
-            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.apk" \
-            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.ipa" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk#LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk#LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.ipa#LabelLens-${{ steps.vars.outputs.VERSION }}.ipa" \
             --title "LabelLens ${{ steps.vars.outputs.VERSION }}" \
             --notes "### LabelLens Mobile App Release ${{ steps.vars.outputs.VERSION }}
 
-          #### 📦 Downloads:
-          - **Android APK**: \`LabelLens-${{ steps.vars.outputs.VERSION }}.apk\`
-          - **iOS IPA (Unsigned)**: \`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\` *(Install via AltStore / Sideloadly / TrollStore / Scarlet)*
+          #### 📦 Available Downloads:
+
+          | File | Size | Description |
+          | :--- | :--- | :--- |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk\`** | **~41 MB** | ⚡ **Recommended** for modern Android devices (64-bit ARM phones) |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk\`** | **~105 MB** | 🌐 **Universal** — compatible with all Android devices, tablets & emulators |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
           #### 🚀 Highlights:
+          - Optimized package size: 60% smaller download with \`arm64-v8a\` APK
+          - Universal APK maintained for legacy devices & emulator testing
           - Fast ML Scanner connectivity with keep-alive integration
           - Local parallel probing with instant fallback
-          - R8 ProGuard optimizations for Android release
-          - Standalone offline/online compliance scanning"
+          - R8 ProGuard optimizations for Android release"
