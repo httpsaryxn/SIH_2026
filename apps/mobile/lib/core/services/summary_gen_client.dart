@@ -59,11 +59,20 @@ class RegulatorSummaryResult {
   });
 
   factory RegulatorSummaryResult.fromJson(Map<String, dynamic> json) {
+    final rawPdfUrl = json['regulator_pdf_url'] as String? ??
+        json['pdf_url'] as String? ??
+        '';
+    final absolutePdfUrl = (rawPdfUrl.startsWith('/') && !rawPdfUrl.startsWith('//'))
+        ? '${SummaryGenClient.baseUrl}$rawPdfUrl'
+        : rawPdfUrl;
+
     return RegulatorSummaryResult(
       scanId: json['scan_id'] as String? ?? '',
       productType: json['product_type'] as String? ?? 'general',
-      summaryText: json['regulator_summary_text'] as String? ?? json['summary_text'] as String? ?? '',
-      pdfUrl: json['regulator_pdf_url'] as String? ?? json['pdf_url'] as String? ?? '',
+      summaryText: json['regulator_summary_text'] as String? ??
+          json['summary_text'] as String? ??
+          '',
+      pdfUrl: absolutePdfUrl,
       cached: json['cached'] as bool? ?? false,
     );
   }
@@ -71,7 +80,7 @@ class RegulatorSummaryResult {
 
 class SummaryGenClient {
   static const String prefKey = 'summary_gen_base_url';
-  static String _baseUrl = 'http://192.168.0.116:8001';
+  static String _baseUrl = 'http://127.0.0.1:8001';
 
   static String get baseUrl => _baseUrl;
 
@@ -95,17 +104,21 @@ class SummaryGenClient {
 
     final candidates = <String>{
       _baseUrl,
-      'http://192.168.0.116:8001',
       if (Platform.isAndroid) ...[
-        'http://10.0.2.2:8001',
         'http://127.0.0.1:8001',
+        'http://localhost:8001',
+        'http://10.0.2.2:8001',
       ],
+      'http://192.168.0.104:8001',
+      'http://192.168.0.116:8001',
       'http://localhost:8001',
     };
 
     for (final url in candidates) {
       try {
-        final res = await http.get(Uri.parse('$url/health')).timeout(const Duration(seconds: 3));
+        final res = await http
+            .get(Uri.parse('$url/health'))
+            .timeout(const Duration(seconds: 2));
         if (res.statusCode == 200) {
           _baseUrl = url;
           return true;
