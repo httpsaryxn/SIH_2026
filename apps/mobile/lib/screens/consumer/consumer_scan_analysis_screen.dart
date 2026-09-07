@@ -9,6 +9,7 @@ import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../core/services/consumer_data_service.dart';
 import '../../core/services/legal_metrology_service.dart';
+import '../../core/services/ml_scanner_client.dart';
 import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
@@ -164,56 +165,106 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     try {
       _progressController.forward();
 
-      // On-device Legal Metrology (PCR 2011) pipeline: ML Kit OCR + bar code +
-      // the deterministic rulebook. Runs fully offline; product registries and
-      // GS1 India enrich the result when a network is available.
-      if (mounted) {
-        setState(() {
-          _currentStageIndex = 1;
-          _statusMessage =
-              'Reading label with on-device OCR & bar code scanner...';
-        });
+      // ── Stage 1: Try remote ML Scanner service ──
+      MlScannerResult? remoteResult;
+      try {
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 0;
+            _statusMessage = 'Uploading captured label images to ML Scanner...';
+          });
+        }
+        remoteResult = await LegalMetrologyService.auditCaptureRemote(
+          capture: widget.pendingCapture,
+          multiCapture: widget.multiCapture,
+          productName: widget.prefilledProductName,
+        );
+      } catch (_) {
+        // remote service unavailable — will fall back to on-device
       }
-      final audit = await LegalMetrologyService.auditCapture(
-        capture: widget.pendingCapture,
-        productName: widget.prefilledProductName,
-        netQuantity: widget.prefilledNetQty,
-        mrp: widget.prefilledMrp,
-      );
-      if (mounted) {
+
+      if (remoteResult != null && mounted) {
         setState(() {
           _currentStageIndex = 2;
-          _statusMessage =
-              'Verifying mandatory declarations against LM(PC) Rules 2011...';
+          _statusMessage = 'Parsing ML compliance model findings & rule checks...';
         });
       }
 
-      final pName = (audit.detectedDeclarations['commodity_name'] as String?)
+      // ── Stage 2: Fall back to on-device audit if remote unavailable ──
+      LmAuditResult? audit;
+      if (remoteResult == null) {
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 1;
+            _statusMessage =
+                'Reading label with on-device OCR & bar code scanner...';
+          });
+        }
+        audit = await LegalMetrologyService.auditCapture(
+          capture: widget.pendingCapture,
+          productName: widget.prefilledProductName,
+          netQuantity: widget.prefilledNetQty,
+          mrp: widget.prefilledMrp,
+        );
+        if (mounted) {
+          setState(() {
+            _currentStageIndex = 2;
+            _statusMessage =
+                'Verifying mandatory declarations against LM(PC) Rules 2011...';
+          });
+        }
+      }
+
+      final String pName;
+      if (remoteResult != null &&
+          (remoteResult.product['name'] as String?)?.trim().isNotEmpty == true) {
+        pName = (remoteResult.product['name'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['commodity_name'] as String?)
                   ?.trim()
                   .isNotEmpty ==
-              true
-          ? (audit.detectedDeclarations['commodity_name'] as String).trim()
-          : (widget.prefilledProductName != null &&
-                  widget.prefilledProductName!.trim().isNotEmpty)
-              ? widget.prefilledProductName!.trim()
-              : _deriveProductNameFromFileName(widget.pendingCapture.fileName);
+              true) {
+        pName = (audit.detectedDeclarations['commodity_name'] as String).trim();
+      } else if (widget.prefilledProductName != null &&
+          widget.prefilledProductName!.trim().isNotEmpty) {
+        pName = widget.prefilledProductName!.trim();
+      } else {
+        pName = _deriveProductNameFromFileName(widget.pendingCapture.fileName);
+      }
 
-      final pBrand = (widget.prefilledBrand != null &&
-              widget.prefilledBrand!.trim().isNotEmpty)
-          ? widget.prefilledBrand!.trim()
-          : 'Packaged Foods Co.';
+      final String pBrand;
+      if (remoteResult != null &&
+          (remoteResult.product['manufacturer'] as String?)?.trim().isNotEmpty == true) {
+        pBrand = (remoteResult.product['manufacturer'] as String).trim();
+      } else if (widget.prefilledBrand != null &&
+          widget.prefilledBrand!.trim().isNotEmpty) {
+        pBrand = widget.prefilledBrand!.trim();
+      } else {
+        pBrand = 'Packaged Foods Co.';
+      }
 
       final pCategory = (widget.prefilledCategory != null &&
               widget.prefilledCategory!.trim().isNotEmpty)
           ? widget.prefilledCategory!.trim()
           : 'Snacks';
 
-      final pNetQty = (widget.prefilledNetQty != null &&
-              widget.prefilledNetQty!.trim().isNotEmpty)
-          ? widget.prefilledNetQty!.trim()
-          : '200 g';
+      final String pNetQty;
+      if (remoteResult != null &&
+          (remoteResult.product['net_quantity'] as String?)?.trim().isNotEmpty == true) {
+        pNetQty = (remoteResult.product['net_quantity'] as String).trim();
+      } else if (widget.prefilledNetQty != null &&
+              widget.prefilledNetQty!.trim().isNotEmpty) {
+        pNetQty = widget.prefilledNetQty!.trim();
+      } else {
+        pNetQty = '200 g';
+      }
 
-      final pMrp = widget.prefilledMrp ?? 65.0;
+      final double pMrp;
+      if (remoteResult != null && remoteResult.product['mrp'] is num) {
+        pMrp = (remoteResult.product['mrp'] as num).toDouble();
+      } else {
+        pMrp = widget.prefilledMrp ?? 65.0;
+      }
 
       // Create live product & scan record in Supabase (with Storage upload)
       final createdScan = await ConsumerDataService.createNewProductAndScan(
@@ -235,9 +286,18 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         setState(() {
           _completedScan = createdScan;
           _isAnalysisFinished = true;
-          _statusMessage =
-              'Analysis complete — ${audit.scorePercent}% (${audit.starLabel}), '
-              'verified against LM(PC) Rules 2011.';
+          if (remoteResult != null) {
+            final s = remoteResult.score;
+            _statusMessage =
+                'Analysis complete — ${s.finalScore.toStringAsFixed(1)}% (${s.starLabel}), '
+                'verified against LM(PC) Rules 2011.';
+          } else if (audit != null) {
+            _statusMessage =
+                'Analysis complete — ${audit.scorePercent}% (${audit.starLabel}), '
+                'verified against LM(PC) Rules 2011.';
+          } else {
+            _statusMessage = 'Analysis complete — verified against LM(PC) Rules 2011.';
+          }
         });
 
         if (createdScan != null && widget.onScanCompleted != null) {

@@ -6,6 +6,7 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/regulator_notice.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
+import 'regulator_company_tracking_screen.dart';
 
 class RegulatorNoticeGeneratorScreen extends StatefulWidget {
   final String violationId;
@@ -111,7 +112,12 @@ class _RegulatorNoticeGeneratorScreenState
       ),
     );
 
-    Navigator.of(context).pop();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const RegulatorCompanyTrackingScreen(initialTabIndex: 0),
+      ),
+      (route) => false,
+    );
   }
 
   void _showFullDocumentDialog(RegulatorNotice notice) {

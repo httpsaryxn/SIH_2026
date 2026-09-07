@@ -232,6 +232,20 @@ class ConsumerDataService {
         await StorageService.deleteLocalCacheAfterSync(pendingCapture);
       }
 
+      // If the scan detected violations, automatically register a complaint record
+      if (compliance.status != 'compliant' && compliance.issues.isNotEmpty) {
+        try {
+          final issueMsg = compliance.issues.map((i) => i['message'] ?? '').where((m) => m.isNotEmpty).join('; ');
+          await submitComplaint(
+            productName: trimmedName,
+            brand: trimmedBrand,
+            issueCategory: compliance.issues.first['type'] ?? 'Legal Metrology Non-Compliance',
+            description: issueMsg.isNotEmpty ? issueMsg : 'Automated scan detected compliance issues on label declarations.',
+            evidenceImageUrl: resolvedImage.startsWith('http') ? resolvedImage : null,
+          );
+        } catch (_) {}
+      }
+
       return ConsumerScanModel.fromJson(insertedScan);
     } catch (e) {
       // Fallback local scan result so loading never hangs
@@ -458,7 +472,7 @@ class ConsumerDataService {
       final evidenceList = resolvedEvidenceUrl != null ? [resolvedEvidenceUrl] : <String>[];
       final data = {
         'complaint_code': code,
-        'consumer_id': ?uid,
+        'consumer_id': uid,
         'product_name': productName.trim(),
         'brand': (brand != null && brand.trim().isNotEmpty) ? brand.trim() : 'Packaged Goods Brand',
         'issue_category': issueCategory.trim(),
@@ -488,7 +502,7 @@ class ConsumerDataService {
       // Create notification
       try {
         await _client.from('consumer_notifications').insert({
-          'consumer_id': ?uid,
+          'consumer_id': uid,
           'title': 'Complaint Submitted',
           'message':
               'Your complaint $code for $productName has been logged with authorities.',

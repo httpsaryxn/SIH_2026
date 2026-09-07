@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/constants/app_typography.dart';
 import '../../../core/services/auth_service.dart';
 import '../../onboarding/role_selection_screen.dart';
+import '../consumer_profile_screen.dart';
 
 class ConsumerProfileSheet extends StatelessWidget {
   final String userName;
@@ -21,6 +23,87 @@ class ConsumerProfileSheet extends StatelessWidget {
     required this.onOpenNotifications,
   });
 
+  Future<void> _handleSignOut(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusLg)),
+        title: Row(
+          children: [
+            const Icon(Icons.logout_rounded, color: AppColors.error, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Sign Out',
+              style: AppTypography.headlineSm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of your consumer session?',
+          style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.labelMd.copyWith(color: AppColors.outline),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusDefault)),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Log Out',
+              style: AppTypography.labelMd.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await AuthService.signOut();
+    } catch (_) {}
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.onSurface,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          'Logged out successfully.',
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -28,13 +111,12 @@ class ConsumerProfileSheet extends StatelessWidget {
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gutter, vertical: AppSpacing.md),
       child: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle
               Center(
                 child: Container(
                   width: 40,
@@ -46,173 +128,16 @@ class ConsumerProfileSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-
-              // Avatar & Basic Info
-              CircleAvatar(
-                radius: 36,
-                backgroundColor: AppColors.primaryContainer.withValues(alpha: 0.3),
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : 'C',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                userName,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
-                ),
-              ),
-              Text(
-                userEmail,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryFixed.withValues(alpha: 0.25),
-                  borderRadius: AppSpacing.roundedFull,
-                ),
-                child: Text(
-                  'Account Type: Consumer',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-
-              // Menu Options
-              _buildTile(
-                icon: Icons.edit_outlined,
-                title: 'Edit Profile',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text('Profile edit modal opened'),
-                    ),
-                  );
-                },
-              ),
-              _buildTile(
-                icon: Icons.history_rounded,
-                title: 'My Scan History',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onNavigateToScans();
-                },
-              ),
-              _buildTile(
-                icon: Icons.gavel_rounded,
-                title: 'My Complaints',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onNavigateToComplaints();
-                },
-              ),
-              _buildTile(
-                icon: Icons.notifications_none_rounded,
-                title: 'Notifications',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onOpenNotifications();
-                },
-              ),
-              _buildTile(
-                icon: Icons.security_rounded,
-                title: 'Privacy & Security',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text('Supabase RLS & End-to-End Encryption enabled.'),
-                    ),
-                  );
-                },
-              ),
-              _buildTile(
-                icon: Icons.help_outline_rounded,
-                title: 'Help & Support',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text('Legal Metrology Packaged Commodity Rules, 2011 Guide'),
-                    ),
-                  );
-                },
-              ),
-              const Divider(color: AppColors.surfaceVariant, height: 24),
-              _buildTile(
-                icon: Icons.swap_horiz_rounded,
-                title: 'Switch Role',
-                onTap: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-                    (route) => false,
-                  );
-                },
-              ),
-              _buildTile(
-                icon: Icons.logout_rounded,
-                title: 'Log Out',
-                color: AppColors.error,
-                onTap: () async {
-                  await AuthService.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-                      (route) => false,
-                    );
-                  }
-                },
+              ConsumerProfileBody(
+                userName: userName,
+                userEmail: userEmail,
+                createdAt: '2026',
+                onSignOut: () => _handleSignOut(context),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: color ?? AppColors.onSurface, size: 22),
-      title: Text(
-        title,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: color ?? AppColors.onSurface,
-        ),
-      ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        size: 20,
-        color: color ?? AppColors.outline,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      onTap: onTap,
     );
   }
 }

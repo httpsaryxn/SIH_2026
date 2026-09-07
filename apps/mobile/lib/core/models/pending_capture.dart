@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 /// Represents a locally cached image capture ready for processing or backend upload.
 class PendingCapture {
@@ -8,6 +9,7 @@ class PendingCapture {
   final String capturedBySource; // 'regulator_field' | 'consumer_scan' | 'regulator_ecommerce' | 'consumer_gallery'
   final int fileSizeBytes;
   final String? associatedRecordId;
+  final Uint8List? rawBytes;
 
   const PendingCapture({
     required this.localPath,
@@ -16,11 +18,18 @@ class PendingCapture {
     required this.capturedBySource,
     required this.fileSizeBytes,
     this.associatedRecordId,
+    this.rawBytes,
   });
 
   File get file => File(localPath);
 
-  bool get existsSync => file.existsSync();
+  bool get existsSync {
+    try {
+      return file.existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
 
   String get formattedSize {
     if (fileSizeBytes < 1024) {
@@ -39,6 +48,7 @@ class PendingCapture {
     String? capturedBySource,
     int? fileSizeBytes,
     String? associatedRecordId,
+    Uint8List? rawBytes,
   }) {
     return PendingCapture(
       localPath: localPath ?? this.localPath,
@@ -47,6 +57,7 @@ class PendingCapture {
       capturedBySource: capturedBySource ?? this.capturedBySource,
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
       associatedRecordId: associatedRecordId ?? this.associatedRecordId,
+      rawBytes: rawBytes ?? this.rawBytes,
     );
   }
 

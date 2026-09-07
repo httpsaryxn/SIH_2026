@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
@@ -13,7 +15,11 @@ import 'regulator_label_review_screen.dart';
 import 'regulator_violation_review_screen.dart';
 
 class RegulatorCompanyTrackingScreen extends StatefulWidget {
-  const RegulatorCompanyTrackingScreen({super.key});
+  final int initialTabIndex;
+  const RegulatorCompanyTrackingScreen({
+    super.key,
+    this.initialTabIndex = 0,
+  });
 
   @override
   State<RegulatorCompanyTrackingScreen> createState() =>
@@ -38,7 +44,11 @@ class _RegulatorCompanyTrackingScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
+    );
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -427,17 +437,7 @@ class _RegulatorCompanyTrackingScreenState
                 width: 72,
                 height: 72,
                 color: const Color(0xFF0F172A),
-                child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        item.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Center(
-                          child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 24),
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(Icons.photo_camera_rounded, color: Colors.white54, size: 24),
-                      ),
+                child: _buildActionItemThumbnail(item.imageUrl),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -527,6 +527,40 @@ class _RegulatorCompanyTrackingScreenState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActionItemThumbnail(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return const Center(
+        child: Icon(Icons.photo_camera_rounded, color: Colors.white54, size: 24),
+      );
+    }
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return Image.network(
+        trimmed,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const Center(
+          child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 24),
+        ),
+      );
+    }
+    try {
+      final path = trimmed.startsWith('file://') ? Uri.parse(trimmed).toFilePath() : trimmed;
+      final file = File(path);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 24),
+          ),
+        );
+      }
+    } catch (_) {}
+    return const Center(
+      child: Icon(Icons.image_rounded, color: Colors.white54, size: 24),
     );
   }
 

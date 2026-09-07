@@ -1,4 +1,4 @@
-/// SupabaseConfig holds the configuration for the FreshLabel Pro project.
+/// SupabaseConfig holds the configuration for the LabelLens project.
 abstract class SupabaseConfig {
   static const String supabaseUrl = 'https://tyshfugxmwvhbmoydlnl.supabase.co';
   static const String supabasePublishableKey = 'sb_publishable_GY9lF1xMPLtaGflK296b4Q_GlBlU2DP';

@@ -10,6 +10,7 @@ import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../../widgets/regulator/regulator_metric_card.dart';
 import '../../widgets/regulator/regulator_status_badge.dart';
+import '../../core/widgets/label_lens_brand.dart';
 import 'regulator_violation_review_screen.dart';
 import 'regulator_complaint_inbox_screen.dart';
 
@@ -185,6 +186,11 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const LabelLensBrand(
+          logoSize: 28,
+          fontSize: 20,
+        ),
+        const SizedBox(height: AppSpacing.md),
         Text(
           'Morning, Officer.',
           style: AppTypography.headlineLgMobile.copyWith(
