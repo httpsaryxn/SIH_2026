@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v1.0.7)'
+        description: 'Release version tag (e.g. v1.0.8)'
         required: true
-        default: 'v1.0.7'
+        default: 'v1.0.8'
   push:
     tags:
       - 'v*'
@@ -106,9 +106,9 @@ jobs:
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk\`** | **~105 MB** | 🌐 **Universal** — compatible with all Android devices, tablets & emulators |
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
-          #### 🚀 Highlights:
-          - Optimized package size: 60% smaller download with \`arm64-v8a\` APK
-          - Universal APK maintained for legacy devices & emulator testing
-          - Fast ML Scanner connectivity with keep-alive integration
-          - Local parallel probing with instant fallback
-          - R8 ProGuard optimizations for Android release"
+          #### 🚀 Highlights in this Release:
+          - ✨ **Clean Regulatory PDF Reports**: Redesigned Section II with structured 2-column findings tables, status badges, and single-page layout
+          - 🎨 **Markdown Formatting**: Native parsing of headings, bold/italics, and status icons in mobile summary screens
+          - 🌿 **Green UI Theme**: Styled 'Open Formal PDF' button matching primary application theme
+          - ⚡ **Optimized arm64-v8a Build**: 60% smaller download package for modern 64-bit phones (~41 MB) alongside full Universal APK
+          - 🍏 **iOS IPA Build**: Included for iOS sideloading"
