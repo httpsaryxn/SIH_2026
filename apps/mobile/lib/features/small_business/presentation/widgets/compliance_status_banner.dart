@@ -267,6 +267,80 @@ class ComplianceStatusBanner extends StatelessWidget {
     return total.clamp(20, 100);
   }
 
+  List<_ComplianceCategory> _groupChecks(List<AuditCheckItem> checks) {
+    final productLicensing = <AuditCheckItem>[];
+    final ingredientsNutrition = <AuditCheckItem>[];
+    final pricingTraceability = <AuditCheckItem>[];
+    final manufacturerContact = <AuditCheckItem>[];
+    final otherChecks = <AuditCheckItem>[];
+
+    for (final check in checks) {
+      final title = check.title.toLowerCase();
+      if (title.contains('brand') ||
+          title.contains('product') ||
+          title.contains('fssai') ||
+          title.contains('declaration')) {
+        productLicensing.add(check);
+      } else if (title.contains('ingredient') ||
+          title.contains('allergen') ||
+          title.contains('nutrition') ||
+          title.contains('table')) {
+        ingredientsNutrition.add(check);
+      } else if (title.contains('mrp') ||
+          title.contains('quantity') ||
+          title.contains('qty') ||
+          title.contains('batch') ||
+          title.contains('date') ||
+          title.contains('expir')) {
+        pricingTraceability.add(check);
+      } else if (title.contains('manufacturer') ||
+          title.contains('facility') ||
+          title.contains('consumer') ||
+          title.contains('care') ||
+          title.contains('contact') ||
+          title.contains('helpline')) {
+        manufacturerContact.add(check);
+      } else {
+        otherChecks.add(check);
+      }
+    }
+
+    final categories = <_ComplianceCategory>[];
+
+    if (productLicensing.isNotEmpty) {
+      categories.add(_ComplianceCategory(
+        title: 'PRODUCT & LICENSING',
+        items: productLicensing,
+      ));
+    }
+    if (ingredientsNutrition.isNotEmpty) {
+      categories.add(_ComplianceCategory(
+        title: 'INGREDIENTS & NUTRITION',
+        items: ingredientsNutrition,
+      ));
+    }
+    if (pricingTraceability.isNotEmpty) {
+      categories.add(_ComplianceCategory(
+        title: 'PRICING & TRACEABILITY',
+        items: pricingTraceability,
+      ));
+    }
+    if (manufacturerContact.isNotEmpty) {
+      categories.add(_ComplianceCategory(
+        title: 'MANUFACTURER & CONTACT',
+        items: manufacturerContact,
+      ));
+    }
+    if (otherChecks.isNotEmpty) {
+      categories.add(_ComplianceCategory(
+        title: 'ADDITIONAL REQUIREMENTS',
+        items: otherChecks,
+      ));
+    }
+
+    return categories;
+  }
+
   @override
   Widget build(BuildContext context) {
     final healthReport = analyzeNutritionalQuality(labelModel);
@@ -284,11 +358,13 @@ class ComplianceStatusBanner extends StatelessWidget {
 
     final statusTitle = isHigh
         ? 'Legal Metrology Compliance Passed'
-        : (isMedium ? 'Partially Compliant (Action Recommended)' : 'Compliance Action Required');
+        : (isMedium ? 'Partially Compliant' : 'Compliance Action Required');
+
+    final categories = _groupChecks(checks);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -298,8 +374,8 @@ class ComplianceStatusBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: gradColors.last.withValues(alpha: 0.3),
-            blurRadius: 16,
+            color: gradColors.last.withValues(alpha: 0.25),
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],
@@ -307,56 +383,59 @@ class ComplianceStatusBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header: Overall Status & Compliance Score
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isHigh ? Icons.verified_rounded : Icons.info_outline_rounded,
+                    Text(
+                      healthReport.healthSummary.isNotEmpty
+                          ? healthReport.healthSummary
+                          : 'Standard Compliant Food Profile',
+                      style: const TextStyle(
                         color: Colors.white,
-                        size: 22,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Container(
+                          width: 6.5,
+                          height: 6.5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isHigh
+                                ? const Color(0xFF86EFAC)
+                                : (isMedium ? const Color(0xFFFEF08A) : const Color(0xFFFCA5A5)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
                             statusTitle,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
+                            style: TextStyle(
+                              color: isHigh
+                                  ? const Color(0xFFDCFCE7)
+                                  : (isMedium ? const Color(0xFFFEF08A) : const Color(0xFFFECACA)),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          Text(
-                            healthReport.healthSummary,
-                            style: const TextStyle(
-                              color: Color(0xFFDAE2FD),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -364,30 +443,33 @@ class ComplianceStatusBanner extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isHigh ? AppColors.primaryFixed : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   '$dynamicScore%',
                   style: TextStyle(
                     color: isHigh ? const Color(0xFF002109) : Colors.black87,
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
-          
+
           // HFSS Warning Alerts if present
           if (healthReport.hfssWarnings.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2).withValues(alpha: 0.95),
+                color: Colors.black.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFF87171)),
+                border: Border.all(
+                  color: const Color(0xFFF87171).withValues(alpha: 0.5),
+                  width: 0.8,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,15 +478,15 @@ class ComplianceStatusBanner extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 2.0),
                     child: Row(
                       children: [
-                        const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFDC2626)),
+                        const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFFCA5A5)),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             w,
                             style: const TextStyle(
-                              color: Color(0xFF991B1B),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFECACA),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -416,87 +498,169 @@ class ComplianceStatusBanner extends StatelessWidget {
             ),
           ],
 
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Colors.white24),
-          const SizedBox(height: 10),
-
-          // Dynamic Nutritional Health Quality Pills
+          // Dynamic Nutritional Health Quality Highlights
           if (healthReport.healthPills.isNotEmpty) ...[
+            const SizedBox(height: 10),
             Wrap(
               spacing: 6,
-              runSpacing: 6,
+              runSpacing: 4,
               children: healthReport.healthPills.map((hp) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF86EFAC).withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF86EFAC), width: 0.8),
-                  ),
-                  child: Text(
-                    hp,
-                    style: const TextStyle(
-                      color: Color(0xFFDCFCE7),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+                return Text(
+                  '• $hp',
+                  style: const TextStyle(
+                    color: Color(0xFFDCFCE7),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 8),
           ],
 
-          // Regulatory checkpoint badges
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: checks.map((c) {
-              return _AuditPill(
-                text: '${c.title} ${c.isPassed ? '✓' : '⚠'}',
-                isPassed: c.isPassed,
-              );
-            }).toList(),
-          ),
+          // Categorized Compliance Matrix
+          ...categories.map((category) => _ComplianceCategorySection(category: category)),
         ],
       ),
     );
   }
 }
 
-class _AuditPill extends StatelessWidget {
-  const _AuditPill({
-    required this.text,
-    this.isPassed = true,
+class _ComplianceCategory {
+  final String title;
+  final List<AuditCheckItem> items;
+
+  const _ComplianceCategory({
+    required this.title,
+    required this.items,
+  });
+}
+
+class _ComplianceCategorySection extends StatelessWidget {
+  const _ComplianceCategorySection({
+    required this.category,
   });
 
-  final String text;
-  final bool isPassed;
+  final _ComplianceCategory category;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isPassed
-            ? Colors.white.withValues(alpha: 0.15)
-            : const Color(0xFFFEF08A).withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isPassed
-              ? Colors.white.withValues(alpha: 0.25)
-              : const Color(0xFFFEF08A),
-          width: 0.8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 14, bottom: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                category.title,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Divider(
+                height: 1,
+                thickness: 0.6,
+                color: Colors.white.withValues(alpha: 0.18),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isPassed ? Colors.white : const Color(0xFFFEF08A),
-          fontSize: 10.5,
-          fontWeight: FontWeight.w600,
-        ),
+        ...category.items.map((item) => _ComplianceParameterRow(item: item)),
+      ],
+    );
+  }
+}
+
+class _ComplianceParameterRow extends StatelessWidget {
+  const _ComplianceParameterRow({
+    required this.item,
+  });
+
+  final AuditCheckItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
+                  ),
+                ),
+                if (!item.isPassed && item.failureReason != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1.5),
+                    child: Text(
+                      item.failureReason!,
+                      style: TextStyle(
+                        color: const Color(0xFFFEF08A).withValues(alpha: 0.9),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _ComplianceStatusIndicator(isPassed: item.isPassed),
+        ],
       ),
     );
   }
 }
+
+class _ComplianceStatusIndicator extends StatelessWidget {
+  const _ComplianceStatusIndicator({
+    required this.isPassed,
+  });
+
+  final bool isPassed;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = isPassed ? const Color(0xFF86EFAC) : const Color(0xFFFEF08A);
+    final textColor = isPassed ? const Color(0xFFDCFCE7) : const Color(0xFFFEF08A);
+    final icon = isPassed ? Icons.check_rounded : Icons.warning_amber_rounded;
+    final label = isPassed ? 'Compliant' : 'Warning';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          size: 13,
+          color: statusColor,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
