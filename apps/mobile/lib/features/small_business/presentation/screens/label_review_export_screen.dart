@@ -90,7 +90,18 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     _parseDimensionsFromLabel(_selectedDimension);
 
     // Immediately persist finalized label to both Supabase and Local Cache
-    _repository.publishLabel(_currentModel);
+    _initPublish();
+  }
+
+  Future<void> _initPublish() async {
+    try {
+      final published = await _repository.publishLabel(_currentModel);
+      if (mounted) {
+        setState(() => _currentModel = published);
+      }
+    } catch (e) {
+      debugPrint('Initial publish note: $e');
+    }
   }
 
   void _parseDimensionsFromLabel(String dim) {
@@ -121,7 +132,10 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
 
       // 1. Save and publish label to repository
       try {
-        await _repository.publishLabel(modelToPublish);
+        final published = await _repository.publishLabel(modelToPublish);
+        if (mounted) {
+          setState(() => _currentModel = published);
+        }
       } catch (e) {
         debugPrint('Persist on export note: $e');
       }
@@ -523,11 +537,15 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Standardized Progress Marker (Step 6 of 6, 100%)
             const WizardStepProgressCard(
               currentStep: 6,
@@ -701,13 +719,19 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           ],
         ),
       ),
+    ),
       bottomNavigationBar: ReviewExportBottomBar(
         onBack: () => Navigator.of(context).maybePop(),
-        onHome: () {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
-            (route) => false,
-          );
+        onHome: () async {
+          try {
+            await _repository.publishLabel(_currentModel.copyWith(status: 'ready'));
+          } catch (_) {}
+          if (context.mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const MyLabelStudioScreen()),
+              (route) => false,
+            );
+          }
         },
         onExport: _onExport,
         isExporting: _isExporting,

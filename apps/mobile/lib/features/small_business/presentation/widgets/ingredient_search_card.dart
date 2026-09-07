@@ -157,54 +157,78 @@ class _IngredientSearchCardState extends State<IngredientSearchCard> {
           const SizedBox(height: 10),
 
           // Search Input Field
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.outlineVariant,
-                width: 1,
-              ),
-            ),
-            child: TextField(
-              controller: widget.controller,
-              onChanged: (val) {
-                setState(() {});
-                widget.onChanged?.call(val);
+          Focus(
+            child: Builder(
+              builder: (context) {
+                final hasFocus = Focus.of(context).hasFocus;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  decoration: BoxDecoration(
+                    color: hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                      width: hasFocus ? 1.5 : 1,
+                    ),
+                    boxShadow: hasFocus
+                        ? [
+                            BoxShadow(
+                              color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: TextField(
+                    controller: widget.controller,
+                    onChanged: (val) {
+                      setState(() {});
+                      widget.onChanged?.call(val);
+                    },
+                    onSubmitted: widget.onSubmitted,
+                    style: const TextStyle(fontSize: 14, color: AppColors.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Type ingredient name (e.g. Mango, Mustard, Salt, Ghee)...',
+                      hintStyle: const TextStyle(
+                        color: AppColors.outline,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: hasFocus ? AppColors.brandDeepGreen : AppColors.onSurfaceVariant,
+                        size: 20,
+                      ),
+                      suffixIcon: widget.controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear_rounded,
+                                size: 18,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              onPressed: () {
+                                widget.controller.clear();
+                                setState(() {});
+                                widget.onChanged?.call('');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                );
               },
-              onSubmitted: widget.onSubmitted,
-              style: const TextStyle(fontSize: 14, color: AppColors.onSurface),
-              decoration: InputDecoration(
-                hintText: 'Type ingredient name (e.g. Mango, Mustard, Salt, Ghee)...',
-                hintStyle: const TextStyle(
-                  color: AppColors.outline,
-                  fontSize: 13,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: AppColors.onSurfaceVariant,
-                  size: 20,
-                ),
-                suffixIcon: widget.controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.clear_rounded,
-                          size: 18,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                        onPressed: () {
-                          widget.controller.clear();
-                          setState(() {});
-                          widget.onChanged?.call('');
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 12),

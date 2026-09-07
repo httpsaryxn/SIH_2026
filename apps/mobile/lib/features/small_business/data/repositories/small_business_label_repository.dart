@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -81,7 +82,16 @@ class SmallBusinessLabelRepository {
 
   SmallBusinessLabelModel? getCachedActiveDraft() => _cachedActiveDraft;
 
-  /// Fetches all user labels from Supabase and syncs to local storage
+  static String generateUuid() {
+    final rnd = math.Random();
+    final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
+  }
+
+  /// Fetches all user labels from Supabase and syncs to local storage with child entities
   Future<List<SmallBusinessLabelModel>> fetchLabels({
     String? searchQuery,
     bool includeDrafts = true,
@@ -89,38 +99,99 @@ class SmallBusinessLabelRepository {
     await loadLocalCache();
 
     try {
-      var query = _supabase
-          .from('small_business_labels')
-          .select('*');
+      List<dynamic> data;
+      try {
+        var query = _supabase
+            .from('small_business_labels')
+            .select('*, small_business_ingredients(*), small_business_allergens(*), small_business_nutrients(*), small_business_claims(*)');
 
-      if (!includeDrafts) {
-        query = query.neq('status', 'draft');
+        if (!includeDrafts) {
+          query = query.neq('status', 'draft');
+        }
+
+        final response = await query
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 5));
+        data = response as List<dynamic>;
+      } catch (relationErr) {
+        debugPrint('Relation query fallback: $relationErr');
+        var simpleQuery = _supabase
+            .from('small_business_labels')
+            .select('*');
+        if (!includeDrafts) {
+          simpleQuery = simpleQuery.neq('status', 'draft');
+        }
+        final response = await simpleQuery
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 4));
+        data = response as List<dynamic>;
       }
 
-      final response = await query
-          .order('created_at', ascending: false)
-          .timeout(const Duration(seconds: 5));
-      final List<dynamic> data = response as List<dynamic>;
+      final remoteLabels = data.map((json) {
+        final model = SmallBusinessLabelModel.fromMap(Map<String, dynamic>.from(json as Map));
+        // Preserve local formulation data if remote child tables were empty
+        final localMatch = _cachedLabels.where((l) =>
+            (model.id != null && l.id == model.id) ||
+            (model.productName.isNotEmpty &&
+                l.productName.toLowerCase() == model.productName.toLowerCase() &&
+                l.brandName.toLowerCase() == model.brandName.toLowerCase())).firstOrNull;
+        if (localMatch != null) {
+          return model.copyWith(
+            ingredients: model.ingredients.isNotEmpty ? model.ingredients : localMatch.ingredients,
+            allergens: model.allergens.isNotEmpty ? model.allergens : localMatch.allergens,
+            nutrients: model.nutrients.isNotEmpty ? model.nutrients : localMatch.nutrients,
+            claims: model.claims.isNotEmpty ? model.claims : localMatch.claims,
+          );
+        }
+        return model;
+      }).toList();
 
-      final remoteLabels = data
-          .map((json) => SmallBusinessLabelModel.fromMap(Map<String, dynamic>.from(json as Map)))
-          .toList();
+      // Deduplicate remote labels by brand and product name (ready/published takes precedence over draft)
+      final Map<String, SmallBusinessLabelModel> dedupedMap = {};
+      for (final l in remoteLabels) {
+        final key = '${l.brandName.trim().toLowerCase()}:::${l.productName.trim().toLowerCase()}';
+        if (!dedupedMap.containsKey(key)) {
+          dedupedMap[key] = l;
+        } else {
+          final existing = dedupedMap[key]!;
+          if (existing.status == 'draft' && (l.status == 'ready' || l.status == 'published')) {
+            dedupedMap[key] = l;
+          }
+        }
+      }
 
-      // Smart Merge: Remote labels take precedence, but keep locally created labels that are pending sync
-      final Set<String> remoteIds = remoteLabels
+      final cleanRemote = dedupedMap.values.toList();
+      final Set<String> cleanKeys = cleanRemote
+          .map((l) => '${l.brandName.trim().toLowerCase()}:::${l.productName.trim().toLowerCase()}')
+          .toSet();
+      final Set<String> remoteIds = cleanRemote
           .map((l) => l.id ?? '')
           .where((id) => id.isNotEmpty)
           .toSet();
 
-      final List<SmallBusinessLabelModel> merged = List.from(remoteLabels);
+      // Merge cached labels that aren't represented yet
+      final List<SmallBusinessLabelModel> merged = List.from(cleanRemote);
       for (final local in _cachedLabels) {
-        if (local.id == null || !remoteIds.contains(local.id)) {
+        final localKey = '${local.brandName.trim().toLowerCase()}:::${local.productName.trim().toLowerCase()}';
+        if ((local.id == null || !remoteIds.contains(local.id)) && !cleanKeys.contains(localKey)) {
           merged.add(local);
         }
       }
 
       _cachedLabels = merged;
-      _cachedActiveDraft = _cachedLabels.where((l) => l.status == 'draft').firstOrNull;
+
+      // Ensure active draft is strictly valid and not already completed
+      final potentialDraft = _cachedLabels.where((l) => l.status == 'draft').firstOrNull;
+      if (potentialDraft != null) {
+        final hasPublished = _cachedLabels.any((l) =>
+            (l.status == 'ready' || l.status == 'published') &&
+            l.productName.trim().toLowerCase() == potentialDraft.productName.trim().toLowerCase() &&
+            l.brandName.trim().toLowerCase() == potentialDraft.brandName.trim().toLowerCase());
+        _cachedActiveDraft = hasPublished ? null : potentialDraft;
+      } else {
+        _cachedActiveDraft = null;
+      }
+
       await _saveLocalCache();
 
       var result = List<SmallBusinessLabelModel>.from(_cachedLabels);
@@ -148,10 +219,30 @@ class SmallBusinessLabelRepository {
   Future<SmallBusinessLabelModel?> fetchActiveDraft() async {
     await loadLocalCache();
 
+    // Verify local draft first
+    final localDraft = _cachedLabels.where((l) => l.status == 'draft').firstOrNull;
+    if (localDraft != null) {
+      final hasPublished = _cachedLabels.any((l) =>
+          (l.status == 'ready' || l.status == 'published') &&
+          l.productName.trim().toLowerCase() == localDraft.productName.trim().toLowerCase() &&
+          l.brandName.trim().toLowerCase() == localDraft.brandName.trim().toLowerCase());
+      if (hasPublished) {
+        _cachedLabels.removeWhere((l) =>
+            l.id == localDraft.id ||
+            (l.status == 'draft' &&
+                l.productName.trim().toLowerCase() == localDraft.productName.trim().toLowerCase()));
+        _cachedActiveDraft = null;
+        await _saveLocalCache();
+      } else {
+        _cachedActiveDraft = localDraft;
+        return localDraft;
+      }
+    }
+
     try {
       final response = await _supabase
           .from('small_business_labels')
-          .select('*')
+          .select('*, small_business_ingredients(*), small_business_allergens(*), small_business_nutrients(*), small_business_claims(*)')
           .eq('status', 'draft')
           .order('updated_at', ascending: false)
           .limit(1)
@@ -159,11 +250,19 @@ class SmallBusinessLabelRepository {
           .timeout(const Duration(seconds: 4));
 
       if (response == null) {
-        _cachedActiveDraft = _cachedLabels.where((l) => l.status == 'draft').firstOrNull;
         return _cachedActiveDraft;
       }
 
       final model = SmallBusinessLabelModel.fromMap(Map<String, dynamic>.from(response));
+      final hasPublished = _cachedLabels.any((l) =>
+          (l.status == 'ready' || l.status == 'published') &&
+          l.productName.trim().toLowerCase() == model.productName.trim().toLowerCase() &&
+          l.brandName.trim().toLowerCase() == model.brandName.trim().toLowerCase());
+      if (hasPublished) {
+        _cachedActiveDraft = null;
+        return null;
+      }
+
       _cachedActiveDraft = model;
       return model;
     } catch (e) {
@@ -179,7 +278,7 @@ class SmallBusinessLabelRepository {
     try {
       final response = await _supabase
           .from('small_business_labels')
-          .select('*')
+          .select('*, small_business_ingredients(*), small_business_allergens(*), small_business_nutrients(*), small_business_claims(*)')
           .eq('id', id)
           .maybeSingle()
           .timeout(const Duration(seconds: 4));
@@ -203,28 +302,51 @@ class SmallBusinessLabelRepository {
     return _uuidRegex.hasMatch(id);
   }
 
-  /// Saves or updates a draft
+  /// Saves or updates a draft without creating duplicate rows
   Future<SmallBusinessLabelModel> saveDraft(SmallBusinessLabelModel draft) async {
     await loadLocalCache();
 
+    // Determine target ID: reuse valid UUID or generate a stable client UUID
+    String targetId = _isValidUuid(draft.id) ? draft.id! : '';
+    if (targetId.isEmpty && draft.productName.trim().isNotEmpty) {
+      final existing = _cachedLabels.where((l) =>
+          l.productName.trim().toLowerCase() == draft.productName.trim().toLowerCase() &&
+          l.brandName.trim().toLowerCase() == draft.brandName.trim().toLowerCase()).firstOrNull;
+      if (existing != null && _isValidUuid(existing.id)) {
+        targetId = existing.id!;
+      }
+    }
+    if (targetId.isEmpty) {
+      targetId = generateUuid();
+    }
+
+    final draftWithId = draft.copyWith(id: targetId, status: 'draft');
+
     try {
-      final labelData = draft.copyWith(status: 'draft').toMap();
+      final labelData = draftWithId.toSupabaseMap();
       final Map<String, dynamic> savedRecord;
 
-      if (_isValidUuid(draft.id)) {
+      // Try update first
+      final checkExisting = await _supabase
+          .from('small_business_labels')
+          .select('id')
+          .eq('id', targetId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
+
+      if (checkExisting != null) {
         final res = await _supabase
             .from('small_business_labels')
             .update(labelData)
-            .eq('id', draft.id!)
+            .eq('id', targetId)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
         savedRecord = Map<String, dynamic>.from(res);
       } else {
-        final insertData = Map<String, dynamic>.from(labelData)..remove('id');
         final res = await _supabase
             .from('small_business_labels')
-            .insert(insertData)
+            .insert(labelData)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
@@ -232,9 +354,9 @@ class SmallBusinessLabelRepository {
       }
 
       final labelId = savedRecord['id'].toString();
-      await _syncChildRecords(labelId, draft);
+      await _syncChildRecords(labelId, draftWithId);
 
-      final savedModel = draft.copyWith(id: labelId, status: 'draft');
+      final savedModel = draftWithId.copyWith(id: labelId);
       _updateLocalCacheItem(savedModel);
       _cachedActiveDraft = savedModel;
       await _saveLocalCache();
@@ -242,46 +364,63 @@ class SmallBusinessLabelRepository {
       return savedModel;
     } catch (e) {
       debugPrint('Error saving draft to Supabase ($e), saving locally in cache.');
-      final localId = draft.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-      final savedModel = draft.copyWith(id: localId, status: 'draft');
-      _updateLocalCacheItem(savedModel);
-      _cachedActiveDraft = savedModel;
+      _updateLocalCacheItem(draftWithId);
+      _cachedActiveDraft = draftWithId;
       await _saveLocalCache();
-      return savedModel;
+      return draftWithId;
     }
   }
 
-  /// Publishes / finalizes a compliant label
+  /// Publishes / finalizes a compliant label and clears phantom drafts
   Future<SmallBusinessLabelModel> publishLabel(SmallBusinessLabelModel label) async {
     await loadLocalCache();
 
-    final finalizedData = label
-        .copyWith(
-          status: 'ready',
-          completionPercentage: 100,
-          currentStep: 6,
-          complianceScore: 98,
-          complianceStatus: 'Verified Compliant',
-        );
+    String targetId = _isValidUuid(label.id) ? label.id! : '';
+    if (targetId.isEmpty && label.productName.trim().isNotEmpty) {
+      final existing = _cachedLabels.where((l) =>
+          l.productName.trim().toLowerCase() == label.productName.trim().toLowerCase() &&
+          l.brandName.trim().toLowerCase() == label.brandName.trim().toLowerCase()).firstOrNull;
+      if (existing != null && _isValidUuid(existing.id)) {
+        targetId = existing.id!;
+      }
+    }
+    if (targetId.isEmpty) {
+      targetId = generateUuid();
+    }
+
+    final finalizedData = label.copyWith(
+      id: targetId,
+      status: 'ready',
+      completionPercentage: 100,
+      currentStep: 6,
+      complianceScore: 98,
+      complianceStatus: 'Verified Compliant',
+    );
 
     try {
-      final labelMap = finalizedData.toMap();
+      final labelMap = finalizedData.toSupabaseMap();
       final Map<String, dynamic> savedRecord;
 
-      if (_isValidUuid(label.id)) {
+      final checkExisting = await _supabase
+          .from('small_business_labels')
+          .select('id')
+          .eq('id', targetId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
+
+      if (checkExisting != null) {
         final res = await _supabase
             .from('small_business_labels')
             .update(labelMap)
-            .eq('id', label.id!)
+            .eq('id', targetId)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
         savedRecord = Map<String, dynamic>.from(res);
       } else {
-        final insertData = Map<String, dynamic>.from(labelMap)..remove('id');
         final res = await _supabase
             .from('small_business_labels')
-            .insert(insertData)
+            .insert(labelMap)
             .select()
             .single()
             .timeout(const Duration(seconds: 5));
@@ -289,30 +428,67 @@ class SmallBusinessLabelRepository {
       }
 
       final labelId = savedRecord['id'].toString();
-      await _syncChildRecords(labelId, label);
+      await _syncChildRecords(labelId, finalizedData);
+
+      // Clean up any remaining draft copies in Supabase for this product
+      try {
+        if (finalizedData.productName.trim().isNotEmpty) {
+          await _supabase
+              .from('small_business_labels')
+              .delete()
+              .eq('status', 'draft')
+              .eq('product_name', finalizedData.productName.trim())
+              .timeout(const Duration(seconds: 3));
+        }
+      } catch (_) {}
 
       final readyModel = finalizedData.copyWith(id: labelId);
       _updateLocalCacheItem(readyModel);
-      if (_cachedActiveDraft?.id == labelId) {
+
+      // Clean up local drafts for this product
+      _cachedLabels.removeWhere((l) =>
+          l.status == 'draft' &&
+          (l.id == labelId ||
+              (l.productName.trim().toLowerCase() == readyModel.productName.trim().toLowerCase() &&
+                  l.brandName.trim().toLowerCase() == readyModel.brandName.trim().toLowerCase())));
+
+      if (_cachedActiveDraft != null &&
+          (_cachedActiveDraft!.id == labelId ||
+              (_cachedActiveDraft!.productName.trim().toLowerCase() ==
+                      readyModel.productName.trim().toLowerCase() &&
+                  _cachedActiveDraft!.brandName.trim().toLowerCase() ==
+                      readyModel.brandName.trim().toLowerCase()))) {
         _cachedActiveDraft = null;
       }
+
       await _saveLocalCache();
 
       return readyModel;
     } catch (e) {
       debugPrint('Error publishing label in Supabase ($e), updating local cache.');
-      final localId = label.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-      final readyModel = finalizedData.copyWith(id: localId);
-      _updateLocalCacheItem(readyModel);
-      if (_cachedActiveDraft?.id == localId) {
+      _updateLocalCacheItem(finalizedData);
+
+      _cachedLabels.removeWhere((l) =>
+          l.status == 'draft' &&
+          (l.id == targetId ||
+              (l.productName.trim().toLowerCase() == finalizedData.productName.trim().toLowerCase() &&
+                  l.brandName.trim().toLowerCase() == finalizedData.brandName.trim().toLowerCase())));
+
+      if (_cachedActiveDraft?.id == targetId ||
+          (_cachedActiveDraft?.productName.trim().toLowerCase() ==
+                  finalizedData.productName.trim().toLowerCase() &&
+              _cachedActiveDraft?.brandName.trim().toLowerCase() ==
+                  finalizedData.brandName.trim().toLowerCase())) {
         _cachedActiveDraft = null;
       }
+
       await _saveLocalCache();
-      return readyModel;
+      return finalizedData;
     }
   }
 
   void _updateLocalCacheItem(SmallBusinessLabelModel model) {
+    // Match by ID or by normalized brand + product name
     final index = _cachedLabels.indexWhere(
       (l) =>
           (model.id != null && model.id!.isNotEmpty && l.id == model.id) ||

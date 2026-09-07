@@ -52,7 +52,7 @@ class FileDownloadService {
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
-    bool shareOnMobile = true,
+    bool shareOnMobile = false,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_artwork_${widthMm.toInt()}x${heightMm.toInt()}mm.svg';
@@ -76,7 +76,7 @@ class FileDownloadService {
   static Future<String?> downloadPngBytes({
     required String fileName,
     required List<int> bytes,
-    bool shareOnMobile = true,
+    bool shareOnMobile = false,
   }) async {
     return await platform_downloader.triggerBytesDownload(
       fileName: fileName,
@@ -93,7 +93,7 @@ class FileDownloadService {
     double widthMm = 100,
     double heightMm = 150,
     List<int>? preRenderedBytes,
-    bool shareOnMobile = true,
+    bool shareOnMobile = false,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_highres_${widthMm.toInt()}x${heightMm.toInt()}mm.png';
@@ -128,7 +128,7 @@ class FileDownloadService {
     required String dimension,
     double widthMm = 100,
     double heightMm = 150,
-    bool shareOnMobile = true,
+    bool shareOnMobile = false,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
     final fileName = '${cleanName}_label_print_spec_300dpi.pdf';

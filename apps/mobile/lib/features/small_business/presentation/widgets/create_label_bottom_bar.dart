@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'single_tap_button.dart';
 
 class CreateLabelBottomBar extends StatelessWidget {
   const CreateLabelBottomBar({
@@ -39,26 +40,29 @@ class CreateLabelBottomBar extends StatelessWidget {
               child: Row(
                 children: [
                   // Back button
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLowest,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AppColors.outlineVariant,
-                        width: 1,
-                      ),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: onBack ?? () => Navigator.of(context).maybePop(),
+                  SingleTapButton(
+                    onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+                    builder: (context, trigger) => Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(10),
-                        child: const Icon(
-                          Icons.chevron_left_rounded,
-                          color: AppColors.onSurface,
-                          size: 26,
+                        border: Border.all(
+                          color: AppColors.outlineVariant,
+                          width: 1,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: trigger,
+                          borderRadius: BorderRadius.circular(10),
+                          child: const Icon(
+                            Icons.chevron_left_rounded,
+                            color: AppColors.onSurface,
+                            size: 26,
+                          ),
                         ),
                       ),
                     ),
@@ -70,41 +74,44 @@ class CreateLabelBottomBar extends StatelessWidget {
                     flex: 2,
                     child: SizedBox(
                       height: 48,
-                      child: OutlinedButton(
+                      child: SingleTapButton(
                         onPressed: onSaveDraft,
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: AppColors.surfaceContainer,
-                          foregroundColor: AppColors.onSurface,
-                          side: const BorderSide(
-                            color: AppColors.outlineVariant,
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.save_outlined,
-                              size: 18,
-                              color: AppColors.onSurface,
+                        builder: (context, trigger) => OutlinedButton(
+                          onPressed: trigger,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: AppColors.surfaceContainer,
+                            foregroundColor: AppColors.onSurface,
+                            side: const BorderSide(
+                              color: AppColors.outlineVariant,
+                              width: 1,
                             ),
-                            SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                'Save',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(
+                                Icons.save_outlined,
+                                size: 18,
+                                color: AppColors.onSurface,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Save',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -116,41 +123,44 @@ class CreateLabelBottomBar extends StatelessWidget {
                     flex: 3,
                     child: SizedBox(
                       height: 48,
-                      child: ElevatedButton(
+                      child: SingleTapButton(
                         onPressed: onContinue,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandDeepGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.4,
+                        builder: (context, trigger) => ElevatedButton(
+                          onPressed: trigger,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandDeepGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: AppColors.brandDeepGreen.withValues(
+                              alpha: 0.4,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Flexible(
-                              child: Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w700,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Flexible(
+                                child: Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                          ],
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

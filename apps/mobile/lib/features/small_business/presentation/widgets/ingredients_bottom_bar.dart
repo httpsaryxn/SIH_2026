@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'single_tap_button.dart';
 
 class IngredientsBottomBar extends StatelessWidget {
   const IngredientsBottomBar({super.key, this.onBack, this.onContinue});
@@ -35,26 +36,29 @@ class IngredientsBottomBar extends StatelessWidget {
                   // Back Button
                   SizedBox(
                     height: 48,
-                    child: OutlinedButton.icon(
+                    child: SingleTapButton(
                       onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.chevron_left_rounded, size: 20),
-                      label: const Text(
-                        'Back',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      builder: (context, trigger) => OutlinedButton.icon(
+                        onPressed: trigger,
+                        icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                        label: const Text(
+                          'Back',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.onSurface,
-                        side: const BorderSide(
-                          color: AppColors.outlineVariant,
-                          width: 1,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.onSurface,
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                     ),
                   ),
@@ -64,37 +68,40 @@ class IngredientsBottomBar extends StatelessWidget {
                   Expanded(
                     child: SizedBox(
                       height: 48,
-                      child: ElevatedButton(
+                      child: SingleTapButton(
                         onPressed: onContinue,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandDeepGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.35,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Flexible(
-                              child: Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        builder: (context, trigger) => ElevatedButton(
+                          onPressed: trigger,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandDeepGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: AppColors.brandDeepGreen.withValues(
+                              alpha: 0.35,
                             ),
-                            SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_rounded, size: 18),
-                          ],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Flexible(
+                                child: Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.arrow_forward_rounded, size: 18),
+                            ],
+                          ),
                         ),
                       ),
                     ),

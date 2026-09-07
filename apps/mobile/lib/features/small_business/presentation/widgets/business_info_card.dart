@@ -24,6 +24,8 @@ class BusinessInfoCard extends StatefulWidget {
 class _BusinessInfoCardState extends State<BusinessInfoCard> {
   String _fssaiVerificationStatus = 'not_provided'; // not_provided, invalid, unavailable, format_valid
   bool _isVerifying = false;
+  final FocusNode _fssaiFocus = FocusNode();
+  final FocusNode _marketedFocus = FocusNode();
 
   void _showFSSAIInfoDialog() {
     showDialog(
@@ -129,11 +131,21 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
   void initState() {
     super.initState();
     widget.fssaiController.addListener(_validateFSSAIFormat);
+    _fssaiFocus.addListener(_onFocusChange);
+    _marketedFocus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    setState(() {});
   }
 
   @override
   void dispose() {
     widget.fssaiController.removeListener(_validateFSSAIFormat);
+    _fssaiFocus.removeListener(_onFocusChange);
+    _marketedFocus.removeListener(_onFocusChange);
+    _fssaiFocus.dispose();
+    _marketedFocus.dispose();
     super.dispose();
   }
 
@@ -256,30 +268,43 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                 ],
               ),
               const SizedBox(height: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
+                  color: _fssaiFocus.hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _fssaiVerificationStatus == 'invalid' ? Colors.red :
-                           _fssaiVerificationStatus == 'format_valid' ? Colors.orange :
-                           AppColors.outlineVariant,
-                    width: 1,
+                    color: _fssaiVerificationStatus == 'invalid'
+                        ? Colors.red
+                        : (_fssaiVerificationStatus == 'format_valid'
+                            ? Colors.orange
+                            : (_fssaiFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant)),
+                    width: _fssaiFocus.hasFocus ? 1.5 : 1,
                   ),
+                  boxShadow: _fssaiFocus.hasFocus
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.badge_outlined,
-                      color: AppColors.outline,
+                      color: _fssaiFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outline,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: widget.fssaiController,
+                        focusNode: _fssaiFocus,
                         keyboardType: TextInputType.number,
                         maxLength: 14,
                         style: const TextStyle(
@@ -293,7 +318,15 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: Colors.transparent,
                           counterText: '',
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
@@ -351,28 +384,39 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                 ),
               ),
               const SizedBox(height: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
+                  color: _marketedFocus.hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.outlineVariant,
-                    width: 1,
+                    color: _marketedFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                    width: _marketedFocus.hasFocus ? 1.5 : 1,
                   ),
+                  boxShadow: _marketedFocus.hasFocus
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.campaign_outlined,
-                      color: AppColors.outline,
+                      color: _marketedFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outline,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: widget.marketedByController,
+                        focusNode: _marketedFocus,
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.onSurface,
@@ -384,6 +428,14 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),

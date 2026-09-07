@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'single_tap_button.dart';
 
 class ReviewExportBottomBar extends StatelessWidget {
   const ReviewExportBottomBar({
@@ -52,21 +53,24 @@ class ReviewExportBottomBar extends StatelessWidget {
                   // Back Button
                   SizedBox(
                     height: 46,
-                    child: OutlinedButton(
+                    child: SingleTapButton(
                       onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.onSurface,
-                        side: const BorderSide(
-                          color: AppColors.outlineVariant,
-                          width: 1,
+                      builder: (context, trigger) => OutlinedButton(
+                        onPressed: trigger,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.onSurface,
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: const Icon(Icons.arrow_back_rounded, size: 18),
                       ),
-                      child: const Icon(Icons.arrow_back_rounded, size: 18),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -75,33 +79,36 @@ class ReviewExportBottomBar extends StatelessWidget {
                   if (onHome != null) ...[
                     SizedBox(
                       height: 46,
-                      child: OutlinedButton(
+                      child: SingleTapButton(
                         onPressed: onHome,
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.brandDeepGreen,
-                          side: const BorderSide(
-                            color: AppColors.outlineVariant,
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        child: Row(
-                          children: const [
-                            Icon(Icons.home_rounded, size: 18, color: AppColors.brandDeepGreen),
-                            SizedBox(width: 4),
-                            Text(
-                              'Home',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.brandDeepGreen,
-                              ),
+                        builder: (context, trigger) => OutlinedButton(
+                          onPressed: trigger,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.brandDeepGreen,
+                            side: const BorderSide(
+                              color: AppColors.outlineVariant,
+                              width: 1,
                             ),
-                          ],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: Row(
+                            children: const [
+                              Icon(Icons.home_rounded, size: 18, color: AppColors.brandDeepGreen),
+                              SizedBox(width: 4),
+                              Text(
+                                'Home',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.brandDeepGreen,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -112,64 +119,67 @@ class ReviewExportBottomBar extends StatelessWidget {
                   Expanded(
                     child: SizedBox(
                       height: 46,
-                      child: ElevatedButton(
+                      child: SingleTapButton(
                         onPressed: isExporting ? null : onExport,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandDeepGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.4,
+                        builder: (context, trigger) => ElevatedButton(
+                          onPressed: trigger,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandDeepGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: AppColors.brandDeepGreen.withValues(
+                              alpha: 0.4,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: isExporting
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        'Exporting...',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.download_rounded, size: 18),
+                                    SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        'Export',
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
-                        child: isExporting
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'Exporting...',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(Icons.download_rounded, size: 18),
-                                  SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      'Export',
-                                      style: TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
                       ),
                     ),
                   ),

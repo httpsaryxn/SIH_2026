@@ -594,7 +594,7 @@ class _IngredientsAllergensScreenState
     );
   }
 
-  void _onContinue() {
+  Future<void> _onContinue() async {
     if (_ingredients.isEmpty) {
       _showValidationError(
         'Please add at least 1 ingredient in your formulation list.',
@@ -603,6 +603,9 @@ class _IngredientsAllergensScreenState
     }
 
     final updatedModel = _buildCurrentState();
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     _notificationService.notify(
       title: 'Step 2 Complete',
@@ -613,7 +616,7 @@ class _IngredientsAllergensScreenState
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => NutritionalValuesScreen(labelModel: updatedModel),
+        builder: (context) => NutritionalValuesScreen(labelModel: saved),
       ),
     );
   }
@@ -830,76 +833,81 @@ class _IngredientsAllergensScreenState
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Standardized Progress Marker (Step 2 of 6, 33%)
-            const WizardStepProgressCard(
-              currentStep: 2,
-              totalSteps: 6,
-              stepTitle: 'Ingredients & Allergens',
-              percentage: 33,
-            ),
-            const SizedBox(height: 18),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Standardized Progress Marker (Step 2 of 6, 33%)
+              const WizardStepProgressCard(
+                currentStep: 2,
+                totalSteps: 6,
+                stepTitle: 'Ingredients & Allergens',
+                percentage: 33,
+              ),
+              const SizedBox(height: 18),
 
-            // Header Card ("STEP 02 - Formulation & Ingredients")
-            const IngredientsHeaderCard(),
-            const SizedBox(height: 18),
+              // Header Card ("STEP 02 - Formulation & Ingredients")
+              const IngredientsHeaderCard(),
+              const SizedBox(height: 18),
 
-            // Nutrition/Ingredient Source Segmented Control with Lab Report Upload
-            IngredientSourceSegmentedControl(
-              selectedSource: _selectedSource,
-              uploadedReportName: _uploadedReportName,
-              isAnalyzingReport: _isAnalyzingReport,
-              onSourceChanged: (source) {
-                setState(() {
-                  _selectedSource = source;
-                });
-              },
-              onUploadLabReportTap: _uploadLabReport,
-            ),
-            const SizedBox(height: 18),
+              // Nutrition/Ingredient Source Segmented Control with Lab Report Upload
+              IngredientSourceSegmentedControl(
+                selectedSource: _selectedSource,
+                uploadedReportName: _uploadedReportName,
+                isAnalyzingReport: _isAnalyzingReport,
+                onSourceChanged: (source) {
+                  setState(() {
+                    _selectedSource = source;
+                  });
+                },
+                onUploadLabReportTap: _uploadLabReport,
+              ),
+              const SizedBox(height: 18),
 
-            // Search Card with Instant Suggestions
-            IngredientSearchCard(
-              controller: _searchController,
-              onIngredientSelected: (name) => _showAddIngredientDialog(name),
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
-                  _showAddIngredientDialog(value.trim());
-                }
-              },
-              onAddManually: () => _showAddIngredientDialog(),
-            ),
-            const SizedBox(height: 18),
+              // Search Card with Instant Suggestions
+              IngredientSearchCard(
+                controller: _searchController,
+                onIngredientSelected: (name) => _showAddIngredientDialog(name),
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    _showAddIngredientDialog(value.trim());
+                  }
+                },
+                onAddManually: () => _showAddIngredientDialog(),
+              ),
+              const SizedBox(height: 18),
 
-            // Ingredients List Section
-            IngredientsListSection(
-              ingredients: _ingredients,
-              onAddIngredient: () => _showAddIngredientDialog(),
-              onRemoveIngredient: (item) {
-                setState(() {
-                  _ingredients.removeWhere((i) => i.id == item.id);
-                });
-              },
-            ),
-            const SizedBox(height: 18),
+              // Ingredients List Section
+              IngredientsListSection(
+                ingredients: _ingredients,
+                onAddIngredient: () => _showAddIngredientDialog(),
+                onRemoveIngredient: (item) {
+                  setState(() {
+                    _ingredients.removeWhere((i) => i.id == item.id);
+                  });
+                },
+              ),
+              const SizedBox(height: 18),
 
-            // Food Safety: Allergen Declaration
-            AllergenDeclarationSection(
-              selectedAllergens: _selectedAllergens,
-              onRemoveAllergen: (allergen) {
-                setState(() {
-                  _selectedAllergens.remove(allergen);
-                });
-              },
-              onAddAllergenTap: _showAddAllergenPicker,
-            ),
-            const SizedBox(height: 120), // Bottom bar padding to guarantee zero bottom overflow
-          ],
+              // Food Safety: Allergen Declaration
+              AllergenDeclarationSection(
+                selectedAllergens: _selectedAllergens,
+                onRemoveAllergen: (allergen) {
+                  setState(() {
+                    _selectedAllergens.remove(allergen);
+                  });
+                },
+                onAddAllergenTap: _showAddAllergenPicker,
+              ),
+              const SizedBox(height: 120), // Bottom bar padding to guarantee zero bottom overflow
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: IngredientsBottomBar(

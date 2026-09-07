@@ -7,10 +7,19 @@ import 'package:share_plus/share_plus.dart';
 
 /// Resolves the most appropriate persistent Exports or Documents folder
 Future<String> _getDownloadDirectoryPath() async {
-  // 1. On Android: use the app's dedicated external storage files directory
-  // This directory (/storage/emulated/0/Android/data/<package>/files/Exports)
-  // requires zero special permissions and is NEVER deleted by Android MediaProvider.
+  // 1. On Android: try public Downloads folder directly (/storage/emulated/0/Download)
+  // This is directly visible in the device's Files / Downloads app.
   if (Platform.isAndroid) {
+    try {
+      const publicDownloadPath = '/storage/emulated/0/Download';
+      final publicDownloadDir = Directory(publicDownloadPath);
+      if (await publicDownloadDir.exists()) {
+        return publicDownloadPath;
+      }
+    } catch (e) {
+      debugPrint('Android public Download directory check note: $e');
+    }
+
     try {
       final extDir = await getExternalStorageDirectory();
       if (extDir != null) {
@@ -52,7 +61,7 @@ Future<String?> triggerDownload({
   required String fileName,
   required String content,
   required String mimeType,
-  bool shareOnMobile = true,
+  bool shareOnMobile = false,
 }) async {
   try {
     final dirPath = await _getDownloadDirectoryPath();
@@ -99,7 +108,7 @@ Future<String?> triggerBytesDownload({
   required String fileName,
   required List<int> bytes,
   required String mimeType,
-  bool shareOnMobile = true,
+  bool shareOnMobile = false,
 }) async {
   try {
     final dirPath = await _getDownloadDirectoryPath();
@@ -147,7 +156,7 @@ Future<String?> triggerSvgToPngDownload({
   required String svgContent,
   int width = 1200,
   int height = 1800,
-  bool shareOnMobile = true,
+  bool shareOnMobile = false,
 }) async {
   try {
     final svgFileName = fileName.endsWith('.png') ? fileName.replaceAll('.png', '.svg') : fileName;

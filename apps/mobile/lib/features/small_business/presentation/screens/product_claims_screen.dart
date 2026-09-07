@@ -351,11 +351,13 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     );
   }
 
-  void _onContinue() {
+  Future<void> _onContinue() async {
     final updatedModel = _buildCurrentState();
 
     // Auto-save draft so it is immediately persisted
-    _repository.saveDraft(updatedModel);
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     final selectedClaims = _allClaims
         .where((c) => _selectedClaimIds.contains(c.id))
@@ -370,13 +372,13 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => LabelReviewExportScreen(
-          brandName: updatedModel.brandName,
-          productName: updatedModel.productName,
-          productCategory: updatedModel.productCategory,
-          netQuantity: '${updatedModel.netQuantity} ${updatedModel.netQuantityUnit}',
-          mrp: updatedModel.mrp.startsWith('₹') ? updatedModel.mrp : '₹ ${updatedModel.mrp}',
+          brandName: saved.brandName,
+          productName: saved.productName,
+          productCategory: saved.productCategory,
+          netQuantity: '${saved.netQuantity} ${saved.netQuantityUnit}',
+          mrp: saved.mrp.startsWith('₹') ? saved.mrp : '₹ ${saved.mrp}',
           selectedClaims: selectedClaims,
-          labelModel: updatedModel,
+          labelModel: saved,
         ),
       ),
     );
@@ -520,12 +522,16 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Standardized Step Marker (Step 6 of 6, 95%)
             const WizardStepProgressCard(
               currentStep: 6,
@@ -540,51 +546,76 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
             const SizedBox(height: 16),
 
             // Search Bar
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.onSurface,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search claims (e.g. Natural, Gluten-Free, Fiber)',
-                  hintStyle: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.outline,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    color: AppColors.onSurfaceVariant,
-                    size: 20,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear_rounded,
-                            size: 18,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+            Focus(
+              child: Builder(
+                builder: (context) {
+                  final hasFocus = Focus.of(context).hasFocus;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant.withValues(alpha: 0.5),
+                        width: hasFocus ? 1.5 : 1,
+                      ),
+                      boxShadow: hasFocus
+                          ? [
+                              BoxShadow(
+                                color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: AppColors.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Search claims (e.g. Natural, Gluten-Free, Fiber)',
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.outline,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: hasFocus ? AppColors.brandDeepGreen : AppColors.onSurfaceVariant,
+                          size: 20,
+                        ),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.clear_rounded,
+                                  size: 18,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {});
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 14),
@@ -684,6 +715,7 @@ class _ProductClaimsScreenState extends State<ProductClaimsScreen> {
           ],
         ),
       ),
+    ),
       bottomNavigationBar: ClaimsBottomBar(
         onBack: () => Navigator.of(context).maybePop(),
         onSaveDraft: _saveDraft,

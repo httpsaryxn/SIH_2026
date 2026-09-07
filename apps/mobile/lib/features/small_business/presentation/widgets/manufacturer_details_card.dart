@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
-class ManufacturerDetailsCard extends StatelessWidget {
+class ManufacturerDetailsCard extends StatefulWidget {
   const ManufacturerDetailsCard({
     super.key,
     required this.nameController,
@@ -15,6 +15,35 @@ class ManufacturerDetailsCard extends StatelessWidget {
   final TextEditingController addressController;
   final bool packerAddressSameAsManufacturer;
   final ValueChanged<bool?> onPackerSameChanged;
+
+  @override
+  State<ManufacturerDetailsCard> createState() =>
+      _ManufacturerDetailsCardState();
+}
+
+class _ManufacturerDetailsCardState extends State<ManufacturerDetailsCard> {
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _addressFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameFocus.addListener(_onFocusChange);
+    _addressFocus.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _nameFocus.removeListener(_onFocusChange);
+    _addressFocus.removeListener(_onFocusChange);
+    _nameFocus.dispose();
+    _addressFocus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,28 +108,46 @@ class ManufacturerDetailsCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLowest,
+                      color: _nameFocus.hasFocus
+                          ? Colors.white
+                          : AppColors.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: AppColors.outlineVariant,
-                        width: 1,
+                        color: _nameFocus.hasFocus
+                            ? AppColors.brandDeepGreen
+                            : AppColors.outlineVariant,
+                        width: _nameFocus.hasFocus ? 1.5 : 1,
                       ),
+                      boxShadow: _nameFocus.hasFocus
+                          ? [
+                              BoxShadow(
+                                color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.storefront_outlined,
-                          color: AppColors.outline,
+                          color: _nameFocus.hasFocus
+                              ? AppColors.brandDeepGreen
+                              : AppColors.outline,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: TextField(
-                            controller: nameController,
+                            controller: widget.nameController,
+                            focusNode: _nameFocus,
+                            textInputAction: TextInputAction.next,
                             style: const TextStyle(
                               fontSize: 14,
                               color: AppColors.onSurface,
@@ -112,6 +159,14 @@ class ManufacturerDetailsCard extends StatelessWidget {
                                 fontSize: 13.5,
                               ),
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              filled: false,
+                              fillColor: Colors.transparent,
+                              contentPadding: EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
                         ),
@@ -138,7 +193,7 @@ class ManufacturerDetailsCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: addressController,
+                        valueListenable: widget.addressController,
                         builder: (context, value, child) {
                           return Text(
                             '${value.text.length}/500',
@@ -153,32 +208,49 @@ class ManufacturerDetailsCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
                     height: 88,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLowest,
+                      color: _addressFocus.hasFocus
+                          ? Colors.white
+                          : AppColors.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: AppColors.outlineVariant,
-                        width: 1,
+                        color: _addressFocus.hasFocus
+                            ? AppColors.brandDeepGreen
+                            : AppColors.outlineVariant,
+                        width: _addressFocus.hasFocus ? 1.5 : 1,
                       ),
+                      boxShadow: _addressFocus.hasFocus
+                          ? [
+                              BoxShadow(
+                                color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12.0),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
                           child: Icon(
                             Icons.location_on_outlined,
-                            color: AppColors.outline,
+                            color: _addressFocus.hasFocus
+                                ? AppColors.brandDeepGreen
+                                : AppColors.outline,
                             size: 20,
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: TextField(
-                            controller: addressController,
+                            controller: widget.addressController,
+                            focusNode: _addressFocus,
                             maxLines: null,
                             keyboardType: TextInputType.multiline,
                             style: const TextStyle(
@@ -192,6 +264,13 @@ class ManufacturerDetailsCard extends StatelessWidget {
                                 fontSize: 13.5,
                               ),
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              filled: false,
+                              fillColor: Colors.transparent,
                               contentPadding: EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
@@ -207,17 +286,18 @@ class ManufacturerDetailsCard extends StatelessWidget {
         const SizedBox(height: 10),
         // Packer Address Checkbox Banner Row
         InkWell(
-          onTap: () => onPackerSameChanged(!packerAddressSameAsManufacturer),
+          onTap: () =>
+              widget.onPackerSameChanged(!widget.packerAddressSameAsManufacturer),
           borderRadius: BorderRadius.circular(12),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             decoration: BoxDecoration(
-              color: packerAddressSameAsManufacturer
+              color: widget.packerAddressSameAsManufacturer
                   ? const Color(0xFFF0FDF4)
                   : Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: packerAddressSameAsManufacturer
+                color: widget.packerAddressSameAsManufacturer
                     ? const Color(0xFF86EFAC)
                     : AppColors.outlineVariant,
                 width: 1.2,
@@ -227,8 +307,8 @@ class ManufacturerDetailsCard extends StatelessWidget {
             child: Row(
               children: [
                 Checkbox(
-                  value: packerAddressSameAsManufacturer,
-                  onChanged: onPackerSameChanged,
+                  value: widget.packerAddressSameAsManufacturer,
+                  onChanged: widget.onPackerSameChanged,
                   activeColor: AppColors.brandDeepGreen,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(4),

@@ -440,7 +440,7 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     );
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
     final netQty = _netQuantityController.text.trim();
     final serving = _servingSizeController.text.trim();
 
@@ -468,18 +468,21 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     }
 
     final updatedModel = _buildCurrentState();
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     _notificationService.notify(
       title: 'Step 3 Complete',
       message:
-          'Nutrition facts verified for ${updatedModel.netQuantity}${updatedModel.netQuantityUnit}. Proceeding to Manufacturer Details.',
+          'Nutrition facts verified for ${saved.netQuantity}${saved.netQuantityUnit}. Proceeding to Manufacturer Details.',
       type: NotificationType.compliance,
     );
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => ManufacturerDetailsScreen(labelModel: updatedModel),
+            (context) => ManufacturerDetailsScreen(labelModel: saved),
       ),
     );
   }
@@ -727,118 +730,123 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Standardized Glassmorphic Progress Marker (Step 3 of 6, 50%)
-            const WizardStepProgressCard(
-              currentStep: 3,
-              totalSteps: 6,
-              stepTitle: 'Nutritional Values',
-              percentage: 50,
-            ),
-            const SizedBox(height: 18),
-
-            // Card 1: Weight, Pricing & Serving
-            WeightServingCard(
-              netQuantityController: _netQuantityController,
-              servingSizeController: _servingSizeController,
-              netQuantityUnit: _netQuantityUnit,
-              servingSizeUnit: _servingSizeUnit,
-              onNetQuantityUnitChanged: (value) {
-                if (value != null) {
-                  setState(() => _netQuantityUnit = value);
-                }
-              },
-              onServingSizeUnitChanged: (value) {
-                if (value != null) {
-                  setState(() => _servingSizeUnit = value);
-                }
-              },
-            ),
-            const SizedBox(height: 18),
-
-            // Card 2: Show Nutrition Values Format Settings
-            NutritionFormatSettingsCard(
-              displayMode: _displayMode,
-              labelFormat: _labelFormat,
-              targetAudience: _targetAudience,
-              ageGroup: _ageGroup,
-              onDisplayModeChanged:
-                  (mode) => setState(() => _displayMode = mode),
-              onLabelFormatChanged:
-                  (format) => setState(() => _labelFormat = format),
-              onTargetAudienceChanged: (aud) {
-                if (aud != null) setState(() => _targetAudience = aud);
-              },
-              onAgeGroupChanged: (grp) {
-                if (grp != null) setState(() => _ageGroup = grp);
-              },
-            ),
-            const SizedBox(height: 18),
-
-            // CoA Quick Auto-Fill Banner
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF86EFAC)),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Standardized Glassmorphic Progress Marker (Step 3 of 6, 50%)
+              const WizardStepProgressCard(
+                currentStep: 3,
+                totalSteps: 6,
+                stepTitle: 'Nutritional Values',
+                percentage: 50,
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.science_outlined, color: Color(0xFF15803D), size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Have a Laboratory Test Report (CoA)?',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
+              const SizedBox(height: 18),
+
+              // Card 1: Weight, Pricing & Serving
+              WeightServingCard(
+                netQuantityController: _netQuantityController,
+                servingSizeController: _servingSizeController,
+                netQuantityUnit: _netQuantityUnit,
+                servingSizeUnit: _servingSizeUnit,
+                onNetQuantityUnitChanged: (value) {
+                  if (value != null) {
+                    setState(() => _netQuantityUnit = value);
+                  }
+                },
+                onServingSizeUnitChanged: (value) {
+                  if (value != null) {
+                    setState(() => _servingSizeUnit = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
+
+              // Card 2: Show Nutrition Values Format Settings
+              NutritionFormatSettingsCard(
+                displayMode: _displayMode,
+                labelFormat: _labelFormat,
+                targetAudience: _targetAudience,
+                ageGroup: _ageGroup,
+                onDisplayModeChanged:
+                    (mode) => setState(() => _displayMode = mode),
+                onLabelFormatChanged:
+                    (format) => setState(() => _labelFormat = format),
+                onTargetAudienceChanged: (aud) {
+                  if (aud != null) setState(() => _targetAudience = aud);
+                },
+                onAgeGroupChanged: (grp) {
+                  if (grp != null) setState(() => _ageGroup = grp);
+                },
+              ),
+              const SizedBox(height: 18),
+
+              // CoA Quick Auto-Fill Banner
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science_outlined, color: Color(0xFF15803D), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Have a Laboratory Test Report (CoA)?',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Auto-fill all nutrient rows directly from test results',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
-                        ),
-                      ],
+                          Text(
+                            'Auto-fill all nutrient rows directly from test results',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _uploadLabReport,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF15803D),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      minimumSize: const Size(0, 0),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
+                    ElevatedButton(
+                      onPressed: _uploadLabReport,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF15803D),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        minimumSize: const Size(0, 0),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Auto-Fill', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
                     ),
-                    child: const Text('Auto-Fill', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
+              const SizedBox(height: 18),
 
-            // Card 3: Nutrition Values Table Card with expanded nutrients
-            NutritionValuesTableCard(
-              nutrients: _nutrients,
-              selectedAdditionalNutrient: _selectedAdditionalNutrient,
-              availableAdditionalNutrients: _availableAdditionalNutrients,
-              onAdditionalNutrientChanged:
-                  (nutr) => setState(() => _selectedAdditionalNutrient = nutr),
-              onAddNutrientTap: _addAdditionalNutrient,
-            ),
-            const SizedBox(height: 120), // Bottom bar padding to guarantee zero overflow
-          ],
+              // Card 3: Nutrition Values Table Card with expanded nutrients
+              NutritionValuesTableCard(
+                nutrients: _nutrients,
+                selectedAdditionalNutrient: _selectedAdditionalNutrient,
+                availableAdditionalNutrients: _availableAdditionalNutrients,
+                onAdditionalNutrientChanged:
+                    (nutr) => setState(() => _selectedAdditionalNutrient = nutr),
+                onAddNutrientTap: _addAdditionalNutrient,
+              ),
+              const SizedBox(height: 120), // Bottom bar padding to guarantee zero overflow
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: NutritionBottomBar(
