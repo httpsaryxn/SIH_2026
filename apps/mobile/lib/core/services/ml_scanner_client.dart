@@ -237,9 +237,9 @@ class MlScannerClient {
   /// Ping a specific candidate URL's `/health` endpoint.
   static Future<bool> testConnection(String url) async {
     final cleanUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-    // Cloud URLs need longer timeouts for Render free-tier cold starts (50s+)
+    // Cloud URLs get a slightly longer timeout than local ones
     final timeout = cleanUrl.startsWith('https://')
-        ? const Duration(seconds: 60)
+        ? const Duration(seconds: 10)
         : const Duration(seconds: 5);
     try {
       final res = await http
@@ -254,8 +254,8 @@ class MlScannerClient {
   /// Check if the ML scanner service is reachable.
   ///
   /// Strategy: Try fast local URLs first (2s each, in parallel). If none
-  /// respond, fall back to the Render cloud URL with a generous 60-second
-  /// timeout to accommodate free-tier cold starts.
+  /// respond, fall back to the Render cloud URL with a 10-second timeout
+  /// (server is kept warm by an external cron job).
   static Future<bool> isAvailable() async {
     // Load any previously saved preference
     try {
@@ -298,8 +298,8 @@ class MlScannerClient {
       }
     }
 
-    // ── Phase 2: Try the cloud URL with a long timeout for cold starts ────
-    debugPrint('[MlScannerClient] Phase 2 — trying cloud endpoint ($cloudUrl) with 60s timeout');
+    // ── Phase 2: Try the cloud URL (kept warm by external cron job) ────
+    debugPrint('[MlScannerClient] Phase 2 — trying cloud endpoint ($cloudUrl) with 10s timeout');
 
     // Also try the saved URL if it was an HTTPS URL different from cloudUrl
     final cloudCandidates = <String>{
@@ -309,7 +309,7 @@ class MlScannerClient {
 
     for (final url in cloudCandidates) {
       try {
-        final result = await _probeHealth(url, const Duration(seconds: 60));
+        final result = await _probeHealth(url, const Duration(seconds: 10));
         if (result != null) {
           debugPrint('[MlScannerClient] ✓ Phase 2 connected: $result');
           await _acceptUrl(result);

@@ -142,7 +142,7 @@ class _RegulatorScanAnalysisScreenState
     // Check server reachability
     setState(() {
       _currentStageIndex = 1;
-      _statusMessage = 'Connecting to ML Scanner — may take up to 60s if server is waking up...';
+      _statusMessage = 'Connecting to ML Scanner...';
     });
     _progressController.animateTo(0.35, duration: const Duration(milliseconds: 400));
 
