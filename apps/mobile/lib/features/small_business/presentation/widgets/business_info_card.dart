@@ -312,12 +312,13 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                       ElevatedButton.icon(
                         onPressed: _isVerifying ? null : () {
                           // Verify button tapped
+                          final messenger = ScaffoldMessenger.of(context);
                           setState(() => _isVerifying = true);
                           // In a real app, call backend verification endpoint here
                           Future.delayed(const Duration(milliseconds: 500), () {
                             if (!mounted) return;
                             setState(() => _isVerifying = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Verification check sent. Official verification requires FSSAI portal access.'),
                                 duration: Duration(seconds: 3),
