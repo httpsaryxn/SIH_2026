@@ -7,12 +7,14 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/consumer_complaint_model.dart';
 import '../../core/models/consumer_saved_product.dart';
 import '../../core/models/consumer_scan_model.dart';
+import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
 import '../../core/widgets/label_lens_brand.dart';
 import '../onboarding/role_selection_screen.dart';
+import '../shared/multi_capture_screen.dart';
 import 'consumer_profile_screen.dart';
 import 'consumer_scan_analysis_screen.dart';
 import 'widgets/complaint_detail_modal.dart';
@@ -169,14 +171,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   child: const Icon(Icons.photo_camera_rounded, color: AppColors.primary),
                 ),
                 title: Text(
-                  'Take Photo with Camera',
+                  'Guided 3-Step Package Scan',
                   style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                   ),
                 ),
                 subtitle: Text(
-                  'Instant camera capture & real-time OCR analysis',
+                  'Front Label, Curved Surface & Scale Reference',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: AppColors.onSurfaceVariant,
@@ -185,16 +187,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final capture = await CameraCaptureService.captureImage(
-                    context: context,
-                    sourceTag: 'consumer_scan',
-                    imageSource: ImageSource.camera,
+                  final result = await Navigator.of(context).push<MultiCapturePayload?>(
+                    MaterialPageRoute(
+                      builder: (_) => const MultiCaptureScreen(
+                        sourceTag: 'consumer_scan',
+                        flowLabel: 'Consumer Inspection',
+                      ),
+                    ),
                   );
-                  if (capture != null && mounted) {
+                  if (result != null && result.hasAnyCapture && mounted) {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ConsumerScanAnalysisScreen(
-                          pendingCapture: capture,
+                          multiCapture: result,
+                          pendingCapture: result.primaryCapture!,
                           onScanCompleted: (newScan) {
                             setState(() {
                               _recentScans.insert(0, newScan);

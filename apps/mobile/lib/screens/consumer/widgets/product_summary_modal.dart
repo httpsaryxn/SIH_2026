@@ -276,6 +276,11 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
                   ],
                 ),
               ),
+              if (widget.scan.consumerSummaryText != null &&
+                  widget.scan.consumerSummaryText!.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                _buildAiSummarySection(),
+              ],
               const SizedBox(height: AppSpacing.lg),
 
               // 2. Ingredients Section
@@ -483,6 +488,149 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiSummarySection() {
+    final text = widget.scan.consumerSummaryText!;
+    final type = widget.scan.productType ?? 'general';
+    final score = widget.scan.healthScore;
+    final safety = widget.scan.medicinalSafetySummary;
+
+    final isFood = type == 'food';
+    final isMedicinal = type == 'medicinal';
+
+    final Color badgeColor;
+    final Color badgeBg;
+    final String typeLabel;
+    final IconData typeIcon;
+
+    if (isFood) {
+      badgeColor = const Color(0xFF059669);
+      badgeBg = const Color(0xFFD1FAE5);
+      typeLabel = 'FOOD & BEVERAGE';
+      typeIcon = Icons.restaurant_rounded;
+    } else if (isMedicinal) {
+      badgeColor = const Color(0xFF0D9488);
+      badgeBg = const Color(0xFFCCFBF1);
+      typeLabel = 'MEDICINAL / PHARMA';
+      typeIcon = Icons.medical_services_rounded;
+    } else {
+      badgeColor = const Color(0xFF4F46E5);
+      badgeBg = const Color(0xFFEEF2FF);
+      typeLabel = 'GENERAL COMMODITY';
+      typeIcon = Icons.inventory_2_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.primaryContainer.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'AI Insights (Groq LLM)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(typeIcon, size: 11, color: badgeColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      typeLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: badgeColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              height: 1.45,
+              color: AppColors.onSurface,
+            ),
+          ),
+          if (isFood && score != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.favorite_rounded, size: 14, color: Color(0xFF10B981)),
+                const SizedBox(width: 4),
+                Text(
+                  'Health Score: $score/100',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: score >= 70
+                        ? const Color(0xFF10B981)
+                        : (score >= 45 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (isMedicinal) ...[
+            if (safety != null && safety.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                safety,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  color: const Color(0xFF166534),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Informational summary of declared label content only. Not medical advice.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10.5,
+                  fontStyle: FontStyle.italic,
+                  color: const Color(0xFF92400E),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

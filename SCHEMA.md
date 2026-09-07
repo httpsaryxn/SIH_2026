@@ -28,7 +28,7 @@ All tables below use `id` as their primary key unless noted.
 | `small_businesses` | (Legacy alias) `id uuid`, `business_name text`, `gstin text?`, `fssai_license_no text?`, `address text?`, `city text?`, `state text?`, `pincode text?`, `contact_number text?`, timestamps | `id → users.id` |
 | `large_businesses` | (Legacy alias) `id uuid`, `company_name text`, `cin text?`, `gstin text?`, `registered_address text?`, `nodal_officer_name text?`, `contact_email text?`, `contact_number text?`, timestamps | `id → users.id` |
 | `products` | `id uuid`, `barcode text? unique`, `product_name text`, `brand text`, `category text?`, `net_quantity text?`, `mrp numeric?`, `ingredients text[]?`, `nutrition_facts jsonb`, `manufacturer_name text?`, `manufacturer_address text?`, `fssai_license_no text?`, `image_url text?`, `compliance_status text`, `compliance_issues jsonb`, `created_at timestamptz`, `company_id uuid?` | `company_id → users.id` |
-| `consumer_scans` | `id uuid`, `consumer_id uuid`, `product_id uuid?`, `product_name text`, `brand text?`, `net_quantity text?`, `image_url text?`, `compliance_status text`, `detected_declarations jsonb`, `scan_notes text?`, `scanned_at timestamptz` | `consumer_id → users.id`; `product_id → products.id` |
+| `consumer_scans` | `id uuid`, `consumer_id uuid`, `product_id uuid?`, `product_name text`, `brand text?`, `net_quantity text?`, `image_url text?`, `front_label_url text?`, `curved_surface_url text?`, `scale_reference_url text?`, `compliance_status text`, `detected_declarations jsonb`, `scan_notes text?`, `product_type text ('food'\|'medicinal'\|'general'\|'unclassified')`, `consumer_summary_text text?`, `health_score integer? (0–100)`, `medicinal_safety_summary text?`, `summary_generated_at timestamptz?`, `scanned_at timestamptz` | `consumer_id → users.id`; `product_id → products.id` |
 | `saved_products` | `id uuid`, `consumer_id uuid`, `product_id uuid?`, `product_name text`, `brand text?`, `category text?`, `quantity text?`, `image_url text?`, `saved_at timestamptz` | `consumer_id → users.id`; `product_id → products.id` |
 | `consumer_notifications` | `id uuid`, `consumer_id uuid`, `title text`, `message text`, `type text`, `related_complaint_id uuid?`, `is_read bool`, `created_at timestamptz` | `consumer_id → users.id`; `related_complaint_id → consumer_complaints.id` |
 
@@ -75,7 +75,7 @@ Status updates also invoke `notify_consumer_complaint_update`, creating a row in
 
 | Table | Columns | Foreign keys |
 |---|---|---|
-| `regulator_scans` | `id uuid`, `scan_code text unique`, `company_id uuid?`, `product_id uuid?`, `captured_by uuid`, `source_type text`, `source_url text?`, `image_url text?`, `product_name text`, `company_name text?`, `category text?`, `region text?`, `store_location text?`, `ocr_text text?`, `confidence_score int (0–100)`, `status text`, `captured_at`, `created_at`, `updated_at` | `company_id → users.id`; `product_id → products.id`; `captured_by → users.id` |
+| `regulator_scans` | `id uuid`, `scan_code text unique`, `company_id uuid?`, `product_id uuid?`, `captured_by uuid`, `source_type text`, `source_url text?`, `image_url text?`, `front_label_url text?`, `curved_surface_url text?`, `scale_reference_url text?`, `product_name text`, `company_name text?`, `category text?`, `region text?`, `store_location text?`, `ocr_text text?`, `confidence_score int (0–100)`, `status text`, `product_type text ('food'\|'medicinal'\|'general'\|'unclassified')`, `regulator_summary_text text?`, `regulator_pdf_url text?`, `summary_generated_at timestamptz?`, `captured_at`, `created_at`, `updated_at` | `company_id → users.id`; `product_id → products.id`; `captured_by → users.id` |
 | `declaration_checks` | `id uuid`, `scan_id uuid`, `field_name text`, `extracted_value text`, `confidence_percent int (0–100)`, `status text`, `rule_citation text`, `rule_description text`, `top_percent`, `left_percent`, `width_percent`, `height_percent` numeric(6,5)?, `created_at` | `scan_id → regulator_scans.id` cascade. All four bounds are null or each is in `[0,1]`. |
 | `regulator_violations` | `id uuid`, `scan_id uuid`, `company_id uuid?`, `product_id uuid?`, `complaint_id uuid?`, `severity text`, `risk_level text`, `confidence_score int (0–100)`, `violation_type text`, `violation_summary text`, `status text`, `reviewed_by uuid?`, `reviewed_at timestamptz?`, timestamps | `scan_id → regulator_scans.id` cascade; `company_id`, `reviewed_by → users.id`; `product_id → products.id`; `complaint_id → consumer_complaints.id` |
 | `regulator_notices` | `id uuid`, `notice_number text unique`, `violation_id uuid`, `company_id uuid`, `rule_violated text`, `rule_citation text`, `issue_date`, `deadline_date`, `status text`, `officer_notes text`, `issued_by uuid?`, `evidence_summary text`, timestamps | `violation_id → regulator_violations.id`; `company_id`, `issued_by → users.id`; deadline must not precede issue date |
@@ -170,4 +170,25 @@ compliance-images/{source}/{user_id}/{record_id}/{filename}
 - `label_verification_requests_select`: Authenticated users can query label requests.
 - `label_verification_requests_all_regulator`: Regulators have full CRUD access to review and approve/reject label requests.
 
+## LLM Scan Summaries & Health Scoring (`consumer_scans` & `regulator_scans`)
 
+To avoid re-computing summaries and re-generating PDFs on every view, generated outputs are persisted directly on the respective scan records.
+
+### Storage Decision Rationale
+Rather than a separate polymorphic `scan_summaries` table, columns are colocated directly on `consumer_scans` and `regulator_scans`:
+1. **Strict 1-to-1 cardinality**: Each scan maintains exactly one active summary version generated by the pipeline.
+2. **Zero Join Overhead**: Fetching consumer scan history or regulator scan details automatically retrieves summaries without relational joins.
+3. **Seamless RLS Inheritance**: Consumer scan summaries automatically inherit consumer-scoped access policies (`auth.uid() = consumer_id`), and regulator reports automatically inherit role-based access (`private.is_regulator()`).
+
+### Product Type Classification (`product_type`)
+Enum text values:
+- `food`: Food or beverage product. Triggers nutritional summary and health scoring.
+- `medicinal`: Pharmaceutical, ayurvedic, or health supplement product. Triggers purpose summary, medicinal safety guidelines, and required disclaimer (*"Informational summary of label content only. Not medical advice."*).
+- `general`: Non-food, non-medicinal packaged goods (e.g. detergents, electronics, stationery). Triggers standard plain-language declaration check summary.
+- `unclassified`: Default state prior to LLM analysis or when inconclusive.
+
+### Health Score Scale (`health_score`)
+Applies strictly to `food` products (integer from `0` to `100`):
+- **80 – 100 (Excellent / Good)**: Mapped to `AppColors.success` (Green). Wholesome nutritional profile, clean ingredient list, low processed additives/excess sugar/sodium.
+- **50 – 79 (Moderate)**: Mapped to `AppColors.warning` (Amber). Moderate nutritional balance; contains some processed ingredients, elevated sugar, sodium, or saturated fats.
+- **0 – 49 (Poor / Concern)**: Mapped to `AppColors.error` (Red). High levels of concerning elements (excess trans-fats, synthetic chemicals, or severe nutritional red flags).

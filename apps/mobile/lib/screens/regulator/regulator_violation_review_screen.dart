@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
 import '../../core/models/regulator_violation.dart';
 import '../../core/services/regulator_data_service.dart';
+import '../../core/services/summary_gen_client.dart';
 import '../../widgets/regulator/regulator_top_app_bar.dart';
 import 'regulator_notice_generator_screen.dart';
 import 'regulator_company_tracking_screen.dart';
@@ -27,6 +29,8 @@ class _RegulatorViolationReviewScreenState
   RegulatorViolation? _violation;
   bool _isLoading = true;
   bool _isActionInProgress = false;
+  bool _isGeneratingPdf = false;
+  RegulatorSummaryResult? _regulatorSummary;
 
   // Carousel state
   final PageController _carouselController = PageController();
@@ -192,6 +196,9 @@ class _RegulatorViolationReviewScreenState
 
                 // Product Context
                 _buildProductContext(violation, formattedDate),
+
+                // Formal Audit Report Card (PDF + Groq Summary)
+                _buildFormalReportCard(violation),
 
                 // Extracted Declarations Section Title
                 Padding(
@@ -1008,6 +1015,398 @@ class _RegulatorViolationReviewScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFormalReportCard(RegulatorViolation violation) {
+    final hasReport = _regulatorSummary != null;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.gutter,
+        AppSpacing.md,
+        AppSpacing.gutter,
+        AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: hasReport ? const Color(0xFFF8FAFC) : AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: hasReport ? const Color(0xFF0284C7) : AppColors.borderSubtle,
+          width: hasReport ? 1.5 : 1,
+        ),
+        boxShadow: AppSpacing.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (hasReport ? const Color(0xFF0284C7) : AppColors.primary)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.picture_as_pdf_rounded,
+                  size: 20,
+                  color: hasReport ? const Color(0xFF0284C7) : AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Formal Audit Report',
+                          style: AppTypography.headlineSm.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        if (hasReport) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD1FAE5),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'READY',
+                              style: AppTypography.labelSm.copyWith(
+                                color: const Color(0xFF047857),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Statutory PCR 2011 compliance matrix & comparison PDF',
+                      style: AppTypography.bodySm.copyWith(
+                        color: AppColors.secondary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hasReport) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                border: Border.all(color: AppColors.borderSubtle),
+              ),
+              child: Text(
+                _regulatorSummary!.summaryText,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.bodySm.copyWith(
+                  fontSize: 12,
+                  color: AppColors.onSurface,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showReportDialog(_regulatorSummary!),
+                    icon: const Icon(Icons.article_outlined, size: 16),
+                    label: const Text('View Summary'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openPdfUrl(_regulatorSummary!.pdfUrl),
+                    icon: const Icon(Icons.download_rounded, size: 16),
+                    label: const Text('Open PDF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: ElevatedButton.icon(
+                onPressed:
+                    _isGeneratingPdf ? null : () => _handleGenerateFormalReport(),
+                icon: _isGeneratingPdf
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                label: Text(
+                  _isGeneratingPdf
+                      ? 'Compiling Audit & PDF...'
+                      : 'Generate Formal Report (PDF)',
+                  style: AppTypography.labelMd.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusDefault),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleGenerateFormalReport(
+      {bool forceRegenerate = false}) async {
+    if (_violation == null || _isGeneratingPdf) return;
+
+    setState(() => _isGeneratingPdf = true);
+
+    try {
+      final checks = _violation!.declarations
+          .map((d) => {
+                'field_name': d.fieldName,
+                'extracted_value': d.extractedValue,
+                'confidence_percent': d.confidencePercent,
+                'status': d.status,
+                'rule_citation': d.ruleCitation,
+                'rule_description': d.ruleDescription,
+              })
+          .toList();
+
+      final imageUrls = <String, String?>{
+        'front_label': _violation!.frontLabelUrl ?? _violation!.imageUrl,
+        'curved_surface': _violation!.curvedSurfaceUrl,
+        'scale_reference': _violation!.scaleReferenceUrl,
+      };
+
+      final result = await SummaryGenClient.summarizeRegulator(
+        scanId: _violation!.scanId.isNotEmpty
+            ? _violation!.scanId
+            : _violation!.id,
+        productName: _violation!.productName,
+        companyName: _violation!.companyName,
+        category: _violation!.category,
+        declarationChecks: checks,
+        imageUrls: imageUrls,
+        forceRegenerate: forceRegenerate,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+        _regulatorSummary = result;
+      });
+
+      if (result != null) {
+        _showReportDialog(result);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Failed to generate audit report. Please check summary-gen service.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGeneratingPdf = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating report: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openPdfUrl(String url) async {
+    if (url.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No PDF URL available.')),
+      );
+      return;
+    }
+    try {
+      final uri = Uri.parse(url);
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        throw Exception('Could not launch browser for URL');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open PDF: $e\nURL: $url'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _showReportDialog(RegulatorSummaryResult result) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.picture_as_pdf_rounded,
+                color: Color(0xFF0284C7),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Formal Audit Report',
+                style: AppTypography.headlineSm.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Case Scan ID: ${result.scanId}',
+                    style: AppTypography.labelSm.copyWith(
+                      fontSize: 11,
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Executive Audit Summary (Groq LLM):',
+                  style: AppTypography.labelMd.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  result.summaryText,
+                  style: AppTypography.bodySm.copyWith(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.table_chart_rounded,
+                          size: 18, color: Color(0xFF0284C7)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'The PDF report includes a complete statutory PCR 2011 comparison table and captured evidence photos.',
+                          style: AppTypography.bodySm.copyWith(
+                            fontSize: 11.5,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              _openPdfUrl(result.pdfUrl);
+            },
+            icon: const Icon(Icons.open_in_new_rounded, size: 16),
+            label: const Text('Open Formal PDF'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

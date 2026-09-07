@@ -165,6 +165,16 @@ class MlRuleResult {
       legalReference: json['legal_reference'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'rule_id': ruleId,
+        'rule_name': ruleName,
+        'status': status,
+        'severity': severity,
+        'detail': detail,
+        if (evidence != null) 'evidence': evidence,
+        if (legalReference != null) 'legal_reference': legalReference,
+      };
 }
 
 class MlScannerRules {
@@ -197,6 +207,14 @@ class MlScannerRules {
       inconclusive: parseRules(json['inconclusive']),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'passed': passed.map((r) => r.toJson()).toList(),
+        'failed': failed.map((r) => r.toJson()).toList(),
+        'warnings': warnings.map((r) => r.toJson()).toList(),
+        'not_applicable': notApplicable.map((r) => r.toJson()).toList(),
+        'inconclusive': inconclusive.map((r) => r.toJson()).toList(),
+      };
 
   int get totalRules =>
       passed.length +
