@@ -293,7 +293,7 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     });
   }
 
-  void _onContinue() {
+  Future<void> _onContinue() async {
     final mrpText = _mrpController.text.trim();
     final batch = _batchController.text.trim();
     final mfg = _mfgDateController.text.trim();
@@ -319,7 +319,9 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     final updatedModel = _buildCurrentState();
 
     // Auto-save draft so it is persisted
-    _repository.saveDraft(updatedModel);
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     _notificationService.notify(
       title: 'Step 5 Complete',
@@ -331,12 +333,12 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProductClaimsScreen(
-          brandName: updatedModel.brandName,
-          productName: updatedModel.productName,
-          productCategory: updatedModel.productCategory,
-          netQuantity: '${updatedModel.netQuantity} ${updatedModel.netQuantityUnit}',
+          brandName: saved.brandName,
+          productName: saved.productName,
+          productCategory: saved.productCategory,
+          netQuantity: '${saved.netQuantity} ${saved.netQuantityUnit}',
           mrp: mrpText.startsWith('₹') ? mrpText : '₹ $mrpText',
-          labelModel: updatedModel,
+          labelModel: saved,
         ),
       ),
     );
@@ -490,62 +492,67 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Standardized Step Marker (Step 5 of 6, 83%)
-            const WizardStepProgressCard(
-              currentStep: 5,
-              totalSteps: 6,
-              stepTitle: 'Finishing Details',
-              percentage: 83,
-            ),
-            const SizedBox(height: 16),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Standardized Step Marker (Step 5 of 6, 83%)
+              const WizardStepProgressCard(
+                currentStep: 5,
+                totalSteps: 6,
+                stepTitle: 'Finishing Details',
+                percentage: 83,
+              ),
+              const SizedBox(height: 16),
 
-            // Hero Card
-            const FinalDetailsHeroCard(),
-            const SizedBox(height: 16),
+              // Hero Card
+              const FinalDetailsHeroCard(),
+              const SizedBox(height: 16),
 
-            // Card 1: Pricing, Batch Code & Dates
-            DatesBatchPricingCard(
-              mrpController: _mrpController,
-              uspController: _uspController,
-              batchController: _batchController,
-              mfgDateController: _mfgDateController,
-              selectedBestBefore: _selectedBestBefore,
-              onBestBeforeChanged: (val) =>
-                  setState(() => _selectedBestBefore = val),
-              onAutoCalculateUSP: _autoCalculateUSP,
-              onGenerateBatchCode: _generateBatchCode,
-            ),
-            const SizedBox(height: 16),
+              // Card 1: Pricing, Batch Code & Dates
+              DatesBatchPricingCard(
+                mrpController: _mrpController,
+                uspController: _uspController,
+                batchController: _batchController,
+                mfgDateController: _mfgDateController,
+                selectedBestBefore: _selectedBestBefore,
+                onBestBeforeChanged: (val) =>
+                    setState(() => _selectedBestBefore = val),
+                onAutoCalculateUSP: _autoCalculateUSP,
+                onGenerateBatchCode: _generateBatchCode,
+              ),
+              const SizedBox(height: 16),
 
-            // Card 2: Storage & Usage Instructions
-            StorageUsageCard(
-              storageController: _storageController,
-              usageController: _usageController,
-              selectedStorageChips: _selectedStorageChips,
-              onToggleStorageChip: _toggleStorageChip,
-            ),
-            const SizedBox(height: 16),
+              // Card 2: Storage & Usage Instructions
+              StorageUsageCard(
+                storageController: _storageController,
+                usageController: _usageController,
+                selectedStorageChips: _selectedStorageChips,
+                onToggleStorageChip: _toggleStorageChip,
+              ),
+              const SizedBox(height: 16),
 
-            // Card 3: Packaging Material & Environmental Symbols
-            PackagingEnvironmentalCard(
-              selectedPackagingType: _selectedPackagingType,
-              onPackagingTypeChanged: (val) =>
-                  setState(() => _selectedPackagingType = val),
-              isVegetarian: _isVegetarian,
-              onVegetarianChanged: (val) =>
-                  setState(() => _isVegetarian = val),
-              selectedRecyclingMark: _selectedRecyclingMark,
-              onRecyclingMarkChanged: (val) =>
-                  setState(() => _selectedRecyclingMark = val),
-            ),
-            const SizedBox(height: 100), // Spacing for bottom bar
-          ],
+              // Card 3: Packaging Material & Environmental Symbols
+              PackagingEnvironmentalCard(
+                selectedPackagingType: _selectedPackagingType,
+                onPackagingTypeChanged: (val) =>
+                    setState(() => _selectedPackagingType = val),
+                isVegetarian: _isVegetarian,
+                onVegetarianChanged: (val) =>
+                    setState(() => _isVegetarian = val),
+                selectedRecyclingMark: _selectedRecyclingMark,
+                onRecyclingMarkChanged: (val) =>
+                    setState(() => _selectedRecyclingMark = val),
+              ),
+              const SizedBox(height: 100), // Spacing for bottom bar
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: FinalDetailsBottomBar(

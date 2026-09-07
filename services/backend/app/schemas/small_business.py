@@ -53,7 +53,7 @@ class SmallBusinessLabelBase(BaseModel):
     packer_address_same_as_manufacturer: bool = True
     packer_name: Optional[str] = None
     packer_address: Optional[str] = None
-    fssai_license_number: Optional[str] = "12345678901234"
+    fssai_license_number: Optional[str] = None
     marketed_by: Optional[str] = None
     country_of_origin: str = "India"
     consumer_care_phone: Optional[str] = "+91 98765 43210"
@@ -69,8 +69,8 @@ class SmallBusinessLabelBase(BaseModel):
     packaging_type: str = "Food Grade Glass Jar"
     is_vegetarian: bool = True
     recycling_mark: str = "Keep Clean (MoEFCC Disposal Logo)"
-    compliance_score: int = 98
-    compliance_status: str = "Verified Compliant"
+    compliance_score: int = 70
+    compliance_status: str = "Not Audited"
     export_format: str = "pdf"
     label_dimension: str = "Standard Pouch (100 × 150 mm)"
 
@@ -131,9 +131,27 @@ class SmallBusinessLabelResponse(SmallBusinessLabelBase):
 
 class ComplianceAuditResponse(BaseModel):
     label_id: Optional[str] = None
-    score: int = Field(98, description="Legal compliance score out of 100")
-    status: str = Field("Verified Compliant", description="Status string")
-    checks_passed: List[str]
+    score: int = Field(70, description="Legal compliance score out of 100")
+    status: str = Field("Not Audited", description="Status: Good Compliance, Action Required, Needs Attention, Not Audited")
+    checks_passed: List[str] = []
     warnings: List[str] = []
-    fssai_compliant: bool = True
+    fssai_compliant: Optional[bool] = None
     legal_metrology_compliant: bool = True
+
+
+class RegulatoryVerificationRequest(BaseModel):
+    regulatory_type: str = Field(..., description="Type of regulatory verification (fssai, legal_metrology, bis)")
+    registration_number: Optional[str] = Field(None, description="Registration/license number to verify")
+    product_category: Optional[str] = Field(None, description="Product category (optional, for applicability checks)")
+    is_food_product: Optional[bool] = Field(None, description="Whether product is a food product (optional)")
+
+
+class RegulatoryVerificationResponse(BaseModel):
+    regulatory_type: str = Field(..., description="Type of regulatory verification")
+    registration_number: Optional[str] = Field(None, description="The registration number provided")
+    status: str = Field(..., description="Verification status: VERIFIED, INVALID, INACTIVE, UNAVAILABLE, NOT_APPLICABLE, NOT_PROVIDED")
+    official_source: str = Field(..., description="URL/reference to official verification source")
+    message: str = Field(..., description="Human-readable verification message")
+    verified_at: Optional[datetime] = Field(None, description="Timestamp of verification")
+    can_continue: bool = Field(True, description="Whether to allow user to continue despite verification outcome")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional verification metadata")

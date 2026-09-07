@@ -202,7 +202,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
     );
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
     final businessName = _businessNameController.text.trim();
     final address = _addressController.text.trim();
     final fssai = _fssaiController.text.trim();
@@ -235,6 +235,9 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
     }
 
     final updatedModel = _buildCurrentState();
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     _notificationService.notify(
       title: 'Step 4 Complete',
@@ -245,7 +248,7 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => FinalDetailsScreen(labelModel: updatedModel),
+        builder: (context) => FinalDetailsScreen(labelModel: saved),
       ),
     );
   }
@@ -459,59 +462,64 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Glassmorphism Step Progress Card (Step 4 of 6, 67%)
-            const WizardStepProgressCard(
-              currentStep: 4,
-              totalSteps: 6,
-              stepTitle: 'Manufacturer & Business Profile',
-              percentage: 67,
-            ),
-            const SizedBox(height: 18),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Glassmorphism Step Progress Card (Step 4 of 6, 67%)
+              const WizardStepProgressCard(
+                currentStep: 4,
+                totalSteps: 6,
+                stepTitle: 'Manufacturer & Business Profile',
+                percentage: 67,
+              ),
+              const SizedBox(height: 18),
 
-            // Hero Card: Business & Manufacturing Facility Summary
-            const BusinessHeroCard(),
-            const SizedBox(height: 18),
+              // Hero Card: Business & Manufacturing Facility Summary
+              const BusinessHeroCard(),
+              const SizedBox(height: 18),
 
-            // Card 1: Manufacturer Details
-            ManufacturerDetailsCard(
-              nameController: _businessNameController,
-              addressController: _addressController,
-              packerAddressSameAsManufacturer: _packerAddressSameAsManufacturer,
-              onPackerSameChanged: (value) {
-                if (value != null) {
-                  setState(() => _packerAddressSameAsManufacturer = value);
-                }
-              },
-            ),
-            const SizedBox(height: 18),
+              // Card 1: Manufacturer Details
+              ManufacturerDetailsCard(
+                nameController: _businessNameController,
+                addressController: _addressController,
+                packerAddressSameAsManufacturer: _packerAddressSameAsManufacturer,
+                onPackerSameChanged: (value) {
+                  if (value != null) {
+                    setState(() => _packerAddressSameAsManufacturer = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
 
-            // Card 2: Business Information
-            BusinessInfoCard(
-              fssaiController: _fssaiController,
-              marketedByController: _marketedByController,
-              countryOfOrigin: _countryOfOrigin,
-              onCountryChanged: (value) {
-                if (value != null) {
-                  setState(() => _countryOfOrigin = value);
-                }
-              },
-            ),
-            const SizedBox(height: 18),
+              // Card 2: Business Information
+              BusinessInfoCard(
+                fssaiController: _fssaiController,
+                marketedByController: _marketedByController,
+                countryOfOrigin: _countryOfOrigin,
+                onCountryChanged: (value) {
+                  if (value != null) {
+                    setState(() => _countryOfOrigin = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
 
-            // Card 3: Consumer Care Details
-            ConsumerCareCard(
-              phoneController: _phoneController,
-              emailController: _emailController,
-              websiteController: _websiteController,
-            ),
-            const SizedBox(height: 120), // Bottom bar padding to guarantee zero overflow
-          ],
+              // Card 3: Consumer Care Details
+              ConsumerCareCard(
+                phoneController: _phoneController,
+                emailController: _emailController,
+                websiteController: _websiteController,
+              ),
+              const SizedBox(height: 120), // Bottom bar padding to guarantee zero overflow
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: NutritionBottomBar(

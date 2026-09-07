@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
-class ConsumerCareCard extends StatelessWidget {
+class ConsumerCareCard extends StatefulWidget {
   const ConsumerCareCard({
     super.key,
     required this.phoneController,
@@ -13,6 +13,38 @@ class ConsumerCareCard extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController emailController;
   final TextEditingController websiteController;
+
+  @override
+  State<ConsumerCareCard> createState() => _ConsumerCareCardState();
+}
+
+class _ConsumerCareCardState extends State<ConsumerCareCard> {
+  final FocusNode _phoneFocus = FocusNode();
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _websiteFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneFocus.addListener(_onFocusChange);
+    _emailFocus.addListener(_onFocusChange);
+    _websiteFocus.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _phoneFocus.removeListener(_onFocusChange);
+    _emailFocus.removeListener(_onFocusChange);
+    _websiteFocus.removeListener(_onFocusChange);
+    _phoneFocus.dispose();
+    _emailFocus.dispose();
+    _websiteFocus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,28 +107,39 @@ class ConsumerCareCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
+                  color: _phoneFocus.hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.outlineVariant,
-                    width: 1,
+                    color: _phoneFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                    width: _phoneFocus.hasFocus ? 1.5 : 1,
                   ),
+                  boxShadow: _phoneFocus.hasFocus
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.phone_outlined,
-                      color: AppColors.outline,
+                      color: _phoneFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outline,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
-                        controller: phoneController,
+                        controller: widget.phoneController,
+                        focusNode: _phoneFocus,
                         keyboardType: TextInputType.phone,
                         style: const TextStyle(
                           fontSize: 14,
@@ -109,6 +152,14 @@ class ConsumerCareCard extends StatelessWidget {
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
@@ -127,28 +178,39 @@ class ConsumerCareCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
+                  color: _emailFocus.hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.outlineVariant,
-                    width: 1,
+                    color: _emailFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                    width: _emailFocus.hasFocus ? 1.5 : 1,
                   ),
+                  boxShadow: _emailFocus.hasFocus
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.email_outlined,
-                      color: AppColors.outline,
+                      color: _emailFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outline,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
-                        controller: emailController,
+                        controller: widget.emailController,
+                        focusNode: _emailFocus,
                         keyboardType: TextInputType.emailAddress,
                         style: const TextStyle(
                           fontSize: 14,
@@ -161,6 +223,14 @@ class ConsumerCareCard extends StatelessWidget {
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),
@@ -179,28 +249,39 @@ class ConsumerCareCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLowest,
+                  color: _websiteFocus.hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.outlineVariant,
-                    width: 1,
+                    color: _websiteFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                    width: _websiteFocus.hasFocus ? 1.5 : 1,
                   ),
+                  boxShadow: _websiteFocus.hasFocus
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.language_outlined,
-                      color: AppColors.outline,
+                      color: _websiteFocus.hasFocus ? AppColors.brandDeepGreen : AppColors.outline,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
-                        controller: websiteController,
+                        controller: widget.websiteController,
+                        focusNode: _websiteFocus,
                         keyboardType: TextInputType.url,
                         style: const TextStyle(
                           fontSize: 14,
@@ -213,6 +294,14 @@ class ConsumerCareCard extends StatelessWidget {
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
                     ),

@@ -210,31 +210,55 @@ class WeightServingCard extends StatelessWidget {
     required TextEditingController controller,
     required String placeholder,
   }) {
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.outlineVariant,
-          width: 1,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: TextField(
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        style: const TextStyle(
-          fontSize: 14,
-          color: AppColors.onSurface,
-          fontWeight: FontWeight.w500,
-        ),
-        decoration: InputDecoration(
-          hintText: placeholder,
-          hintStyle: const TextStyle(color: AppColors.outline, fontSize: 13),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-        ),
+    return Focus(
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: 44,
+            decoration: BoxDecoration(
+              color: hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                width: hasFocus ? 1.5 : 1,
+              ),
+              boxShadow: hasFocus
+                  ? [
+                      BoxShadow(
+                        color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            alignment: Alignment.center,
+            child: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                hintText: placeholder,
+                hintStyle: const TextStyle(color: AppColors.outline, fontSize: 13),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                filled: false,
+                fillColor: Colors.transparent,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

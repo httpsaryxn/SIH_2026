@@ -113,6 +113,7 @@ class ProductBasicDetailsForm extends StatelessWidget {
                   controller: typeFlavourController,
                   placeholder: 'e.g. Heritage Special / Organic',
                   icon: Icons.tune_outlined,
+                  textInputAction: TextInputAction.done,
                 ),
               ],
             ),
@@ -152,33 +153,62 @@ class ProductBasicDetailsForm extends StatelessWidget {
     required TextEditingController controller,
     required String placeholder,
     required IconData icon,
+    TextInputAction textInputAction = TextInputAction.next,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant, width: 1),
-      ),
-      child: TextField(
-        controller: controller,
-        style: const TextStyle(fontSize: 14, color: AppColors.onSurface),
-        decoration: InputDecoration(
-          prefixIcon: Icon(
-            icon,
-            color: AppColors.onSurfaceVariant,
-            size: 20,
-          ),
-          hintText: placeholder,
-          hintStyle: TextStyle(
-            color: AppColors.outline.withValues(alpha: 0.7),
-            fontSize: 14,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
-          ),
-        ),
+    return Focus(
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: hasFocus ? Colors.white : AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: hasFocus ? AppColors.brandDeepGreen : AppColors.outlineVariant,
+                width: hasFocus ? 1.5 : 1,
+              ),
+              boxShadow: hasFocus
+                  ? [
+                      BoxShadow(
+                        color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: TextField(
+              controller: controller,
+              textInputAction: textInputAction,
+              style: const TextStyle(fontSize: 14, color: AppColors.onSurface),
+              decoration: InputDecoration(
+                prefixIcon: Icon(
+                  icon,
+                  color: hasFocus ? AppColors.brandDeepGreen : AppColors.onSurfaceVariant,
+                  size: 20,
+                ),
+                hintText: placeholder,
+                hintStyle: TextStyle(
+                  color: AppColors.outline.withValues(alpha: 0.7),
+                  fontSize: 14,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                filled: false,
+                fillColor: Colors.transparent,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

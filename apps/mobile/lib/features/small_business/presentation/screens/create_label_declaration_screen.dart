@@ -45,6 +45,9 @@ class _CreateLabelDeclarationScreenState
   void initState() {
     super.initState();
     _currentModel = widget.initialLabel ?? const SmallBusinessLabelModel();
+    if (_currentModel.id == null || _currentModel.id!.isEmpty) {
+      _currentModel = _currentModel.copyWith(id: SmallBusinessLabelRepository.generateUuid());
+    }
 
     _brandNameController = TextEditingController(text: _currentModel.brandName);
     _productNameController = TextEditingController(
@@ -236,7 +239,7 @@ class _CreateLabelDeclarationScreenState
     );
   }
 
-  void _onContinue() {
+  Future<void> _onContinue() async {
     final brand = _brandNameController.text.trim();
     final product = _productNameController.text.trim();
 
@@ -254,18 +257,21 @@ class _CreateLabelDeclarationScreenState
     }
 
     final updatedModel = _buildCurrentState();
+    final saved = await _repository.saveDraft(updatedModel);
+    if (!mounted) return;
+    setState(() => _currentModel = saved);
 
     _notificationService.notify(
       title: 'Step 1 Complete',
       message:
-          'Declaration validated for ${updatedModel.brandName} - ${updatedModel.productName}. Moving to Ingredients.',
+          'Declaration validated for ${saved.brandName} - ${saved.productName}. Moving to Ingredients.',
       type: NotificationType.compliance,
     );
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => IngredientsAllergensScreen(labelModel: updatedModel),
+            (context) => IngredientsAllergensScreen(labelModel: saved),
       ),
     );
   }
@@ -478,52 +484,57 @@ class _CreateLabelDeclarationScreenState
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Standardized Progress Marker (Step 1 of 6, 17%)
-            const WizardStepProgressCard(
-              currentStep: 1,
-              totalSteps: 6,
-              stepTitle: 'Product Declaration',
-              percentage: 17,
-            ),
-            const SizedBox(height: 18),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Standardized Progress Marker (Step 1 of 6, 17%)
+              const WizardStepProgressCard(
+                currentStep: 1,
+                totalSteps: 6,
+                stepTitle: 'Product Declaration',
+                percentage: 17,
+              ),
+              const SizedBox(height: 18),
 
-            // Hero Section
-            const DeclarationHeroCard(),
-            const SizedBox(height: 18),
+              // Hero Section
+              const DeclarationHeroCard(),
+              const SizedBox(height: 18),
 
-            // Product Category Selector
-            ProductCategorySelector(
-              selectedCategory: _selectedCategory,
-              onCategoryChanged: (value) {
-                setState(() {
-                  _selectedCategory = value;
-                });
-              },
-              onHelpTap: _onCategoryHelp,
-            ),
-            const SizedBox(height: 18),
+              // Product Category Selector
+              ProductCategorySelector(
+                selectedCategory: _selectedCategory,
+                onCategoryChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
+                onHelpTap: _onCategoryHelp,
+              ),
+              const SizedBox(height: 18),
 
-            // Product Details Form with System File Manager Picker
-            ProductBasicDetailsForm(
-              brandNameController: _brandNameController,
-              productNameController: _productNameController,
-              typeFlavourController: _typeFlavourController,
-              uploadedLogoName: _uploadedLogoName,
-              uploadedLogoDataUrl: _uploadedLogoDataUrl,
-              onUploadLogoTap: _uploadLogoFromSystem,
-            ),
-            const SizedBox(height: 18),
+              // Product Details Form with System File Manager Picker
+              ProductBasicDetailsForm(
+                brandNameController: _brandNameController,
+                productNameController: _productNameController,
+                typeFlavourController: _typeFlavourController,
+                uploadedLogoName: _uploadedLogoName,
+                uploadedLogoDataUrl: _uploadedLogoDataUrl,
+                onUploadLogoTap: _uploadLogoFromSystem,
+              ),
+              const SizedBox(height: 18),
 
-            // Trust Callout Card
-            const TrustCalloutCard(),
-            const SizedBox(height: 100), // Spacing for sticky bottom bar
-          ],
+              // Trust Callout Card
+              const TrustCalloutCard(),
+              const SizedBox(height: 100), // Spacing for sticky bottom bar
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: CreateLabelBottomBar(

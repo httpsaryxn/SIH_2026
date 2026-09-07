@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'single_tap_button.dart';
 
 class ClaimsBottomBar extends StatelessWidget {
   const ClaimsBottomBar({
@@ -52,27 +53,30 @@ class ClaimsBottomBar extends StatelessWidget {
                   // Back Button
                   SizedBox(
                     height: 46,
-                    child: OutlinedButton.icon(
+                    child: SingleTapButton(
                       onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                      label: const Text(
-                        'Back',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
+                      builder: (context, trigger) => OutlinedButton.icon(
+                        onPressed: trigger,
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                        label: const Text(
+                          'Back',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.onSurface,
-                        side: const BorderSide(
-                          color: AppColors.outlineVariant,
-                          width: 1,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.onSurface,
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
                       ),
                     ),
                   ),
@@ -81,21 +85,24 @@ class ClaimsBottomBar extends StatelessWidget {
                   // Save Draft Button
                   SizedBox(
                     height: 46,
-                    child: TextButton(
+                    child: SingleTapButton(
                       onPressed: onSaveDraft,
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFECEEF0),
-                        foregroundColor: AppColors.onSurfaceVariant,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      builder: (context, trigger) => TextButton(
+                        onPressed: trigger,
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFECEEF0),
+                          foregroundColor: AppColors.onSurfaceVariant,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        child: const Text(
+                          'Save',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -106,37 +113,40 @@ class ClaimsBottomBar extends StatelessWidget {
                   Expanded(
                     child: SizedBox(
                       height: 46,
-                      child: ElevatedButton(
+                      child: SingleTapButton(
                         onPressed: onContinue,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandDeepGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: AppColors.brandDeepGreen.withValues(
-                            alpha: 0.4,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Flexible(
-                              child: Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        builder: (context, trigger) => ElevatedButton(
+                          onPressed: trigger,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandDeepGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: AppColors.brandDeepGreen.withValues(
+                              alpha: 0.4,
                             ),
-                            SizedBox(width: 6),
-                            Icon(Icons.arrow_forward_rounded, size: 16),
-                          ],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Flexible(
+                                child: Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Icon(Icons.arrow_forward_rounded, size: 16),
+                            ],
+                          ),
                         ),
                       ),
                     ),

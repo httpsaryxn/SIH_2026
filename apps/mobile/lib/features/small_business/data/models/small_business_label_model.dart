@@ -346,10 +346,79 @@ class SmallBusinessLabelModel {
       map['user_id'] = userId;
     }
 
+    // Full local persistence for child records
+    map['ingredients'] = ingredients.map((i) => i.toMap(id ?? '')).toList();
+    map['allergens'] = allergens;
+    map['nutrients'] = nutrients.map((n) => n.toMap(id ?? '')).toList();
+    map['claims'] = claims.map((c) => c.toMap(id ?? '')).toList();
+
+    return map;
+  }
+
+  /// Maps strictly to table columns of 'small_business_labels' in Supabase
+  Map<String, dynamic> toSupabaseMap() {
+    final map = <String, dynamic>{
+      'brand_name': brandName,
+      'product_name': productName,
+      'product_category': productCategory,
+      'type_flavour': typeFlavour,
+      'logo_url': logoUrl,
+      'status': status,
+      'completion_percentage': completionPercentage,
+      'current_step': currentStep,
+      'ingredient_source': ingredientSource,
+      'net_quantity': netQuantity,
+      'net_quantity_unit': netQuantityUnit,
+      'serving_size': servingSize,
+      'serving_size_unit': servingSizeUnit,
+      'display_mode': displayMode,
+      'label_format': labelFormat,
+      'target_audience': targetAudience,
+      'age_group': ageGroup,
+      'manufacturer_name': manufacturerName,
+      'manufacturer_address': manufacturerAddress,
+      'packer_address_same_as_manufacturer': packerAddressSameAsManufacturer,
+      'packer_name': packerName,
+      'packer_address': packerAddress,
+      'fssai_license_number': fssaiLicenseNumber,
+      'marketed_by': marketedBy,
+      'country_of_origin': countryOfOrigin,
+      'consumer_care_phone': consumerCarePhone,
+      'consumer_care_email': consumerCareEmail,
+      'consumer_care_website': consumerCareWebsite,
+      'mrp': mrp,
+      'usp': usp,
+      'batch_number': batchNumber,
+      'mfg_date': mfgDate,
+      'best_before': bestBefore,
+      'storage_instructions': storageInstructions,
+      'usage_instructions': usageInstructions,
+      'packaging_type': packagingType,
+      'is_vegetarian': isVegetarian,
+      'recycling_mark': recyclingMark,
+      'compliance_score': complianceScore,
+      'compliance_status': complianceStatus,
+      'export_format': exportFormat,
+      'label_dimension': labelDimension,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (id != null && id!.isNotEmpty) {
+      map['id'] = id;
+    }
+    if (userId != null && userId!.isNotEmpty) {
+      map['user_id'] = userId;
+    }
+
     return map;
   }
 
   factory SmallBusinessLabelModel.fromMap(Map<String, dynamic> map) {
+    final rawIngredients = map['ingredients'] ?? map['small_business_ingredients'];
+    final rawAllergens = map['allergens'] ?? map['small_business_allergens'];
+    final rawNutrients = map['nutrients'] ?? map['small_business_nutrients'];
+    final rawClaims = map['claims'] ?? map['small_business_claims'];
+
     return SmallBusinessLabelModel(
       id: map['id']?.toString(),
       userId: map['user_id']?.toString(),
@@ -422,8 +491,8 @@ class SmallBusinessLabelModel {
               ? DateTime.tryParse(map['updated_at'].toString())
               : null,
       ingredients:
-          map['ingredients'] is List
-              ? (map['ingredients'] as List)
+          rawIngredients is List
+              ? rawIngredients
                   .map(
                     (i) => SmallBusinessIngredientModel.fromMap(
                       Map<String, dynamic>.from(i as Map),
@@ -432,8 +501,8 @@ class SmallBusinessLabelModel {
                   .toList()
               : const [],
       allergens:
-          map['allergens'] is List
-              ? (map['allergens'] as List).map((a) {
+          rawAllergens is List
+              ? rawAllergens.map((a) {
                 if (a is Map && a.containsKey('allergen_name')) {
                   return a['allergen_name'].toString();
                 }
@@ -441,8 +510,8 @@ class SmallBusinessLabelModel {
               }).toList()
               : const [],
       nutrients:
-          map['nutrients'] is List
-              ? (map['nutrients'] as List)
+          rawNutrients is List
+              ? rawNutrients
                   .map(
                     (n) => SmallBusinessNutrientModel.fromMap(
                       Map<String, dynamic>.from(n as Map),
@@ -451,8 +520,8 @@ class SmallBusinessLabelModel {
                   .toList()
               : const [],
       claims:
-          map['claims'] is List
-              ? (map['claims'] as List)
+          rawClaims is List
+              ? rawClaims
                   .map(
                     (c) => SmallBusinessClaimModel.fromMap(
                       Map<String, dynamic>.from(c as Map),

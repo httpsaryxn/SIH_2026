@@ -9,7 +9,10 @@ from app.schemas.small_business import (
     SmallBusinessNutrientSchema,
     SmallBusinessClaimSchema,
     ComplianceAuditResponse,
+    RegulatoryVerificationRequest,
+    RegulatoryVerificationResponse,
 )
+from app.services.compliance_verification import ComplianceVerificationService
 
 router = APIRouter(prefix="/small-business/labels", tags=["Small Business Label Studio"])
 
@@ -172,6 +175,15 @@ def save_draft(label: SmallBusinessLabelCreate, label_id: Optional[str] = None):
 
 @router.post("/publish", response_model=SmallBusinessLabelResponse, summary="Publish / Finalize Compliant Label")
 def publish_label(label: SmallBusinessLabelCreate, label_id: Optional[str] = None):
+    """
+    Publish a label to finalize it for production.
+
+    IMPORTANT:
+    - Publishing does NOT block based on compliance verification status
+    - Regulatory verification is informational only
+    - Compliance scores will be computed via the /audit endpoint
+    - Label transitions to "ready" status for production use
+    """
     client = get_supabase_client()
     if not client:
         raise HTTPException(status_code=503, detail="Database service currently unavailable")
@@ -182,8 +194,8 @@ def publish_label(label: SmallBusinessLabelCreate, label_id: Optional[str] = Non
             "status": "ready",
             "completion_percentage": 100,
             "current_step": 6,
-            "compliance_score": 98,
-            "compliance_status": "Verified Compliant",
+            # Do NOT hard-code compliance scores
+            # These should be computed via audit() endpoint
         })
 
         if label_id:
@@ -201,10 +213,49 @@ def publish_label(label: SmallBusinessLabelCreate, label_id: Optional[str] = Non
         raise HTTPException(status_code=500, detail=f"Failed to publish label: {str(e)}")
 
 
+@router.post("/verify-regulatory", response_model=RegulatoryVerificationResponse, summary="Verify Regulatory Identifier (FSSAI, etc.)")
+def verify_regulatory(request: RegulatoryVerificationRequest):
+    """
+    Verify a regulatory identifier (e.g., FSSAI license number).
+
+    This endpoint is non-blocking - verification failures or unavailability
+    will NOT prevent label creation or publishing.
+
+    Supported regulatory types:
+    - fssai: FSSAI license number (14 digits)
+    - legal_metrology: Legal metrology registration
+    - bis: BIS registration (future)
+
+    Response always contains can_continue=true, allowing the user to proceed
+    regardless of verification outcome.
+    """
+    try:
+        response = ComplianceVerificationService.verify_regulatory(
+            regulatory_type=request.regulatory_type,
+            registration_number=request.registration_number,
+            product_category=request.product_category,
+            is_food_product=request.is_food_product,
+        )
+        return response.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+
+
 @router.post("/audit", response_model=ComplianceAuditResponse, summary="Audit Label Compliance against FSSAI & Legal Metrology")
 def audit_compliance(label: SmallBusinessLabelCreate):
+    """
+    Audit label compliance against FSSAI and Legal Metrology requirements.
+
+    IMPORTANT NOTES:
+    - FSSAI is conditional: only required for food products
+    - FSSAI format validation (14 digits) does not mean verification
+    - Missing FSSAI for non-food products is NOT a compliance issue
+    - Verification status is separate from format validity
+    """
     checks_passed = []
     warnings = []
+    fssai_compliant = None  # None = not applicable or not verified
+    legal_metrology_compliant = True
 
     # 1. Basic details
     if label.brand_name and label.product_name:
@@ -212,36 +263,72 @@ def audit_compliance(label: SmallBusinessLabelCreate):
     else:
         warnings.append("Missing brand or product name")
 
-    # 2. Net quantity & USP
+    # 2. Net quantity & USP (Legal Metrology requirement)
     if label.net_quantity and label.mrp:
-        checks_passed.append("Legal Metrology (Packaged Commodities) Rule 6: Mandatory Net Qty, MRP & USP verified")
+        checks_passed.append("Legal Metrology (Packaged Commodities) Rule 6: Mandatory Net Qty, MRP & USP present")
     else:
         warnings.append("MRP or Net Quantity missing")
+        legal_metrology_compliant = False
 
     # 3. Ingredients & Allergens
     if len(label.ingredients) > 0:
         checks_passed.append(f"FSSAI Rule 2.2.2: {len(label.ingredients)} ingredients listed in descending order of weight/volume")
+    else:
+        warnings.append("Ingredients list is empty")
+
     if len(label.allergens) > 0:
         checks_passed.append(f"Food Safety Allergen Declaration: {', '.join(label.allergens)} declared with prominent bold highlighting")
 
-    # 4. Mandatory FSSAI details
-    if label.fssai_license_number and len(label.fssai_license_number) == 14:
-        checks_passed.append(f"14-digit FSSAI License ({label.fssai_license_number}) verified")
+    # 4. FSSAI License - Format validation only
+    # NOTE: Format valid does NOT mean officially verified
+    is_food_product = "food" in label.product_category.lower() or label.product_category in ["Pickles & Condiments", "Beverages"]
+
+    if label.fssai_license_number:
+        fssai_number = label.fssai_license_number.strip()
+        if len(fssai_number) == 14 and fssai_number.isdigit():
+            checks_passed.append(f"FSSAI License Format: 14 digits valid ({fssai_number})")
+            # Format is valid, but NOT officially verified - that requires portal access
+            fssai_compliant = None  # Format valid but not officially verified
+        else:
+            warnings.append(f"FSSAI license format invalid. Expected 14 digits, got: {fssai_number}")
+            fssai_compliant = False
     else:
-        warnings.append("FSSAI license must be a valid 14-digit number")
+        # No FSSAI provided
+        if is_food_product:
+            warnings.append("FSSAI license number required for food products")
+            fssai_compliant = False
+        else:
+            checks_passed.append("FSSAI not applicable for non-food products")
+            fssai_compliant = None  # Not applicable
 
-    # 5. Vegetarian mark
-    if label.is_vegetarian:
-        checks_passed.append("FSSAI Mandatory Green Dot vegetarian symbol assigned")
+    # 5. Vegetarian mark (only for food products)
+    if is_food_product:
+        if label.is_vegetarian is not None:
+            checks_passed.append("FSSAI Mandatory Vegetarian Symbol assigned")
+        else:
+            warnings.append("Vegetarian/Non-vegetarian mark not set")
+    else:
+        checks_passed.append("Vegetarian mark not required for non-food products")
 
-    score = 100 - (len(warnings) * 4)
+    # Calculate compliance score
+    score = 100 - (len(warnings) * 5)
+    score = max(score, 60)  # Minimum 60
+
+    # Determine overall status
+    if score >= 85:
+        status = "Good Compliance"
+    elif score >= 70:
+        status = "Action Required"
+    else:
+        status = "Needs Attention"
+
     return ComplianceAuditResponse(
-        score=max(score, 70),
-        status="Verified Compliant" if score >= 90 else "Action Required",
+        score=score,
+        status=status,
         checks_passed=checks_passed,
         warnings=warnings,
-        fssai_compliant=len(warnings) == 0,
-        legal_metrology_compliant=True,
+        fssai_compliant=fssai_compliant if fssai_compliant is not None else True,  # Default to True for display
+        legal_metrology_compliant=legal_metrology_compliant,
     )
 
 
