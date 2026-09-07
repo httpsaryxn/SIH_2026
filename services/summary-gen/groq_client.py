@@ -236,12 +236,13 @@ def generate_regulator_summary(
     system_prompt = """You are a senior Legal Metrology Enforcement Officer and Packaging Compliance Analyst under the Legal Metrology Act, 2009 and the Legal Metrology (Packaged Commodities) Rules, 2011 (PCR 2011).
 
 Review the label verification audit findings and write a formal, authoritative, and concise regulatory inspection summary.
-Include:
-1. Executive Assessment: Overall compliance status (Compliant, Warning, or Potential Violation).
+Do NOT include document metadata headers (such as Product Name, Manufacturer, Date of Inspection, or Inspector Name) as these are already rendered in the official report header.
+Start directly with:
+1. Executive Assessment: Overall status (POTENTIAL VIOLATION, WARNING, or COMPLIANT) and a concise 2-sentence rationale.
 2. Detailed Breakdown:
-   - Mandatory Declarations that PASSED (Name, Net Quantity, MRP, Manufacturer details, Consumer Care, etc.).
-   - Violations or Warnings with exact Rule references (e.g. Rule 6(1)(a) Commodity Name, Rule 6(1)(b) Net Qty & font height, Rule 6(1)(e) MRP format, Rule 6(1)(d) Date of packaging).
-3. Recommended Action: Clear enforcement recommendations (Issue Show Cause Notice, verify manufacturing records, or grant clearance).
+   - Mandatory Declarations: PASSED (table or list with Extracted Value and Rule Reference).
+   - Violations & Warnings: Table or list with Rule Citation, Severity (Critical, Major, Moderate), and specific non-compliance description.
+3. Recommended Action: Clear, specific enforcement steps under the Legal Metrology Act, 2009 (e.g. Show Cause Notice under Section 36, seizure, or clearance).
 
 Format using clean GitHub-flavored Markdown. Do not include markdown code fences (```markdown).
 """
@@ -359,18 +360,46 @@ def _fallback_regulator_summary(product_name: str, declaration_checks: list) -> 
     warnings = [c for c in declaration_checks if c.get("status") in ["Warning", "WARN"]]
     passed = [c for c in declaration_checks if c.get("status") in ["Compliant", "PASS"]]
 
-    status_str = "POTENTIAL VIOLATION" if violations else ("WARNING" if warnings else "COMPLIANT")
+    status_str = "POTENTIAL VIOLATION" if violations else ("ADVISORY WARNING" if warnings else "COMPLIANT")
 
     lines = [
-        f"## Legal Metrology Compliance Inspection: {product_name}",
-        f"**Audit Finding**: `{status_str}` | Passed: {len(passed)} | Warnings: {len(warnings)} | Violations: {len(violations)}\n",
-        "### Key Findings:",
+        f"**Overall Status**: **{status_str}** — Audited under PCR 2011. Found **{len(passed)} Compliant**, **{len(warnings)} Warnings**, and **{len(violations)} Violations**.",
+        "",
+        "### Statutory Violations & Non-Compliances",
     ]
-    for v in violations:
-        lines.append(f"- ❌ **Violation**: {v.get('field_name')} — {v.get('rule_citation', 'PCR 2011')}: {v.get('rule_description', 'Declaration discrepancy detected.')}")
-    for w in warnings:
-        lines.append(f"- ⚠️ **Warning**: {w.get('field_name')} — {w.get('rule_citation', 'PCR 2011')}: {w.get('rule_description', 'Review recommended.')}")
-    for p in passed:
-        lines.append(f"- ✅ **Pass**: {p.get('field_name')}: {p.get('extracted_value', 'Found')}")
+    if violations:
+        for v in violations:
+            field = v.get("field_name") or "Mandatory Field"
+            rule = v.get("rule_citation") or "PCR 2011"
+            desc = v.get("rule_description") or "Statutory declaration missing or illegible on packaging."
+            lines.append(f"- ❌ **Violation**: **{field}** ({rule}) — {desc}")
+    else:
+        lines.append("- ✅ **No Violations Detected**: All primary mandatory declarations are present.")
+
+    if warnings:
+        lines.append("")
+        lines.append("### Advisory & Technical Warnings")
+        for w in warnings:
+            field = w.get("field_name") or "Field"
+            rule = w.get("rule_citation") or "PCR 2011"
+            desc = w.get("rule_description") or "Potential discrepancy requires verification."
+            lines.append(f"- ⚠️ **Warning**: **{field}** ({rule}) — {desc}")
+
+    lines.append("")
+    if passed:
+        passed_names = [p.get("field_name", "") for p in passed if p.get("field_name")]
+        sample_names = ", ".join(passed_names[:4])
+        suffix = f" and {len(passed_names) - 4} others" if len(passed_names) > 4 else ""
+        lines.append("### Statutory Clearance Overview")
+        lines.append(f"- ✅ **{len(passed)} Mandatory Declarations Verified**: {sample_names}{suffix} verified compliant.")
+        lines.append("")
+
+    lines.append("### Recommended Regulatory Enforcement Action")
+    if violations:
+        lines.append("- ⚠️ **Enforcement Notice**: Issue formal Show Cause Notice under Section 36 of Legal Metrology Act, 2009 for failure to display mandatory statutory declarations.")
+    elif warnings:
+        lines.append("- ⚠️ **Advisory Notice**: Issue advisory compliance notice for correction on subsequent production batches.")
+    else:
+        lines.append("- ✅ **Clearance Granted**: Packaging label satisfies statutory pre-packaged commodity norms. Clearance recommended.")
 
     return "\n".join(lines)
