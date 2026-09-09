@@ -12,7 +12,7 @@ import '../shared/multi_capture_screen.dart';
 import 'regulator_scan_analysis_screen.dart';
 
 class RegulatorAuditIntakeScreen extends StatefulWidget {
-  final bool isStandalone;
+  final bool? isStandalone;
 
   const RegulatorAuditIntakeScreen({
     super.key,
@@ -206,10 +206,12 @@ class _RegulatorAuditIntakeScreenState
     await _handleCapture(source: ImageSource.camera);
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
     final body = SafeArea(
-      bottom: !widget.isStandalone,
+      bottom: !_isStandalone,
       child: ScrollConfiguration(
         behavior: const ScrollBehavior().copyWith(overscroll: false),
         child: ClipRect(
@@ -262,7 +264,7 @@ class _RegulatorAuditIntakeScreenState
       ),
     );
 
-    if (!widget.isStandalone) {
+    if (!_isStandalone) {
       return body;
     }
 

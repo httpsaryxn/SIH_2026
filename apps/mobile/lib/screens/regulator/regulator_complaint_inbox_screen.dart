@@ -12,7 +12,7 @@ import 'regulator_complaint_detail_screen.dart';
 import 'regulator_label_review_screen.dart';
 
 class RegulatorComplaintInboxScreen extends StatefulWidget {
-  final bool isStandalone;
+  final bool? isStandalone;
 
   const RegulatorComplaintInboxScreen({
     super.key,
@@ -81,10 +81,12 @@ class _RegulatorComplaintInboxScreenState
     }
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
     final body = SafeArea(
-      bottom: !widget.isStandalone,
+      bottom: !_isStandalone,
       child: ScrollConfiguration(
         behavior: const ScrollBehavior().copyWith(overscroll: false),
         child: ClipRect(
@@ -187,7 +189,7 @@ class _RegulatorComplaintInboxScreenState
       ),
     );
 
-    if (!widget.isStandalone) {
+    if (!_isStandalone) {
       return body;
     }
 

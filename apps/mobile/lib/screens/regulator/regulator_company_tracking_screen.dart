@@ -17,11 +17,13 @@ import 'regulator_violation_review_screen.dart';
 
 class RegulatorCompanyTrackingScreen extends StatefulWidget {
   final int initialTabIndex;
-  final bool isStandalone;
+  final String? initialCompanyFilter;
+  final bool? isStandalone;
 
   const RegulatorCompanyTrackingScreen({
     super.key,
     this.initialTabIndex = 0,
+    this.initialCompanyFilter,
     this.isStandalone = true,
   });
 
@@ -202,10 +204,12 @@ class _RegulatorCompanyTrackingScreenState
     );
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
     final body = SafeArea(
-      bottom: !widget.isStandalone,
+      bottom: !_isStandalone,
       child: Column(
         children: [
           // Screen Header & Segmented Section Toggle
@@ -297,7 +301,7 @@ class _RegulatorCompanyTrackingScreenState
         ),
       );
 
-    if (!widget.isStandalone) {
+    if (!_isStandalone) {
       return body;
     }
 

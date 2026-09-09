@@ -10,7 +10,7 @@ import '../../core/motion/motion.dart';
 import '../onboarding/role_selection_screen.dart';
 
 class RegulatorProfileScreen extends StatefulWidget {
-  final bool isStandalone;
+  final bool? isStandalone;
 
   const RegulatorProfileScreen({
     super.key,
@@ -205,6 +205,8 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
     );
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
     final content = _isLoading
@@ -252,11 +254,11 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
           );
 
     final body = SafeArea(
-      bottom: !widget.isStandalone,
+      bottom: !_isStandalone,
       child: content,
     );
 
-    if (!widget.isStandalone) {
+    if (!_isStandalone) {
       return body;
     }
 
