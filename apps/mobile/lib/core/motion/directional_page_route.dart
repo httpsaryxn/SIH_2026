@@ -104,20 +104,20 @@ class _DirectionalTabSwitcherState extends State<DirectionalTabSwitcher> {
   Widget build(BuildContext context) {
     final isForward = widget.currentIndex >= _previousIndex;
 
-    return AnimatedSwitcher(
-      duration: widget.duration,
-      switchInCurve: widget.curve,
-      switchOutCurve: AppCurves.exit,
-      layoutBuilder: (currentChild, previousChildren) {
-        return Stack(
-          alignment: Alignment.topLeft,
-          fit: StackFit.expand,
-          children: [
-            ...previousChildren,
-            ?currentChild,
-          ],
-        );
-      },
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: widget.duration,
+        switchInCurve: widget.curve,
+        switchOutCurve: AppCurves.exit,
+        layoutBuilder: (currentChild, previousChildren) {
+          return Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              ...previousChildren,
+              ?currentChild,
+            ],
+          );
+        },
       transitionBuilder: (child, animation) {
         // Distinguish the incoming widget from the outgoing widget by checking
         // if this transition matches the current child's key
@@ -147,6 +147,7 @@ class _DirectionalTabSwitcherState extends State<DirectionalTabSwitcher> {
         );
       },
       child: widget.child,
+      ),
     );
   }
 }
