@@ -69,30 +69,13 @@ class RegulatorBottomNavBar extends StatefulWidget {
 }
 
 class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
-    with TickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseScaleAnimation;
-  late final Animation<double> _pulseOpacityAnimation;
-
+    with SingleTickerProviderStateMixin {
   late final AnimationController _bounceController;
   late final Animation<double> _bounceAnimation;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-
-    _pulseScaleAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOutQuad),
-    );
-
-    _pulseOpacityAnimation = Tween<double>(begin: 0.45, end: 0.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOutQuad),
-    );
-
     _bounceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 120),
@@ -101,30 +84,10 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
     _bounceAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
       CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
     );
-
-    if (widget.currentTab == RegulatorNavTab.audit) {
-      _pulseController.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant RegulatorBottomNavBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentTab == RegulatorNavTab.audit) {
-      if (!_pulseController.isAnimating) {
-        _pulseController.repeat();
-      }
-    } else {
-      if (_pulseController.isAnimating) {
-        _pulseController.stop();
-        _pulseController.reset();
-      }
-    }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
     _bounceController.dispose();
     super.dispose();
   }
@@ -243,78 +206,44 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
           key: const Key('regulator_audit_nav_button'),
           customBorder: const CircleBorder(),
           onTap: _handleAuditTap,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // Radiating halo pulse when on Audit Intake screen
-              if (isAuditActive)
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    return Container(
-                      width: 50 * _pulseScaleAnimation.value,
-                      height: 50 * _pulseScaleAnimation.value,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primary.withValues(
-                          alpha: _pulseOpacityAnimation.value,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-              // Main green circular scanner button with bounce animation
-              ScaleTransition(
-                scale: _bounceAnimation,
-                child: Ink(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(
-                          alpha: isAuditActive ? 0.45 : 0.32,
-                        ),
-                        blurRadius: isAuditActive ? 12 : 8,
-                        offset: const Offset(0, 4),
-                      ),
-                      if (isAuditActive)
-                        BoxShadow(
-                          color:
-                              AppColors.primaryContainer.withValues(alpha: 0.5),
-                          blurRadius: 14,
-                          spreadRadius: 1,
-                        ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      const Icon(
-                        Icons.qr_code_scanner_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      // Accessible and test-discoverable label for find.widgetWithText(InkWell, 'Audit')
-                      Opacity(
-                        opacity: 0.0,
-                        child: IgnorePointer(
-                          ignoring: true,
-                          child: const Text(
-                            'Audit',
-                            style: TextStyle(fontSize: 1),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          child: ScaleTransition(
+            scale: _bounceAnimation,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: isAuditActive
+                    ? Border.all(
+                        color: AppColors.surfaceContainerLowest,
+                        width: 2.5,
+                      )
+                    : null,
+                boxShadow: AppSpacing.primaryButtonShadow,
               ),
-            ],
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  // Accessible and test-discoverable label for find.widgetWithText(InkWell, 'Audit')
+                  Opacity(
+                    opacity: 0.0,
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: const Text(
+                        'Audit',
+                        style: TextStyle(fontSize: 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
