@@ -69,12 +69,13 @@ class RegulatorBottomNavBar extends StatefulWidget {
 }
 
 class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _pulseController;
   late final Animation<double> _pulseScaleAnimation;
   late final Animation<double> _pulseOpacityAnimation;
 
-  double _buttonScale = 1.0;
+  late final AnimationController _bounceController;
+  late final Animation<double> _bounceAnimation;
 
   @override
   void initState() {
@@ -90,6 +91,15 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
 
     _pulseOpacityAnimation = Tween<double>(begin: 0.45, end: 0.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeOutQuad),
+    );
+
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+
+    _bounceAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
     );
 
     if (widget.currentTab == RegulatorNavTab.audit) {
@@ -115,11 +125,19 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
   @override
   void dispose() {
     _pulseController.dispose();
+    _bounceController.dispose();
     super.dispose();
   }
 
   void _handleAuditTap() {
     HapticFeedback.mediumImpact();
+    // Play quick tap bounce micro-interaction asynchronously
+    _bounceController.forward().then((_) {
+      if (mounted) {
+        _bounceController.reverse();
+      }
+    });
+
     if (widget.onTabSelected != null) {
       widget.onTabSelected!(RegulatorNavTab.audit);
     } else {
@@ -165,37 +183,49 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xs,
-            vertical: 4,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                tab: RegulatorNavTab.home,
-                icon: Icons.home_rounded,
-                label: 'Home',
-              ),
-              _buildNavItem(
-                tab: RegulatorNavTab.violations,
-                icon: Icons.gavel_rounded,
-                label: 'Violations',
-              ),
-              // Center Elevated Green QR Scanner / Audit Action Button
-              _buildCenterAuditButton(),
-              _buildNavItem(
-                tab: RegulatorNavTab.inbox,
-                icon: Icons.inbox_rounded,
-                label: 'Inbox',
-              ),
-              _buildNavItem(
-                tab: RegulatorNavTab.profile,
-                icon: Icons.person_rounded,
-                label: 'Profile',
-              ),
-            ],
+        child: SizedBox(
+          height: 68,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: 4,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.home,
+                    icon: Icons.home_rounded,
+                    label: 'Home',
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.violations,
+                    icon: Icons.gavel_rounded,
+                    label: 'Violations',
+                  ),
+                ),
+                // Center Elevated Green QR Scanner / Audit Action Button
+                Expanded(
+                  child: _buildCenterAuditButton(),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.inbox,
+                    icon: Icons.inbox_rounded,
+                    label: 'Inbox',
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.profile,
+                    icon: Icons.person_rounded,
+                    label: 'Profile',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -205,43 +235,39 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
   Widget _buildCenterAuditButton() {
     final isAuditActive = widget.currentTab == RegulatorNavTab.audit;
 
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-          // Radiating halo pulse when on Audit Intake screen
-          if (isAuditActive)
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Container(
-                  width: 50 * _pulseScaleAnimation.value,
-                  height: 50 * _pulseScaleAnimation.value,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(
-                      alpha: _pulseOpacityAnimation.value,
-                    ),
-                  ),
-                );
-              },
-            ),
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          key: const Key('regulator_audit_nav_button'),
+          customBorder: const CircleBorder(),
+          onTap: _handleAuditTap,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              // Radiating halo pulse when on Audit Intake screen
+              if (isAuditActive)
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return Container(
+                      width: 50 * _pulseScaleAnimation.value,
+                      height: 50 * _pulseScaleAnimation.value,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primary.withValues(
+                          alpha: _pulseOpacityAnimation.value,
+                        ),
+                      ),
+                    );
+                  },
+                ),
 
-          // Main green circular scanner button with spring bounce & InkWell
-          AnimatedScale(
-            scale: _buttonScale,
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOutBack,
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                key: const Key('regulator_audit_nav_button'),
-                customBorder: const CircleBorder(),
-                onTapDown: (_) => setState(() => _buttonScale = 0.88),
-                onTapUp: (_) => setState(() => _buttonScale = 1.0),
-                onTapCancel: () => setState(() => _buttonScale = 1.0),
-                onTap: _handleAuditTap,
+              // Main green circular scanner button with bounce animation
+              ScaleTransition(
+                scale: _bounceAnimation,
                 child: Ink(
                   width: 50,
                   height: 50,
@@ -258,7 +284,8 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
                       ),
                       if (isAuditActive)
                         BoxShadow(
-                          color: AppColors.primaryContainer.withValues(alpha: 0.5),
+                          color:
+                              AppColors.primaryContainer.withValues(alpha: 0.5),
                           blurRadius: 14,
                           spreadRadius: 1,
                         ),
@@ -272,15 +299,14 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
                         color: Colors.white,
                         size: 26,
                       ),
-                      // Accessible and test-discoverable label
-                      SizedBox(
-                        width: 0,
-                        height: 0,
-                        child: Text(
-                          'Audit',
-                          style: TextStyle(
-                            fontSize: 0,
-                            color: Colors.transparent,
+                      // Accessible and test-discoverable label for find.widgetWithText(InkWell, 'Audit')
+                      Opacity(
+                        opacity: 0.0,
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: const Text(
+                            'Audit',
+                            style: TextStyle(fontSize: 1),
                           ),
                         ),
                       ),
@@ -288,10 +314,11 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      );
+        ),
+      ),
+    );
   }
 
   Widget _buildNavItem({
@@ -302,41 +329,50 @@ class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
     final isActive = widget.currentTab == tab;
     final color = isActive ? AppColors.primary : AppColors.secondary;
 
-    return InkWell(
-      onTap: () => _handleNavTap(tab),
-      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.symmetric(
-          horizontal: isActive ? 12 : 6,
-          vertical: 4,
-        ),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.primaryContainer.withValues(alpha: 0.3)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: color,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: color,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _handleNavTap(tab),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: EdgeInsets.symmetric(
+                horizontal: isActive ? 12 : 6,
+                vertical: 4,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.primaryContainer.withValues(alpha: 0.3)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 22,
+                    color: color,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      color: color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
