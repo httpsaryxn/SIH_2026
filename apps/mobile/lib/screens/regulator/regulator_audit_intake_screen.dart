@@ -7,11 +7,17 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
+import '../../core/motion/motion.dart';
 import '../shared/multi_capture_screen.dart';
 import 'regulator_scan_analysis_screen.dart';
 
 class RegulatorAuditIntakeScreen extends StatefulWidget {
-  const RegulatorAuditIntakeScreen({super.key});
+  final bool isStandalone;
+
+  const RegulatorAuditIntakeScreen({
+    super.key,
+    this.isStandalone = true,
+  });
 
   @override
   State<RegulatorAuditIntakeScreen> createState() =>
@@ -113,8 +119,8 @@ class _RegulatorAuditIntakeScreenState
 
     // Navigate to the 3-step guided multi-capture flow
     final result = await Navigator.of(context).push<MultiCapturePayload?>(
-      MaterialPageRoute(
-        builder: (_) => MultiCaptureScreen(
+      DrillInPageRoute(
+        page: MultiCaptureScreen(
           sourceTag: 'regulator_field',
           flowLabel: 'Audit Evidence',
           productName: productName,
@@ -137,8 +143,8 @@ class _RegulatorAuditIntakeScreenState
       // Immediately navigate to the analysis/audit pipeline screen
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             multiCapture: result,
             pendingCapture: primary,
             prefilledProductName: productName,
@@ -172,8 +178,8 @@ class _RegulatorAuditIntakeScreenState
 
     if (_multiCapture != null && _multiCapture!.hasAnyCapture && mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             multiCapture: _multiCapture!,
             pendingCapture: _multiCapture!.primaryCapture!,
             prefilledProductName: _productNameController.text.trim(),
@@ -185,8 +191,8 @@ class _RegulatorAuditIntakeScreenState
     }
     if (_pendingCapture != null && mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             pendingCapture: _pendingCapture!,
             prefilledProductName: _productNameController.text.trim(),
             prefilledCompanyName: _companyNameController.text.trim(),
@@ -202,58 +208,67 @@ class _RegulatorAuditIntakeScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: const ScrollBehavior().copyWith(overscroll: false),
-          child: ClipRect(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.gutter,
-                vertical: AppSpacing.md,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Text(
-                    'Audit Intake',
-                    style: AppTypography.headlineLgMobile.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
-                    ),
+    final body = SafeArea(
+      bottom: !widget.isStandalone,
+      child: ScrollConfiguration(
+        behavior: const ScrollBehavior().copyWith(overscroll: false),
+        child: ClipRect(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.gutter,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Text(
+                  'Audit Intake',
+                  style: AppTypography.headlineLgMobile.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
+                  style: AppTypography.bodySm.copyWith(
+                    color: AppColors.onSurfaceVariant,
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                ),
+                const SizedBox(height: AppSpacing.lg),
 
-                  // Intake Tabs
-                  _buildIntakeTabs(),
-                  const SizedBox(height: AppSpacing.lg),
+                // Intake Tabs
+                _buildIntakeTabs(),
+                const SizedBox(height: AppSpacing.lg),
 
-                  _buildAuditIdentityFields(),
-                  const SizedBox(height: AppSpacing.lg),
+                _buildAuditIdentityFields(),
+                const SizedBox(height: AppSpacing.lg),
 
-                  // Viewfinder / Upload Section
-                  if (_selectedTabIndex == 0)
-                    _buildCameraViewfinder()
-                  else
-                    _buildUrlUploadSection(),
+                // Viewfinder / Upload Section
+                if (_selectedTabIndex == 0)
+                  _buildCameraViewfinder()
+                else
+                  _buildUrlUploadSection(),
 
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              ),
+                const SizedBox(height: AppSpacing.xxl),
+              ],
             ),
           ),
         ),
       ),
+    );
+
+    if (!widget.isStandalone) {
+      return body;
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: body,
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.audit,
         onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(

@@ -3,11 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
-import '../../screens/regulator/regulator_home_screen.dart';
-import '../../screens/regulator/regulator_audit_intake_screen.dart';
-import '../../screens/regulator/regulator_company_tracking_screen.dart';
-import '../../screens/regulator/regulator_complaint_inbox_screen.dart';
-import '../../screens/regulator/regulator_profile_screen.dart';
+import '../../screens/regulator/regulator_shell_screen.dart';
 
 enum RegulatorNavTab {
   home,
@@ -15,6 +11,41 @@ enum RegulatorNavTab {
   violations,
   inbox,
   profile,
+}
+
+extension RegulatorNavTabExtension on RegulatorNavTab {
+  /// The horizontal left-to-right spatial index in the bottom nav bar:
+  /// 0: Home, 1: Violations, 2: Audit (center), 3: Inbox, 4: Profile.
+  int get spatialIndex {
+    switch (this) {
+      case RegulatorNavTab.home:
+        return 0;
+      case RegulatorNavTab.violations:
+        return 1;
+      case RegulatorNavTab.audit:
+        return 2;
+      case RegulatorNavTab.inbox:
+        return 3;
+      case RegulatorNavTab.profile:
+        return 4;
+    }
+  }
+
+  static RegulatorNavTab fromSpatialIndex(int index) {
+    switch (index) {
+      case 0:
+        return RegulatorNavTab.home;
+      case 1:
+        return RegulatorNavTab.violations;
+      case 2:
+        return RegulatorNavTab.audit;
+      case 3:
+        return RegulatorNavTab.inbox;
+      case 4:
+      default:
+        return RegulatorNavTab.profile;
+    }
+  }
 }
 
 class RegulatorBottomNavBar extends StatefulWidget {
@@ -27,7 +58,7 @@ class RegulatorBottomNavBar extends StatefulWidget {
     this.onTabSelected,
   });
 
-  /// Standard tab navigation handler with smooth page transition animations.
+  /// Standard tab navigation handler with smooth in-place shell switching or fallback push.
   static void navigateToTab(
     BuildContext context,
     RegulatorNavTab currentTab,
@@ -35,30 +66,16 @@ class RegulatorBottomNavBar extends StatefulWidget {
   ) {
     if (currentTab == targetTab) return;
 
-    Widget targetScreen;
-    switch (targetTab) {
-      case RegulatorNavTab.home:
-        targetScreen = const RegulatorHomeScreen();
-        break;
-      case RegulatorNavTab.audit:
-        targetScreen = const RegulatorAuditIntakeScreen();
-        break;
-      case RegulatorNavTab.violations:
-        targetScreen = const RegulatorCompanyTrackingScreen();
-        break;
-      case RegulatorNavTab.inbox:
-        targetScreen = const RegulatorComplaintInboxScreen();
-        break;
-      case RegulatorNavTab.profile:
-        targetScreen = const RegulatorProfileScreen();
-        break;
+    final shellState =
+        context.findAncestorStateOfType<RegulatorShellScreenState>();
+    if (shellState != null) {
+      shellState.switchTab(targetTab);
+      return;
     }
 
     Navigator.of(context).pushAndRemoveUntil(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
+      MaterialPageRoute(
+        builder: (_) => RegulatorShellScreen(initialTab: targetTab),
       ),
       (route) => false,
     );

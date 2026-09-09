@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'app_curves.dart';
@@ -32,6 +33,7 @@ class _SlideFadeEntranceState extends State<SlideFadeEntrance>
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
   late final Animation<Offset> _slideAnimation;
+  Timer? _staggerTimer;
 
   @override
   void initState() {
@@ -63,7 +65,7 @@ class _SlideFadeEntranceState extends State<SlideFadeEntrance>
     if (delay == Duration.zero) {
       _controller.forward();
     } else {
-      Future.delayed(delay, () {
+      _staggerTimer = Timer(delay, () {
         if (mounted) {
           _controller.forward();
         }
@@ -73,6 +75,7 @@ class _SlideFadeEntranceState extends State<SlideFadeEntrance>
 
   @override
   void dispose() {
+    _staggerTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

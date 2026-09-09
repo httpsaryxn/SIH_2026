@@ -150,3 +150,141 @@ class _DirectionalTabSwitcherState extends State<DirectionalTabSwitcher> {
     );
   }
 }
+
+/// A state-preserving direction-aware tab container.
+///
+/// Keeps all [children] alive in memory (preserving scroll positions, text field inputs,
+/// and in-progress form/capture data) while animating visible tab index changes with
+/// direction-aware horizontal sliding matching iOS and Android native feel.
+class DirectionalIndexedStack extends StatefulWidget {
+  final int index;
+  final List<Widget> children;
+  final Duration duration;
+  final Curve curve;
+
+  const DirectionalIndexedStack({
+    super.key,
+    required this.index,
+    required this.children,
+    this.duration = AppDurations.medium,
+    this.curve = AppCurves.entrance,
+  });
+
+  @override
+  State<DirectionalIndexedStack> createState() =>
+      _DirectionalIndexedStackState();
+}
+
+class _DirectionalIndexedStackState extends State<DirectionalIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+  int _currentIndex = 0;
+  int _previousIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.index;
+    _previousIndex = widget.index;
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: widget.curve,
+      reverseCurve: AppCurves.exit,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant DirectionalIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      _previousIndex = _currentIndex;
+      _currentIndex = widget.index;
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isForward = _currentIndex >= _previousIndex;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+
+        return AnimatedBuilder(
+          animation: _animation,
+          builder: (context, _) {
+            final progress = _animation.value;
+            final isStillAnimating = _controller.isAnimating;
+
+            return Stack(
+              fit: StackFit.expand,
+              children: List.generate(widget.children.length, (i) {
+                final isCurrent = i == _currentIndex;
+                final isPrevious = i == _previousIndex;
+
+                final childWithBounds = OverflowBox(
+                  minWidth: constraints.maxWidth,
+                  maxWidth: constraints.maxWidth,
+                  minHeight: constraints.maxHeight,
+                  maxHeight: constraints.maxHeight,
+                  child: widget.children[i],
+                );
+
+                bool isVisible = isCurrent;
+                Offset offset = Offset.zero;
+                double opacity = 1.0;
+
+                if (isStillAnimating && _previousIndex != _currentIndex) {
+                  if (isPrevious) {
+                    isVisible = true;
+                    final outFraction = isForward ? -0.35 : 0.35;
+                    offset = Offset(outFraction * progress * screenWidth, 0.0);
+                    opacity = (1.0 - progress).clamp(0.0, 1.0);
+                  } else if (isCurrent) {
+                    isVisible = true;
+                    final inFraction = isForward ? 0.35 : -0.35;
+                    offset =
+                        Offset(inFraction * (1.0 - progress) * screenWidth, 0.0);
+                    opacity = progress.clamp(0.0, 1.0);
+                  }
+                }
+
+                return KeyedSubtree(
+                  key: ValueKey<int>(i),
+                  child: TickerMode(
+                    enabled: isVisible,
+                    child: Offstage(
+                      offstage: !isVisible,
+                      child: Transform.translate(
+                        offset: offset,
+                        child: Opacity(
+                          opacity: opacity,
+                          child: childWithBounds,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+

@@ -10,15 +10,19 @@ import '../../core/models/regulator_company.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../../widgets/regulator/regulator_timeline_tile.dart';
+import '../../core/motion/motion.dart';
 import 'regulator_complaint_detail_screen.dart';
 import 'regulator_label_review_screen.dart';
 import 'regulator_violation_review_screen.dart';
 
 class RegulatorCompanyTrackingScreen extends StatefulWidget {
   final int initialTabIndex;
+  final bool isStandalone;
+
   const RegulatorCompanyTrackingScreen({
     super.key,
     this.initialTabIndex = 0,
+    this.isStandalone = true,
   });
 
   @override
@@ -200,12 +204,11 @@ class _RegulatorCompanyTrackingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Screen Header & Segmented Section Toggle
+    final body = SafeArea(
+      bottom: !widget.isStandalone,
+      child: Column(
+        children: [
+          // Screen Header & Segmented Section Toggle
             Container(
               color: AppColors.surfaceContainerLowest,
               padding: const EdgeInsets.fromLTRB(
@@ -292,7 +295,15 @@ class _RegulatorCompanyTrackingScreenState
             ),
           ],
         ),
-      ),
+      );
+
+    if (!widget.isStandalone) {
+      return body;
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: body,
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.violations,
         onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
@@ -355,7 +366,7 @@ class _RegulatorCompanyTrackingScreenState
                 )
               : ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(
-                    parent: ClampingScrollPhysics(),
+                    parent: BouncingScrollPhysics(),
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.gutter,
@@ -366,7 +377,10 @@ class _RegulatorCompanyTrackingScreenState
                       const SizedBox(height: AppSpacing.md),
                   itemBuilder: (context, index) {
                     final item = _myActions[index];
-                    return _buildActionItemCard(item);
+                    return SlideFadeEntrance(
+                      index: index,
+                      child: _buildActionItemCard(item),
+                    );
                   },
                 ),
     );
@@ -390,29 +404,28 @@ class _RegulatorCompanyTrackingScreenState
       badgeFg = const Color(0xFF92400E);
     }
 
-    return InkWell(
-      onTap: () {
+    return Pressable(
+      onPressed: () {
         if (item.isViolation) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RegulatorViolationReviewScreen(violationId: item.id),
+            DrillInPageRoute(
+              page: RegulatorViolationReviewScreen(violationId: item.id),
             ),
           );
         } else if (item.isComplaint) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RegulatorComplaintDetailScreen(complaintId: item.id),
+            DrillInPageRoute(
+              page: RegulatorComplaintDetailScreen(complaintId: item.id),
             ),
           );
         } else if (item.isLabelReview) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RegulatorLabelReviewScreen(requestId: item.id),
+            DrillInPageRoute(
+              page: RegulatorLabelReviewScreen(requestId: item.id),
             ),
           );
         }
       },
-      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
@@ -620,7 +633,10 @@ class _RegulatorCompanyTrackingScreenState
                 itemBuilder: (context, index) {
                   final company = _companies[index];
                   final isExpanded = _expandedCompanyIds.contains(company.id);
-                  return _buildCompanyCard(company, isExpanded);
+                  return SlideFadeEntrance(
+                    index: index,
+                    child: _buildCompanyCard(company, isExpanded),
+                  );
                 },
               ),
             const SizedBox(height: AppSpacing.xxl),
