@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../../core/motion/motion.dart';
+import '../../core/services/live_camera_service.dart';
 import '../shared/multi_capture_screen.dart';
 import 'regulator_scan_analysis_screen.dart';
 
@@ -25,7 +27,7 @@ class RegulatorAuditIntakeScreen extends StatefulWidget {
 }
 
 class _RegulatorAuditIntakeScreenState
-    extends State<RegulatorAuditIntakeScreen> {
+    extends State<RegulatorAuditIntakeScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 0; // 0 = Photo Capture, 1 = URL / Batch Upload
   PendingCapture? _pendingCapture;
   MultiCapturePayload? _multiCapture;
@@ -36,9 +38,16 @@ class _RegulatorAuditIntakeScreenState
   String? _productNameError;
   String? _companyNameError;
 
+  CameraController? _cameraController;
+  bool _isCameraInitializing = false;
+
+  bool get _isCameraReady =>
+      _cameraController != null && _cameraController!.value.isInitialized;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _productNameController.addListener(() {
       if (_productNameError != null &&
           _productNameController.text.trim().isNotEmpty) {
@@ -51,10 +60,41 @@ class _RegulatorAuditIntakeScreenState
         setState(() => _companyNameError = null);
       }
     });
+
+    _initLiveCamera();
+  }
+
+  Future<void> _initLiveCamera() async {
+    if (_isCameraInitializing) return;
+    _isCameraInitializing = true;
+    final controller = await LiveCameraService.createController();
+    if (mounted) {
+      setState(() {
+        _cameraController = controller;
+        _isCameraInitializing = false;
+      });
+    } else {
+      await LiveCameraService.disposeController(controller);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _cameraController?.dispose();
+      _cameraController = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _initLiveCamera();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    LiveCameraService.disposeController(_cameraController);
     _urlController.dispose();
     _productNameController.dispose();
     _companyNameController.dispose();
@@ -399,48 +439,104 @@ class _RegulatorAuditIntakeScreenState
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd - 2),
                   child: hasCapture
                       ? Image.file(_pendingCapture!.file, fit: BoxFit.cover)
-                      : Container(
-                          color: const Color(0xFF0F172A),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.qr_code_scanner_rounded,
-                                  size: 36,
-                                  color: AppColors.primaryFixedDim,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                'Scan Packaging Label',
-                                style: AppTypography.labelMd.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                                child: Text(
-                                  'Position the product label inside the frame and tap the shutter button.',
-                                  textAlign: TextAlign.center,
-                                  style: AppTypography.bodySm.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 12,
+                      : _isCameraReady
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRect(
+                                  child: OverflowBox(
+                                    alignment: Alignment.center,
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: _cameraController!.value.previewSize?.height ?? 380,
+                                        height: _cameraController!.value.previewSize?.width ?? 380,
+                                        child: CameraPreview(_cameraController!),
+                                      ),
+                                    ),
                                   ),
                                 ),
+                                // Live Camera Feed indicator badge
+                                Positioned(
+                                  top: AppSpacing.md,
+                                  left: AppSpacing.md,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF10B981),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Live Camera Feed',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Container(
+                              color: const Color(0xFF0F172A),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 70,
+                                    height: 70,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.qr_code_scanner_rounded,
+                                      size: 36,
+                                      color: AppColors.primaryFixedDim,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    'Scan Packaging Label',
+                                    style: AppTypography.labelMd.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                                    child: Text(
+                                      'Position the product label inside the frame and tap the shutter button.',
+                                      textAlign: TextAlign.center,
+                                      style: AppTypography.bodySm.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
                 ),
               ),
 

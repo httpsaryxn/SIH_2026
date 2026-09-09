@@ -37,26 +37,10 @@ class CameraCaptureService {
       }
 
       final bytes = await pickedFile.readAsBytes();
-      final tempDir = customTempDirectory ?? await getTemporaryDirectory();
-
-      // Collision-safe filename: scan_<source>_<timestamp>_<randomHex>.jpg
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final randomSuffix = _generateRandomHex(6);
-      final fileName = 'scan_${sourceTag}_${timestamp}_$randomSuffix.jpg';
-      final cachePath = '${tempDir.path}/$fileName';
-
-      final cachedFile = File(cachePath);
-      await cachedFile.writeAsBytes(bytes);
-
-      debugPrint('CameraCaptureService: Saved cache file at $cachePath (${bytes.length} bytes)');
-
-      return PendingCapture(
-        localPath: cachePath,
-        fileName: fileName,
-        capturedAt: DateTime.now(),
-        capturedBySource: sourceTag,
-        fileSizeBytes: bytes.length,
-        rawBytes: bytes,
+      return await saveBytesToCache(
+        bytes: bytes,
+        sourceTag: sourceTag,
+        customTempDirectory: customTempDirectory,
       );
     } on PlatformException catch (e) {
       debugPrint('CameraCaptureService: Platform error during capture: ${e.code} - ${e.message}');
@@ -76,6 +60,34 @@ class CameraCaptureService {
       }
       return null;
     }
+  }
+
+  /// Persists raw image bytes to a structured collision-safe cached JPEG file and
+  /// wraps it in a backend-ready [PendingCapture].
+  static Future<PendingCapture> saveBytesToCache({
+    required Uint8List bytes,
+    required String sourceTag,
+    Directory? customTempDirectory,
+  }) async {
+    final tempDir = customTempDirectory ?? await getTemporaryDirectory();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomSuffix = _generateRandomHex(6);
+    final fileName = 'scan_${sourceTag}_${timestamp}_$randomSuffix.jpg';
+    final cachePath = '${tempDir.path}/$fileName';
+
+    final cachedFile = File(cachePath);
+    await cachedFile.writeAsBytes(bytes);
+
+    debugPrint('CameraCaptureService: Saved cache file at $cachePath (${bytes.length} bytes)');
+
+    return PendingCapture(
+      localPath: cachePath,
+      fileName: fileName,
+      capturedAt: DateTime.now(),
+      capturedBySource: sourceTag,
+      fileSizeBytes: bytes.length,
+      rawBytes: bytes,
+    );
   }
 
   static void _showPermissionDeniedFeedback(
