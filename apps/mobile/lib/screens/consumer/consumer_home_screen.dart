@@ -23,6 +23,7 @@ import 'widgets/notifications_sheet.dart';
 import 'widgets/product_comparison_modal.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/quick_feature_strip.dart';
+import '../../core/motion/motion.dart';
 import 'widgets/recent_scans_section.dart';
 import 'widgets/report_complaint_dialog.dart';
 import 'widgets/report_issue_hero_card.dart';
@@ -188,8 +189,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   final result = await Navigator.of(context).push<MultiCapturePayload?>(
-                    MaterialPageRoute(
-                      builder: (_) => const MultiCaptureScreen(
+                    DrillInPageRoute(
+                      page: const MultiCaptureScreen(
                         sourceTag: 'consumer_scan',
                         flowLabel: 'Consumer Inspection',
                       ),
@@ -197,8 +198,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   );
                   if (result != null && result.hasAnyCapture && mounted) {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ConsumerScanAnalysisScreen(
+                      DrillInPageRoute(
+                        page: ConsumerScanAnalysisScreen(
                           multiCapture: result,
                           pendingCapture: result.primaryCapture!,
                           onScanCompleted: (newScan) {
@@ -252,8 +253,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   );
                   if (capture != null && mounted) {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ConsumerScanAnalysisScreen(
+                      DrillInPageRoute(
+                        page: ConsumerScanAnalysisScreen(
                           pendingCapture: capture,
                           onScanCompleted: (newScan) {
                             setState(() {
@@ -560,7 +561,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           onRefresh: _loadAllConsumerData,
           color: AppColors.primary,
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             padding: EdgeInsets.symmetric(
               horizontal: _currentNavIndex == 4 ? AppSpacing.gutter : horizontalPadding,
               vertical: _currentNavIndex == 4 ? AppSpacing.md : AppSpacing.lg,
@@ -568,7 +571,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1200),
-                child: _buildCurrentTabContent(isDesktop),
+                child: DirectionalTabSwitcher(
+                  currentIndex: _currentNavIndex,
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_currentNavIndex),
+                    child: _buildCurrentTabContent(isDesktop),
+                  ),
+                ),
               ),
             ),
           ),
