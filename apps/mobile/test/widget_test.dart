@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -411,18 +412,107 @@ void main() {
     final jsonString = await jsonFile.readAsString();
     expect(jsonString, contains('"product_name": "Roasted Makhana"'));
 
-    // Test PDF Generation
-    final pdfPath = await FileDownloadService.downloadPdfLabel(
+    // Test PDF Generation across dynamic selected packaging dimensions
+    // 1. Preset Dimension: Standard Pouch (100 × 150 mm)
+    final pdfPath150 = await FileDownloadService.downloadPdfLabel(
       model: model,
       dimension: 'Standard Pouch (100 × 150 mm)',
       shareOnMobile: false,
     );
+    expect(pdfPath150, isNotNull);
+    final pdfFile150 = File(pdfPath150!);
+    expect(await pdfFile150.exists(), isTrue);
+    expect(pdfPath150, contains('100x150mm'));
+    final pdfBytes150 = await pdfFile150.readAsBytes();
+    final pdfString150 = latin1.decode(pdfBytes150, allowInvalid: true);
+    expect(pdfString150, contains('%PDF'));
+    // 100 mm * 2.83464567 = 283.46 pt, 150 mm * 2.83464567 = 425.20 pt
+    expect(pdfString150, contains('/MediaBox [0 0 283.46 425.20]'));
+
+    // 2. Ultra-Compact Pouch (100 × 118 mm)
+    final pdfPath118 = await FileDownloadService.downloadPdfLabel(
+      model: model,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(pdfPath118, isNotNull);
+    final pdfFile118 = File(pdfPath118!);
+    expect(pdfPath118, contains('100x118mm'));
+    final pdfBytes118 = await pdfFile118.readAsBytes();
+    final pdfString118 = latin1.decode(pdfBytes118, allowInvalid: true);
+    // 100 mm * 2.83464567 = 283.46 pt, 118 mm * 2.83464567 = 334.49 pt
+    expect(pdfString118, contains('/MediaBox [0 0 283.46 334.49]'));
+
+    // 3. Custom Packaging Dimension (75 × 120 mm)
+    final pdfPathCustom = await FileDownloadService.downloadPdfLabel(
+      model: model,
+      dimension: 'Custom (75 × 120 mm)',
+      customWidthMm: 75.0,
+      customHeightMm: 120.0,
+      shareOnMobile: false,
+    );
+    expect(pdfPathCustom, isNotNull);
+    final pdfFileCustom = File(pdfPathCustom!);
+    expect(pdfPathCustom, contains('75x120mm'));
+    final pdfBytesCustom = await pdfFileCustom.readAsBytes();
+    final pdfStringCustom = latin1.decode(pdfBytesCustom, allowInvalid: true);
+    // 75 mm * 2.83464567 = 212.60 pt, 120 mm * 2.83464567 = 340.16 pt
+    expect(pdfStringCustom, contains('/MediaBox [0 0 212.60 340.16]'));
+
+    // 4. Test FileDownloadService.parseDimensions helper
+    final dim1 = FileDownloadService.parseDimensions('Standard Pouch (100 × 150 mm)');
+    expect(dim1.widthMm, 100.0);
+    expect(dim1.heightMm, 150.0);
+
+    final dim2 = FileDownloadService.parseDimensions('Bottle Wrap (70 x 180 mm)');
+    expect(dim2.widthMm, 70.0);
+    expect(dim2.heightMm, 180.0);
+
+    final dimFallback = FileDownloadService.parseDimensions('Invalid Dimension Format');
+    expect(dimFallback.widthMm, 100.0);
+    expect(dimFallback.heightMm, 118.0);
+  });
+
+  testWidgets('FileDownloadService renders brand logo in PDF and SVG when provided',
+      (WidgetTester tester) async {
+    const sampleLogoBase64 =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+    const modelWithLogo = SmallBusinessLabelModel(
+      brandName: 'Himalayan Organics',
+      productName: 'Raw Wildflower Honey',
+      productCategory: 'Sweeteners & Honey',
+      netQuantity: '250',
+      netQuantityUnit: 'g',
+      mrp: '350.00',
+      fssaiLicenseNumber: '11521018000999',
+      manufacturerName: 'Himalayan Organics Pvt Ltd',
+      manufacturerAddress: 'Dehradun, Uttarakhand 248001',
+      logoUrl: sampleLogoBase64,
+    );
+
+    // 1. PDF Export with Logo
+    final pdfPath = await FileDownloadService.downloadPdfLabel(
+      model: modelWithLogo,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
     expect(pdfPath, isNotNull);
-    final pdfFile = File(pdfPath!);
-    expect(await pdfFile.exists(), isTrue);
-    final pdfBytes = await pdfFile.readAsBytes();
-    expect(pdfBytes.length, greaterThan(100));
-    expect(String.fromCharCodes(pdfBytes.take(8)), contains('%PDF'));
+    final pdfBytes = await File(pdfPath!).readAsBytes();
+    final pdfString = latin1.decode(pdfBytes, allowInvalid: true);
+    expect(pdfString, contains('/BrandLogo'));
+    expect(pdfString, contains('/BrandLogo Do'));
+
+    // 2. SVG Export with Logo
+    final svgPath = await FileDownloadService.downloadSvgLabel(
+      model: modelWithLogo,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(svgPath, isNotNull);
+    final svgString = await File(svgPath!).readAsString();
+    expect(svgString, contains('<image '));
+    expect(svgString, contains('data:image/png;base64,'));
   });
 
   testWidgets('Role Selection screen displays all 3 roles and title',

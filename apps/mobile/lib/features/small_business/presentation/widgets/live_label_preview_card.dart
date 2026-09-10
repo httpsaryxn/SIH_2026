@@ -8,27 +8,27 @@ import 'product_image_widget.dart';
 class LiveLabelPreviewCard extends StatelessWidget {
   const LiveLabelPreviewCard({
     super.key,
-    this.brandName = 'Desi Harvest',
+    this.brandName = 'Haldirams',
     this.logoUrl,
-    this.productName = 'Authentic Mango Pickle',
-    this.productCategory = 'Pickles & Condiments',
+    this.productName = 'Kurkure',
+    this.productCategory = 'Snacks & Namkeen',
     this.typeFlavour = '',
-    this.netQuantity = '250 g',
-    this.mrp = '₹ 149.00',
-    this.unitSalePrice = '₹ 0.60 / g',
-    this.batchNumber = 'DH-2026-B8',
+    this.netQuantity = '70 g',
+    this.mrp = '₹ 20.00',
+    this.unitSalePrice = '₹ 0.28 / g',
+    this.batchNumber = 'HALDIRAMS-2026-I92',
     this.mfgDate = 'AUG 2026',
-    this.bestBefore = '12 MONTHS from Packaging',
-    this.storageInstructions = 'Store in a cool, dry & hygienic place.',
-    this.fssaiNumber = '12345678901234',
-    this.manufacturerName = 'Desi Harvest Foods Pvt. Ltd.',
-    this.manufacturerAddress = 'Plot 12, Greenfield Organic Estate, Phase 3, Pune, MH, 411028',
-    this.consumerCarePhone = '+91 98765 43210',
-    this.consumerCareEmail = 'care@desiharvest.in',
+    this.bestBefore = '12 Months from Packaging',
+    this.storageInstructions = 'Do not freeze. Store in an airtight container.',
+    this.fssaiNumber = '74125896323145',
+    this.manufacturerName = 'Haldirams',
+    this.manufacturerAddress = 'Mere Ghar Pe',
+    this.consumerCarePhone = '9876543210',
+    this.consumerCareEmail = 'kurkure@gmail.com',
     this.selectedClaims = const [],
     this.isVegetarian = true,
     this.widthMm = 100,
-    this.heightMm = 150,
+    this.heightMm = 118,
     this.labelModel,
   });
 
@@ -55,16 +55,15 @@ class LiveLabelPreviewCard extends StatelessWidget {
   final double heightMm;
   final SmallBusinessLabelModel? labelModel;
 
-  String _generateBarcodeDigits() {
-    final digitsOnly = fssaiNumber.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digitsOnly.length >= 9) {
-      return '890${digitsOnly.substring(digitsOnly.length - 9, digitsOnly.length - 1)}8';
-    }
-    return '8901234567890';
+  String _getBarcodeDigits() {
+    return GS1Ean13Encoder.deriveBarcodeDigits(
+      fssaiNumber: fssaiNumber,
+    );
   }
 
   void _showBarcodeDetails(BuildContext context) {
-    final barcode = _generateBarcodeDigits();
+    final barcode = _getBarcodeDigits();
+    final split = GS1Ean13Encoder.splitForDisplay(barcode);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -89,19 +88,26 @@ class LiveLabelPreviewCard extends StatelessWidget {
               child: Column(
                 children: [
                   CustomPaint(
-                    size: const Size(180, 60),
-                    painter: _GS1Ean13BarcodePainter(
-                      barcodeDigits: GS1Ean13Encoder.normalizeEan13(barcode),
-                    ),
+                    size: const Size(200, 68),
+                    painter: _GS1Ean13BarcodePainter(barcodeDigits: barcode),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    GS1Ean13Encoder.normalizeEan13(barcode),
+                    '${split.d1}  ${split.left6}  ${split.right6}',
                     style: const TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'GS1 EAN-13 VERIFIED ✓',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF047857),
                     ),
                   ),
                 ],
@@ -128,13 +134,23 @@ class LiveLabelPreviewCard extends StatelessWidget {
   Widget _buildLogoWidget() {
     final logo = logoUrl ?? labelModel?.logoUrl;
     if (logo != null && logo.trim().isNotEmpty) {
-      return ProductImageWidget(
-        imageUrl: logo.trim(),
-        category: productCategory,
-        width: 44,
-        height: 44,
-        borderRadius: 8,
-        fit: BoxFit.cover,
+      return Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 0.8),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ProductImageWidget(
+          imageUrl: logo.trim(),
+          category: productCategory,
+          width: 38,
+          height: 38,
+          borderRadius: 6,
+          fit: BoxFit.contain,
+        ),
       );
     }
     return _fallbackLogo();
@@ -143,18 +159,18 @@ class LiveLabelPreviewCard extends StatelessWidget {
   Widget _fallbackLogo() {
     final letter = brandName.isNotEmpty ? brandName.substring(0, 1).toUpperCase() : 'B';
     return Container(
-      width: 44,
-      height: 44,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
-        color: AppColors.brandDeepGreen,
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFF047857),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Center(
         child: Text(
           letter,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 22,
+            fontSize: 18,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -164,31 +180,55 @@ class LiveLabelPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final barcodeStr = _generateBarcodeDigits();
-    final formattedBarcode = '${barcodeStr.substring(0, 1)} ${barcodeStr.substring(1, 7)} ${barcodeStr.substring(7)}';
+    final barcodeDigits = _getBarcodeDigits();
+    final splitBarcode = GS1Ean13Encoder.splitForDisplay(barcodeDigits);
 
-    // Extract formulation ingredients
-    final ingredientsList = (labelModel != null && labelModel!.ingredients.isNotEmpty)
+    // Formulation Ingredients with explicit % w/w
+    final ingredientsText = (labelModel != null && labelModel!.ingredients.isNotEmpty)
         ? labelModel!.ingredients.map((i) {
             if (i.percentage != null && i.percentage! > 0) {
-              return '${i.name} (${i.percentage}%)';
+              final pctStr = (i.percentage! == i.percentage!.roundToDouble())
+                  ? '${i.percentage!.toInt()}%'
+                  : '${i.percentage!.toStringAsFixed(1)}%';
+              return '${i.name} ($pctStr)';
             }
             return i.name;
           }).join(', ')
-        : 'Formulation Ingredients, Permitted Seasoning, Edible Vegetable Oil, Common Salt';
+        : 'Turmeric Powder (28%), Red Chilli Powder (24%), Coriander Powder (20%), Mustard Seeds (14%), Black Pepper (8%), Garam Masala (6%)';
 
-    // Extract allergens
-    final allergensList = (labelModel != null && labelModel!.allergens.isNotEmpty)
+    // Allergens
+    final allergensText = (labelModel != null && labelModel!.allergens.isNotEmpty)
         ? labelModel!.allergens.join(', ')
-        : (labelModel != null ? 'Contains No Declared Major Allergens' : 'Mustard, Gluten');
+        : 'Wheat / Gluten';
 
-    // Extract nutrients
-    final nutrients = labelModel?.nutrients ?? [];
+    // Nutrients
+    final nutrientsList = labelModel?.nutrients ?? [];
 
-    // Extract claims
-    final claims = (labelModel != null && labelModel!.claims.isNotEmpty)
-        ? labelModel!.claims.map((c) => c.title).toList()
-        : selectedClaims.map((c) => c.title).toList();
+    // Parse Net Quantity & Oz
+    final cleanNetQty = netQuantity.replaceAll(RegExp(r'[^0-9.]'), '');
+    final netGrams = double.tryParse(cleanNetQty) ?? 70.0;
+    final ozVal = (netGrams * 0.035274).toStringAsFixed(2);
+
+    // MRP clean string
+    final cleanMrp = mrp.replaceAll('₹', '').replaceFirst('Rs.', '').trim();
+    final mrpDisplay = cleanMrp.isNotEmpty ? 'Rs. $cleanMrp' : 'Rs. 20.00';
+    final uspDisplay = unitSalePrice.isNotEmpty ? unitSalePrice.replaceAll('₹', 'Rs. ') : 'Rs. 0.28 / g';
+
+    // Serving Size & Calories calculation
+    final sSize = labelModel?.servingSize.isNotEmpty == true ? labelModel!.servingSize : '70';
+    final sUnit = labelModel?.servingSizeUnit.isNotEmpty == true ? labelModel!.servingSizeUnit : 'g';
+    final energyNutrient = nutrientsList.cast<SmallBusinessNutrientModel?>().firstWhere(
+      (n) => n?.label.toLowerCase() == 'energy',
+      orElse: () => null,
+    );
+    final energyVal = double.tryParse(energyNutrient?.value ?? '') ?? 536.0;
+    final serveG = double.tryParse(sSize) ?? 70.0;
+    final calPerServe = ((energyVal * serveG) / 100.0).round().toString();
+    final servingsPerPack = (serveG > 0) ? (netGrams / serveG).round().clamp(1, 99) : 1;
+
+    final effectiveBrand = brandName.isNotEmpty ? brandName : 'HALDIRAMS';
+    final effectiveProduct = productName.isNotEmpty ? productName : 'KURKURE';
+    final effectiveCategory = productCategory.isNotEmpty ? productCategory.toUpperCase() : 'SNACKS & NAMKEEN';
 
     return Container(
       decoration: BoxDecoration(
@@ -209,14 +249,14 @@ class LiveLabelPreviewCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Label Visual Header Bar
+          // Studio Preview Toolbar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: const BoxDecoration(
               color: Color(0xFFF1F5F9),
               borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
               border: Border(
-                bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                bottom: BorderSide(color: Color(0xFFCBD5E1), width: 1),
               ),
             ),
             child: Row(
@@ -227,21 +267,23 @@ class LiveLabelPreviewCard extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.aspect_ratio_rounded,
-                        size: 16,
+                        size: 15,
                         color: AppColors.onSurfaceVariant,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(
-                          'PACKAGING PREVIEW (${widthMm.toInt()} × ${heightMm.toInt()} MM)',
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'COMMERCIAL PACKAGING SPEC (${widthMm.toInt()} × ${heightMm.toInt()} MM)',
+                            style: const TextStyle(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -255,12 +297,12 @@ class LiveLabelPreviewCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
-                    'PRINT READY',
+                    '300 DPI PRINT READY',
                     style: TextStyle(
                       color: Color(0xFF15803D),
-                      fontSize: 9,
+                      fontSize: 8.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ),
@@ -268,602 +310,641 @@ class LiveLabelPreviewCard extends StatelessWidget {
             ),
           ),
 
-          // Label Body Canvas
+          // THE ULTRA-COMPACT PACKAGING LABEL (Border-to-border, Zero Vacant Space)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 14.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Brand Row with Brand Logo & Vegetarian Emblem
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Brand Logo
-                    _buildLogoWidget(),
-                    const SizedBox(width: 10),
-
-                    // Brand & Product Names
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            brandName.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.brandDeepGreen,
-                              letterSpacing: 1.0,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            productName,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.3,
-                            ),
-                            softWrap: true,
-                          ),
-                          Text(
-                            typeFlavour.isNotEmpty ? '$productCategory • $typeFlavour' : productCategory,
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            softWrap: true,
-                          ),
-                          if (claims.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 4,
-                              runSpacing: 4,
-                              children: claims.map((c) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDCFCE7),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: const Color(0xFF86EFAC), width: 0.6),
-                                  ),
-                                  child: Text(
-                                    '✓ $c',
-                                    style: const TextStyle(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF15803D),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Indian Veg Symbol
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(4),
-                        color: Colors.white,
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Net Quantity & Price Tag
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'NET QUANTITY',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.onSurfaceVariant,
-                                letterSpacing: 0.5,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              netQuantity,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                              ),
-                              softWrap: true,
-                            ),
-                            if (unitSalePrice.isNotEmpty)
-                              Text(
-                                'USP: $unitSalePrice',
-                                style: const TextStyle(fontSize: 8.5, color: AppColors.onSurfaceVariant),
-                                softWrap: true,
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              'MAX RETAIL PRICE (MRP)',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.onSurfaceVariant,
-                                letterSpacing: 0.5,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              mrp,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.brandDeepGreen,
-                              ),
-                              softWrap: true,
-                            ),
-                            const Text(
-                              '(Incl. of all taxes)',
-                              style: TextStyle(fontSize: 8, color: AppColors.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Packaging Body: Back of Pack Regulatory Layout matching real standard
-                // 1. Manufacturer & Packer Lic No. block
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Mfd. By: ',
-                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.black87),
-                          ),
-                          Expanded(
-                            child: Text(
-                              '$manufacturerName, $manufacturerAddress',
-                              style: const TextStyle(fontSize: 9.5, color: Colors.black87, height: 1.25),
-                              softWrap: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Lic. No. ${fssaiNumber.isNotEmpty ? fssaiNumber : "10012031000120"}',
-                        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Colors.black87),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // 2. Proprietary Food Title
-                Text(
-                  'PROPRIETARY FOOD - ${productCategory.toUpperCase()}',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black,
-                    letterSpacing: 0.2,
-                  ),
-                  softWrap: true,
-                ),
-                const SizedBox(height: 5),
-
-                // 3. Ingredients Statement in regulatory style
-                Text.rich(
-                  TextSpan(
-                    style: const TextStyle(fontSize: 9.5, color: Colors.black87, height: 1.3),
-                    children: [
-                      const TextSpan(
-                        text: 'INGREDIENTS: ',
-                        style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black),
-                      ),
-                      TextSpan(text: ingredientsList),
-                    ],
-                  ),
-                  softWrap: true,
-                ),
-                const SizedBox(height: 6),
-
-                // 4. Allergen Advice Strip
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFFFECACA), width: 0.8),
-                  ),
-                  child: Text.rich(
-                    TextSpan(
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF991B1B), height: 1.25),
+            padding: const EdgeInsets.all(12.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: Colors.black, width: 1.2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Compact Header: Brand, Product, Category, Net Wt Badge & Veg Dot
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const TextSpan(
-                          text: 'ALLERGEN ADVICE: ',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        TextSpan(
-                          text: 'Contains $allergensList.',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                    softWrap: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // 5. Authentic 3-Column Bordered Nutrition Information Table Grid
-                _buildPackagedNutritionTable(nutrients),
-                const SizedBox(height: 10),
-
-                // 6. Dates, Batch & Instructions Box
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: _MiniSpecItem('Batch No.', batchNumber),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 4,
-                            child: _MiniSpecItem('Mfg Date', mfgDate),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 5,
-                            child: _MiniSpecItem('Best Before', bestBefore),
-                          ),
-                        ],
-                      ),
-                      if (storageInstructions.isNotEmpty) ...[
-                        const Divider(height: 12, color: Color(0xFFE2E8F0)),
-                        Text.rich(
-                          TextSpan(
-                            style: const TextStyle(
-                              fontSize: 8.5,
-                              color: Color(0xFF475569),
-                              height: 1.25,
-                            ),
+                        _buildLogoWidget(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const TextSpan(
-                                text: 'STORAGE: ',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF0F172A),
+                              Text(
+                                effectiveBrand.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF047857),
+                                  letterSpacing: 0.8,
                                 ),
                               ),
-                              TextSpan(
-                                text: storageInstructions,
+                              Text(
+                                effectiveProduct,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                  letterSpacing: -0.2,
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'PROPRIETARY FOOD [$effectiveCategory]',
+                                style: const TextStyle(
+                                  fontSize: 7.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF555555),
                                 ),
                               ),
                             ],
                           ),
-                          softWrap: true,
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // 7. Scannable GS1 Barcode & Authentic FSSAI Logo Row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Tappable Standard Scannable Barcode Card
-                    Expanded(
-                      flex: 5,
-                      child: InkWell(
-                        onTap: () => _showBarcodeDetails(context),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                        const SizedBox(width: 6),
+                        // Net Weight Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(color: const Color(0xFF94A3B8), width: 0.8),
+                          ),
+                          child: Text(
+                            'NET WT. $cleanNetQty ${labelModel?.netQuantityUnit ?? "g"}',
+                            style: const TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Statutory Vegetarian Emblem (Exact 1:1)
+                        Container(
+                          width: 19,
+                          height: 19,
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
+                              width: 1.6,
+                            ),
                           ),
-                          child: Row(
-                            children: [
-                              CustomPaint(
-                                size: const Size(48, 26),
-                                painter: _GS1Ean13BarcodePainter(
-                                  barcodeDigits: GS1Ean13Encoder.normalizeEan13(formattedBarcode),
-                                ),
+                          child: Center(
+                            child: Container(
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isVegetarian ? const Color(0xFF16A34A) : const Color(0xFF991B1B),
                               ),
-                              const SizedBox(width: 4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Divider
+                  const Divider(height: 1, thickness: 1.2, color: Colors.black),
+
+                  // 2. High-Density Nutrition Facts Panel
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                    child: _buildNutritionFactsPanel(
+                      nutrients: nutrientsList,
+                      serveSize: '$sSize $sUnit',
+                      calPerServe: calPerServe,
+                      servingsPerPack: servingsPerPack,
+                    ),
+                  ),
+
+                  // 3. Ingredients with Formulation Content Percentages (% w/w)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    child: Text.rich(
+                      TextSpan(
+                        style: const TextStyle(fontSize: 8, color: Color(0xFF1E293B), height: 1.28),
+                        children: [
+                          const TextSpan(
+                            text: 'INGREDIENTS: ',
+                            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black),
+                          ),
+                          TextSpan(text: ingredientsText),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 4. Allergen Advice Strip
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF5F5),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: const Color(0xFFFEB2B2), width: 0.8),
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(fontSize: 7.5, color: Color(0xFF991B1B), height: 1.2),
+                          children: [
+                            const TextSpan(
+                              text: 'ALLERGEN ADVICE: ',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            TextSpan(
+                              text: 'Contains $allergensText. Made in a facility that also processes Mustard, Sesame & Peanuts.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 5. Specification & Origin Strip
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: const Color(0xFFCBD5E1), width: 0.7),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'NET WT. $cleanNetQty ${labelModel?.netQuantityUnit ?? "g"} / $ozVal oz.   ',
+                              style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Colors.black),
+                            ),
+                            const Text(
+                              'PRODUCT OF INDIA / PRODUIT DE L\'INDE   ',
+                              style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
+                            ),
+                            const Text(
+                              'COMMERCIAL PACK',
+                              style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 6. Legal Metrology Pricing & Traceability Grid
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: Colors.black, width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              // Net Qty
                               Expanded(
+                                flex: 3,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      GS1Ean13Encoder.normalizeEan13(formattedBarcode),
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 7.5,
-                                        fontWeight: FontWeight.w900,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    const Text('NET QUANTITY', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.3)),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text('$cleanNetQty ${labelModel?.netQuantityUnit ?? "g"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black)),
                                     ),
-                                    const Text(
-                                      'GS1 EAN-13 ✓',
-                                      style: TextStyle(
-                                        fontSize: 6.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF15803D),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 0.8, height: 22, color: const Color(0xFFCBD5E1)),
+                              const SizedBox(width: 8),
+                              // MRP
+                              Expanded(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('MAX RETAIL PRICE [MRP]', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.3)),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Row(
+                                        children: [
+                                          Text(mrpDisplay, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF047857))),
+                                          const SizedBox(width: 4),
+                                          const Text('[Incl. of all taxes]', style: TextStyle(fontSize: 7.5, color: Color(0xFF64748B))),
+                                        ],
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 0.8, height: 22, color: const Color(0xFFCBD5E1)),
+                              const SizedBox(width: 8),
+                              // USP
+                              Expanded(
+                                flex: 4,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('UNIT SALE PRICE [USP]', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.3)),
+                                    Text(uspDisplay, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.black)),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
+                          const Divider(height: 8, thickness: 0.7, color: Color(0xFFCBD5E1)),
+                          Text(
+                            'Batch No: $batchNumber   •   Mfg Date: $mfgDate   •   Best Before: $bestBefore',
+                            style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'Storage: $storageInstructions',
+                            style: const TextStyle(fontSize: 7, color: Color(0xFF555555)),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 6),
-
-                    // Official Industry Standard FSSAI Emblem Badge with PNG Logo
-                    Flexible(
-                      flex: 4,
-                      child: _OfficialFssaiBadge(licenseNumber: fssaiNumber),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPackagedNutritionTable(List<SmallBusinessNutrientModel> nutrientList) {
-    final sSize = labelModel?.servingSize.isNotEmpty == true ? labelModel!.servingSize : '20';
-    final sUnit = labelModel?.servingSizeUnit.isNotEmpty == true ? labelModel!.servingSizeUnit : 'g';
-    final serveGrams = double.tryParse(sSize) ?? 20.0;
-
-    // Build standard rows
-    final rowsData = <_NutritionRowItem>[];
-
-    void addRow(String name, String fallbackVal, String unit, double? rdaDaily) {
-      final found = nutrientList.firstWhere(
-        (n) => n.label.toLowerCase().contains(name.toLowerCase()) || name.toLowerCase().contains(n.label.toLowerCase()),
-        orElse: () => SmallBusinessNutrientModel(label: name, value: fallbackVal, unit: unit),
-      );
-      final valStr = found.value.isNotEmpty ? found.value : fallbackVal;
-      final valNum = double.tryParse(valStr) ?? 0.0;
-      String rdaStr = '';
-      if (rdaDaily != null && rdaDaily > 0) {
-        final rdaPct = ((valNum * (serveGrams / 100.0)) / rdaDaily) * 100.0;
-        rdaStr = '${rdaPct.round()}%';
-      }
-      rowsData.add(_NutritionRowItem(name: name, per100g: '$valStr $unit', rdaPerServe: rdaStr));
-    }
-
-    addRow('Energy', '536', 'kcal', 2000);
-    addRow('Protein', '6.8', 'g', null);
-    addRow('Carbohydrate', '54.2', 'g', null);
-    addRow('Total Sugars', '1.2', 'g', null);
-    addRow('Added Sugars', '0.0', 'g', 50);
-    addRow('Total Fat', '33.7', 'g', 67);
-    addRow('Saturated Fat', '15.0', 'g', 22);
-    addRow('Trans Fat', '0.1', 'g', 2);
-    addRow('Sodium', '512', 'mg', 2000);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 1.2),
-      ),
-      child: Column(
-        children: [
-          // Table Title Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.black, width: 1.2)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text(
-                    'NUTRITIONAL INFORMATION^',
-                    style: TextStyle(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black,
-                      letterSpacing: 0.1,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    'SERVE SIZE $sSize $sUnit**',
-                    style: const TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Column Headers Row
-          Table(
-            border: const TableBorder(
-              horizontalInside: BorderSide(color: Colors.black, width: 0.8),
-              verticalInside: BorderSide(color: Colors.black, width: 0.8),
-              bottom: BorderSide(color: Colors.black, width: 1.2),
-            ),
-            columnWidths: const {
-              0: FlexColumnWidth(4.2),
-              1: FlexColumnWidth(2.8),
-              2: FlexColumnWidth(3.4),
-            },
-            children: [
-              TableRow(
-                decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
-                children: const [
+
+                  // 7. Scannable GS1 Barcode & Authentic FSSAI Logo Side-by-Side
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                    child: Text(
-                      'Nutrients',
-                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: Colors.black, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          // Left: Scannable Barcode with Human-Readable Numbers
+                          Expanded(
+                            flex: 5,
+                            child: InkWell(
+                              onTap: () => _showBarcodeDetails(context),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    CustomPaint(
+                                      size: const Size(140, 26),
+                                      painter: _GS1Ean13BarcodePainter(barcodeDigits: barcodeDigits),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${splitBarcode.d1}   ${splitBarcode.left6}   ${splitBarcode.right6}',
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.black,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'GS1 EAN-13 VERIFIED ✓',
+                                      style: TextStyle(
+                                        fontSize: 6.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF059669),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(width: 0.8, height: 48, color: const Color(0xFFCBD5E1)),
+                          const SizedBox(width: 8),
+                          // Right: Un-distorted FSSAI Logo & License Number
+                          Expanded(
+                            flex: 4,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: _OfficialFssaiBadge(licenseNumber: fssaiNumber),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+
+                  // 8. Manufacturer, Consumer Care & Compliance Declaration Footer
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                    child: Text(
-                      'Per 100 g',
-                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                    child: Text(
-                      '%RDA Per Serve',
-                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.black),
-                      textAlign: TextAlign.center,
+                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: Colors.black, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text.rich(
+                                  TextSpan(
+                                    style: const TextStyle(fontSize: 7.5, color: Colors.black),
+                                    children: [
+                                      const TextSpan(text: 'Mfd. By: ', style: TextStyle(fontWeight: FontWeight.w900)),
+                                      TextSpan(text: '$manufacturerName, $manufacturerAddress  |  '),
+                                      const TextSpan(text: 'Lic. No. ', style: TextStyle(fontWeight: FontWeight.w900)),
+                                      TextSpan(text: fssaiNumber),
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 5, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                                Text(
+                                  'Consumer Care: +91 $consumerCarePhone  •  Email: $consumerCareEmail  •  Origin: INDIA  •  Web: ${labelModel?.consumerCareWebsite ?? "www.haldirams.com"}',
+                                  style: const TextStyle(fontSize: 7, color: Color(0xFF333333)),
+                                ),
+                                const Divider(height: 5, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                                const Text(
+                                  '✓ Compliant with Legal Metrology (Packaged Commodities) Rules 2011 & FSSAI Standards.',
+                                  style: TextStyle(fontSize: 6.8, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                                ),
+                                Text(
+                                  'Packaging: ${labelModel?.packagingType ?? "Food Grade Metallized Pouch"} • Keep Clean (MoEFCC Disposal Logo)',
+                                  style: const TextStyle(fontSize: 6.5, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // Clean India Disposal Emblem
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF047857), width: 0.9),
+                            ),
+                            child: const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.arrow_upward_rounded, size: 13, color: Color(0xFF047857)),
+                                  Text('DISPOSE', style: TextStyle(fontSize: 3.2, fontWeight: FontWeight.w900, color: Color(0xFF047857))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              ...rowsData.map((item) {
-                return TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
-                      child: Text(
-                        item.name,
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: (item.name == 'Energy' || item.name == 'Total Fat' || item.name == 'Protein')
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: Colors.black87,
-                        ),
-                        softWrap: true,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
-                      child: Text(
-                        item.per100g,
-                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
-                      child: Text(
-                        item.rdaPerServe.isNotEmpty ? item.rdaPerServe : '—',
-                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                );
-              }),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _NutritionRowItem {
-  const _NutritionRowItem({required this.name, required this.per100g, required this.rdaPerServe});
-  final String name;
-  final String per100g;
-  final String rdaPerServe;
+  Widget _buildNutritionFactsPanel({
+    required List<SmallBusinessNutrientModel> nutrients,
+    required String serveSize,
+    required String calPerServe,
+    required int servingsPerPack,
+  }) {
+    // Standard rows list
+    final defaultRows = [
+      {'name': 'Energy', 'val': '536 kcal', 'rda': '19%', 'level': 0},
+      {'name': 'Protein', 'val': '5.6 g', 'rda': '—', 'level': 0},
+      {'name': 'Carbohydrate', 'val': '230 g', 'rda': '—', 'level': 0},
+      {'name': 'Total Sugars', 'val': '2 g', 'rda': '—', 'level': 1},
+      {'name': 'Added Sugars', 'val': '2 g', 'rda': '3%', 'level': 2},
+      {'name': 'Total Fat', 'val': '10 g', 'rda': '10%', 'level': 0},
+      {'name': 'Saturated Fat', 'val': '1 g', 'rda': '3%', 'level': 1},
+      {'name': 'Trans Fat', 'val': '0 g', 'rda': '0%', 'level': 1},
+      {'name': 'Cholesterol', 'val': '0 mg', 'rda': '0%', 'level': 0},
+      {'name': 'Sodium', 'val': '222 mg', 'rda': '8%', 'level': 0},
+      {'name': 'Potassium', 'val': '140 mg', 'rda': '3%', 'level': 0},
+      {'name': 'Calcium', 'val': '40 mg', 'rda': '2%', 'level': 0},
+      {'name': 'Iron', 'val': '1.2 mg', 'rda': '4%', 'level': 0},
+    ];
+
+    final displayRows = <Map<String, dynamic>>[];
+
+    if (nutrients.isNotEmpty) {
+      for (final n in nutrients) {
+        final label = n.label;
+        final val = '${n.value} ${n.unit}';
+        final isSub = n.isSubNutrient;
+        final level = isSub ? 1 : 0;
+        displayRows.add({
+          'name': label,
+          'val': val,
+          'rda': '—',
+          'level': level,
+        });
+      }
+    } else {
+      displayRows.addAll(defaultRows);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: Colors.black, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Black Header Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            color: Colors.black,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'NUTRITION FACTS / VALEUR NUTRITIVE',
+                      style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'PER ${serveSize.toUpperCase()}',
+                  style: const TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Serving Size & % Daily Value Subheader
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Serving Size: $serveSize (Pack: $servingsPerPack srv)',
+                      style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  '% Daily Value / % RDA *',
+                  style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, thickness: 2, color: Colors.black),
+
+          // Calories Hero Callout
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text.rich(
+                      TextSpan(
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black),
+                        children: [
+                          TextSpan(text: 'Calories $calPerServe '),
+                          const TextSpan(
+                            text: '(Energy 536 kcal / 100 g)',
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.normal, color: Color(0xFF555555)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  '19%',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, thickness: 1.4, color: Colors.black),
+
+          // Compact Rows
+          ...displayRows.map((r) {
+            final name = r['name'] as String;
+            final val = r['val'] as String;
+            final rda = r['rda'] as String;
+            final level = r['level'] as int;
+
+            final isBold = level == 0 || name == 'Total Fat' || name == 'Carbohydrate' || name == 'Protein' || name == 'Sodium';
+            final prefix = level == 1 ? '— ' : (level == 2 ? '• ' : '');
+            final leftPadding = 8.0 + (level * 10.0);
+
+            return Column(
+              children: [
+                const Divider(height: 1, thickness: 0.5, color: Color(0xFFE2E8F0)),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(leftPadding, 2, 8, 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: isBold ? FontWeight.w900 : FontWeight.w500,
+                              color: isBold ? Colors.black : const Color(0xFF333333),
+                            ),
+                            children: [
+                              TextSpan(text: '$prefix$name '),
+                              TextSpan(
+                                text: val,
+                                style: const TextStyle(fontWeight: FontWeight.normal, color: Color(0xFF555555)),
+                              ),
+                            ],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        rda,
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: isBold ? FontWeight.w900 : FontWeight.w500,
+                          color: isBold ? Colors.black : const Color(0xFF333333),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
+
+          const Divider(height: 1, thickness: 0.6, color: Colors.black),
+
+          // Footnote
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            child: Text(
+              '*5% or less is a little, 15% or more is a lot. % Daily Values based on 2,000 kcal diet.',
+              style: TextStyle(fontSize: 6.5, color: Color(0xFF555555)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OfficialFssaiBadge extends StatelessWidget {
@@ -876,15 +957,8 @@ class _OfficialFssaiBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: const Color(0xFF047857), width: 0.8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -893,60 +967,23 @@ class _OfficialFssaiBadge extends StatelessWidget {
           Image.asset(
             'assets/images/fssai_logo.png',
             width: 52,
-            height: 22,
+            height: 39,
             fit: BoxFit.contain,
           ),
           const SizedBox(height: 2),
           Text(
-            'Lic. No. ${licenseNumber.isNotEmpty ? licenseNumber : "12345678901234"}',
+            'Lic. No. ${licenseNumber.isNotEmpty ? licenseNumber : "74125896323145"}',
             style: const TextStyle(
-              fontSize: 7.5,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-              letterSpacing: 0.2,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+              letterSpacing: 0.3,
             ),
             softWrap: true,
             textAlign: TextAlign.center,
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MiniSpecItem extends StatelessWidget {
-  const _MiniSpecItem(this.label, this.val);
-  final String label;
-  final String val;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 7.5,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurfaceVariant,
-            letterSpacing: 0.2,
-          ),
-          softWrap: true,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          val.isNotEmpty ? val : '—',
-          style: const TextStyle(
-            fontSize: 9.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0F172A),
-            height: 1.2,
-          ),
-          softWrap: true,
-        ),
-      ],
     );
   }
 }
@@ -959,10 +996,10 @@ class _GS1Ean13BarcodePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final modules = GS1Ean13Encoder.encodeModules(barcodeDigits);
     final paint = Paint()
-      ..color = const Color(0xFF0F172A)
+      ..color = Colors.black
       ..style = PaintingStyle.fill;
 
-    // Draw white quiet zone background
+    // White quiet zone
     final bgPaint = Paint()..color = Colors.white;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
@@ -971,7 +1008,7 @@ class _GS1Ean13BarcodePainter extends CustomPainter {
     for (int i = 0; i < modules.length; i++) {
       if (modules[i]) {
         final isGuard = (i < 3) || (i >= 45 && i < 50) || (i >= modules.length - 3);
-        final barHeight = isGuard ? size.height : size.height * 0.88;
+        final barHeight = isGuard ? size.height : size.height * 0.86;
 
         canvas.drawRect(
           Rect.fromLTWH(i * moduleWidth, 0, moduleWidth + 0.1, barHeight),

@@ -1,0 +1,161 @@
+{
+  "brand_name": "Haldirams",
+  "product_name": "Kurkure",
+  "type_flavour": "",
+  "product_category": "SNACKS & NAMKEEN",
+  "is_proprietary_food": true,
+  "net_quantity": "70",
+  "net_quantity_unit": "g",
+  "mrp": "20.00",
+  "usp": "Rs. 0.28 / g",
+  "serving_size": "70",
+  "serving_size_unit": "g",
+  "servings_per_pack": 1,
+  "calories_per_serve": "375",
+  "fssai_license_number": "74125896323145",
+  "manufacturer_name": "Haldirams",
+  "manufacturer_address": "Mere Ghar Pe",
+  "packer_address_same_as_manufacturer": true,
+  "packer_name": null,
+  "packer_address": null,
+  "marketed_by": null,
+  "country_of_origin": "INDIA",
+  "consumer_care_phone": "9876543210",
+  "consumer_care_email": "kurkure@gmail.com",
+  "consumer_care_website": "www.haldirams.com",
+  "batch_number": "HALDIRAMS-2026-I92",
+  "mfg_date": "AUG 2026",
+  "best_before": "12 Months from Packaging",
+  "storage_instructions": "Do not freeze. Store in an airtight container.",
+  "usage_instructions": "Ready to eat savoury namkeen snack.",
+  "is_vegetarian": true,
+  "recycling_mark": "Keep Clean (MoEFCC Disposal Logo)",
+  "packaging_type": "Food Grade Metallized Pouch",
+  "label_dimension": "Standard Pouch (100 × 150 mm)",
+  "ingredients": [
+    {
+      "name": "Turmeric Powder",
+      "percentage": 28.0
+    },
+    {
+      "name": "Red Chilli Powder",
+      "percentage": 24.0
+    },
+    {
+      "name": "Coriander Powder",
+      "percentage": 20.0
+    },
+    {
+      "name": "Mustard Seeds",
+      "percentage": 14.0
+    },
+    {
+      "name": "Black Pepper",
+      "percentage": 8.0
+    },
+    {
+      "name": "Garam Masala",
+      "percentage": 6.0
+    }
+  ],
+  "allergens": [
+    "Wheat / Gluten"
+  ],
+  "nutrients": [
+    {
+      "label": "Energy",
+      "value": "536",
+      "unit": "kcal",
+      "rda_per_serve": "19%",
+      "level": 0
+    },
+    {
+      "label": "Protein",
+      "value": "5.6",
+      "unit": "g",
+      "rda_per_serve": "—",
+      "level": 0
+    },
+    {
+      "label": "Carbohydrate",
+      "value": "230",
+      "unit": "g",
+      "rda_per_serve": "—",
+      "level": 0
+    },
+    {
+      "label": "Total Sugars",
+      "value": "2",
+      "unit": "g",
+      "rda_per_serve": "—",
+      "level": 1
+    },
+    {
+      "label": "Added Sugars",
+      "value": "2",
+      "unit": "g",
+      "rda_per_serve": "3%",
+      "level": 2
+    },
+    {
+      "label": "Total Fat",
+      "value": "10",
+      "unit": "g",
+      "rda_per_serve": "10%",
+      "level": 0
+    },
+    {
+      "label": "Saturated Fat",
+      "value": "1",
+      "unit": "g",
+      "rda_per_serve": "3%",
+      "level": 1
+    },
+    {
+      "label": "Trans Fat",
+      "value": "0",
+      "unit": "g",
+      "rda_per_serve": "0%",
+      "level": 1
+    },
+    {
+      "label": "Cholesterol",
+      "value": "0",
+      "unit": "mg",
+      "rda_per_serve": "0%",
+      "level": 0
+    },
+    {
+      "label": "Sodium",
+      "value": "222",
+      "unit": "mg",
+      "rda_per_serve": "8%",
+      "level": 0
+    },
+    {
+      "label": "Potassium",
+      "value": "140",
+      "unit": "mg",
+      "rda_per_serve": "3%",
+      "level": 0
+    },
+    {
+      "label": "Calcium",
+      "value": "40",
+      "unit": "mg",
+      "rda_per_serve": "2%",
+      "level": 0
+    },
+    {
+      "label": "Iron",
+      "value": "1.2",
+      "unit": "mg",
+      "rda_per_serve": "4%",
+      "level": 0
+    }
+  ],
+  "claims": [],
+  "barcode_ean13": "7412589632313",
+  "compliance_score": 98,
+  "compliance_status": "Verified Compliant"
+}

@@ -512,7 +512,6 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                           // Verify button tapped
                           final messenger = ScaffoldMessenger.of(context);
                           setState(() => _isVerifying = true);
-                          final messenger = ScaffoldMessenger.of(context);
                           // In a real app, call backend verification endpoint here
                           Future.delayed(const Duration(milliseconds: 500), () {
                             if (!mounted) return;
