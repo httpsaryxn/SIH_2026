@@ -11,6 +11,7 @@ import '../../core/services/consumer_data_service.dart';
 import '../../core/services/legal_metrology_service.dart';
 import '../../core/services/ml_scanner_client.dart';
 import '../../core/services/summary_gen_client.dart';
+import '../../core/widgets/markdown_content_view.dart';
 import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
@@ -68,6 +69,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   String? _lastBrand;
   MlScannerResult? _lastRemoteResult;
   LmAuditResult? _lastAudit;
+  String? _lastOcrText;
 
   /// Returns the list of captures for carousel display.
   List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
@@ -211,6 +213,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         }
         audit = await LegalMetrologyService.auditCapture(
           capture: widget.pendingCapture,
+          multiCapture: widget.multiCapture,
           productName: widget.prefilledProductName,
           netQuantity: widget.prefilledNetQty,
           mrp: widget.prefilledMrp,
@@ -318,6 +321,21 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         _lastRemoteResult = remoteResult;
         _lastAudit = audit;
 
+        String? ocrText;
+        if (audit?.rawOcrText != null && audit!.rawOcrText!.trim().isNotEmpty) {
+          ocrText = audit.rawOcrText;
+        } else {
+          try {
+            ocrText = await LegalMetrologyService.extractTextFromCaptures(
+              capture: widget.pendingCapture,
+              multiCapture: widget.multiCapture,
+            );
+          } catch (e) {
+            debugPrint('[ConsumerScanAnalysisScreen] Fast OCR extraction error: $e');
+          }
+        }
+        _lastOcrText = ocrText;
+
         // Automatically trigger AI Summary generation
         _fetchAiSummary(
           scan: createdScan,
@@ -325,6 +343,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
           brand: pBrand,
           remoteResult: remoteResult,
           audit: audit,
+          ocrText: ocrText,
         );
       }
     } catch (e) {
@@ -1087,6 +1106,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     required String brand,
     MlScannerResult? remoteResult,
     LmAuditResult? audit,
+    String? ocrText,
     bool forceRegenerate = false,
   }) async {
     if (!mounted) return;
@@ -1095,6 +1115,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     });
 
     try {
+      final resolvedOcrText = ocrText ?? audit?.rawOcrText ?? _lastOcrText;
       final summary = await SummaryGenClient.summarizeConsumer(
         scanId: scan?.id,
         productName: productName,
@@ -1102,7 +1123,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         declarations:
             remoteResult?.product ?? audit?.detectedDeclarations,
         rules: remoteResult?.rules.toJson(),
-        ocrText: null,
+        ocrText: resolvedOcrText,
         forceRegenerate: forceRegenerate,
       );
 
@@ -1296,9 +1317,9 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            res.summaryText,
-            style: GoogleFonts.plusJakartaSans(
+          MarkdownContentView(
+            text: res.summaryText,
+            baseStyle: GoogleFonts.plusJakartaSans(
               fontSize: 13.5,
               height: 1.5,
               fontWeight: FontWeight.w500,
@@ -1397,6 +1418,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
                           brand: _lastBrand ?? 'General Brand',
                           remoteResult: _lastRemoteResult,
                           audit: _lastAudit,
+                          ocrText: _lastOcrText,
                           forceRegenerate: true,
                         ),
                 child: Padding(

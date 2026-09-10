@@ -124,13 +124,32 @@ You must follow these strict rules:
    - "general": Non-food/non-medicinal items (e.g. detergents, cosmetics, electronics, stationery, apparel, hardware).
 
 2. IF FOOD:
-   - Provide a plain-language summary of key ingredients and nutritional highlights.
-   - Outline health benefits and any concerns (e.g. high sugar, sodium, palm oil, artificial additives).
-   - Assign a "health_score" from 0 to 100 based strictly on nutritional balance and ingredient wholesomeness:
-     * 80–100: Wholesome, nutrient-dense, low additives/sugar.
-     * 50–79: Moderate; balanced but with processed elements or moderate sugar/sodium.
-     * 0–49: Highly processed, excessive sugar/salt/saturated fat, or concerning synthetic additives.
-   - Explain why this health score was given in 1 sentence.
+   Thoroughly inspect the OCR text and declared ingredients/nutrition:
+   a) HARMFUL / CONCERNING ADDITIVES:
+      - Synthetic Food Colors (e.g., Tartrazine / Yellow 5 / INS 102, Sunset Yellow / Yellow 6 / INS 110, Allura Red / Red 40 / INS 129, Brilliant Blue / INS 133, Carmoisine / INS 122, Ponceau 4R / INS 124, Fast Green / INS 143).
+      - Chemical Preservatives (e.g., BHA / INS 320, BHT / INS 321, Sodium Benzoate / INS 211, Potassium Sorbate / INS 202, Sulphites / INS 220-228).
+      - Palm oil, hydrogenated vegetable fats, industrial palm olein, or trans fats.
+      - High MSG / Monosodium Glutamate / INS 621 / yeast extract flavour enhancers.
+      - Intense artificial sweeteners (Aspartame / INS 951, Acesulfame K / INS 950, Sucralose / INS 955) or high-fructose corn syrup.
+   b) EXCESSIVE NUTRITIONAL THRESHOLDS (per 100g or per serving):
+      - Excessive Sodium: > 600 mg / 100g (or > 1.5g salt / 100g). Must warn about hypertension, high blood pressure, and cardiovascular strain.
+      - Excessive Sugar: > 15 g / 100g (or > 22.5g total sugar). Must warn about spike in blood glucose, diabetes risk, and empty calories.
+      - High Saturated Fat: > 5 g / 100g or Trans Fat > 0g.
+   c) SUMMARY TEXT FORMATTING:
+      - If ANY harmful ingredients or excessive thresholds are detected:
+        Include a distinct section:
+        "### ⚠️ Health & Ingredient Concerns"
+        Followed by specific bullet points explaining each flag and why it is concerning.
+      - If NO harmful additives, synthetic dyes, or excessive sodium/sugar levels are found:
+        Include a clear, reassuring POSITIVE endorsement:
+        "### ✅ Clean Formulation & Safe Nutrition"
+        Explicitly praising the clean label, absence of artificial synthetic dyes, safe preservative profile, and balanced sodium/sugar levels.
+      - Also include a short 2-3 bullet point "Nutritional & Label Highlights" summarizing net contents, price/MRP, key wholesome ingredients, and FSSAI status.
+   d) HEALTH SCORE (0 to 100):
+      - 80-100: Clean label, wholesome, low in sodium/sugar, free of synthetic colors/harmful preservatives.
+      - 55-79: Moderate processed food, acceptable limits but contains palm oil or moderate sugar/sodium.
+      - 0-54: High sodium/sugar, synthetic colors (INS 102/110/129), BHA/BHT, or trans fats.
+   - Explain why this health score was given in 1 sentence in health_score_rationale.
 
 3. IF MEDICINAL:
    - Provide a plain-language summary of what the medicine/product is used for.
@@ -165,7 +184,7 @@ Failed Rules: {len(rules.get('failed', []))}
 Warnings: {len(rules.get('warnings', []))}
 
 OCR Text Sample:
-{(ocr_text or '')[:1000]}
+{(ocr_text or '')[:4000]}
 """
 
     candidates = get_candidate_models(client)

@@ -21,11 +21,15 @@ class LmAuditResult {
   /// The full report, for a detailed results screen.
   final ComplianceReport report;
 
+  /// Full raw OCR text extracted from the packaging photo(s).
+  final String? rawOcrText;
+
   const LmAuditResult({
     required this.complianceStatus,
     required this.complianceIssues,
     required this.detectedDeclarations,
     required this.report,
+    this.rawOcrText,
   });
 
   int get scorePercent => (report.score.finalScore * 100).round();
@@ -43,10 +47,43 @@ class LegalMetrologyService {
   static final LabelOcrService _ocr = LabelOcrService();
   static final BarcodeScannerService _barcode = BarcodeScannerService();
 
+  /// Fast on-device OCR extraction across front and side/back label images.
+  static Future<String> extractTextFromCaptures({
+    required PendingCapture capture,
+    MultiCapturePayload? multiCapture,
+  }) async {
+    final buf = StringBuffer();
+    try {
+      final frontOcr = await _ocr.recognise(capture.localPath);
+      if (frontOcr.fullText.trim().isNotEmpty) {
+        buf.writeln(frontOcr.fullText.trim());
+      }
+    } catch (e) {
+      debugPrint('[LegalMetrologyService] Front label OCR error: $e');
+    }
+
+    final backPath = multiCapture?.curvedSurface?.localPath;
+    if (backPath != null && backPath.isNotEmpty && backPath != capture.localPath) {
+      try {
+        final backOcr = await _ocr.recognise(backPath);
+        if (backOcr.fullText.trim().isNotEmpty) {
+          if (buf.isNotEmpty) {
+            buf.writeln('\n--- Side / Back Label (Ingredients & Nutrition) ---');
+          }
+          buf.writeln(backOcr.fullText.trim());
+        }
+      } catch (e) {
+        debugPrint('[LegalMetrologyService] Back/side label OCR error: $e');
+      }
+    }
+    return buf.toString();
+  }
+
   /// Audit a captured packaging photo. OCR + bar code are read on device; the
   /// user's typed fields (from ScannerModalSheet) seed anything OCR missed.
   static Future<LmAuditResult> auditCapture({
     required PendingCapture capture,
+    MultiCapturePayload? multiCapture,
     String? productName,
     String? netQuantity,
     double? mrp,
@@ -55,6 +92,22 @@ class LegalMetrologyService {
     final path = capture.localPath;
 
     final ocr = await _ocr.recognise(path);
+    final buf = StringBuffer();
+    buf.writeln(ocr.fullText);
+
+    // If back/side label (curvedSurface) is captured, also OCR it for ingredients and nutrition
+    final backPath = multiCapture?.curvedSurface?.localPath;
+    if (backPath != null && backPath.isNotEmpty && backPath != path) {
+      try {
+        final backOcr = await _ocr.recognise(backPath);
+        if (backOcr.fullText.trim().isNotEmpty) {
+          buf.writeln('\n--- Side / Back Label (Ingredients & Nutrition) ---');
+          buf.writeln(backOcr.fullText);
+        }
+      } catch (_) {}
+    }
+    final combinedOcrText = buf.toString().trim();
+
     final parsed = parseOcr(ocr);
     final pkg = toPackageData(parsed);
 
@@ -87,7 +140,7 @@ class LegalMetrologyService {
       barcode: barcode,
       lookupConfig: LookupConfig(gs1IndiaKey: gs1IndiaKey),
     );
-    return _map(report);
+    return _map(report, rawOcrText: combinedOcrText);
   }
 
   /// Attempt a full compliance audit via the remote ML Scanner service.
@@ -139,11 +192,12 @@ class LegalMetrologyService {
   // ---------------------------------------------------------------------------
   // Mapping into the app's vocabulary
   // ---------------------------------------------------------------------------
-  static LmAuditResult _map(ComplianceReport r) => LmAuditResult(
+  static LmAuditResult _map(ComplianceReport r, {String? rawOcrText}) => LmAuditResult(
         complianceStatus: _status(r),
         complianceIssues: _issues(r),
         detectedDeclarations: _declarations(r),
         report: r,
+        rawOcrText: rawOcrText,
       );
 
   static String _status(ComplianceReport r) {
