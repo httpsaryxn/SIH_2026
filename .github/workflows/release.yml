@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v1.0.8)'
+        description: 'Release version tag (e.g. v1.0.9)'
         required: true
-        default: 'v1.0.8'
+        default: 'v1.0.9'
   push:
     tags:
       - 'v*'
@@ -107,8 +107,8 @@ jobs:
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
           #### 🚀 Highlights in this Release:
-          - ✨ **Clean Regulatory PDF Reports**: Redesigned Section II with structured 2-column findings tables, status badges, and single-page layout
-          - 🎨 **Markdown Formatting**: Native parsing of headings, bold/italics, and status icons in mobile summary screens
-          - 🌿 **Green UI Theme**: Styled 'Open Formal PDF' button matching primary application theme
-          - ⚡ **Optimized arm64-v8a Build**: 60% smaller download package for modern 64-bit phones (~41 MB) alongside full Universal APK
-          - 🍏 **iOS IPA Build**: Included for iOS sideloading"
+          - 📹 **Real Live Camera Viewfinders**: Live hardware/emulator camera streaming in multi-capture steps (Front Label, Curved Surface, Scale Reference) and audit intake with targeting guides and in-place tap-to-snap
+          - 🛡️ **Persistent Regulator Shell**: Replaced route-destructive bottom navigation with invariant DirectionalIndexedStack, 100% preserving form state, filters, and scroll positions across tab switches
+          - 🎭 **Centralized Motion System**: Standardized cubic bezier curves, durations, Cupertino/Material Shared Axis drill-in routes, directional tab sliding, and Pressable touch feedback
+          - 📱 **Consumer Layout & Rendering Fixes**: Eliminated unbounded height exceptions on scrollable tabs for smooth transitions across Home, My Scans, Complaints, and Profile
+          - ⚡ **Optimized arm64-v8a & Universal Builds**: High-performance slim 64-bit APK and full Universal APK"
