@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.10] - 2026-09-10
+
+### Added
+- **Dynamic AI Label Summary & Harmful Ingredient Engine (Groq LLM)**:
+  - Replaced hardcoded static summaries with live packaging OCR analysis powered by Groq Cloud AI with fast model fallbacks (`qwen/qwen3.8-27b`, `openai/gpt-oss-120b`, `llama-3.3-70b-versatile`).
+  - **Harmful Ingredients & Additives Detection**: Automatically flags synthetic artificial food dyes (Tartrazine / INS 102, Sunset Yellow / INS 110, Allura Red / INS 129, Brilliant Blue / INS 133, Carmoisine / INS 122), chemical preservatives (BHA / INS 320, BHT / INS 321, Sodium Benzoate / INS 211, Sulphites), palm olein, MSG, and intense artificial sweeteners.
+  - **Nutritional Threshold Violations**: Real-time evaluation against safe health thresholds, warning for excessive sodium (> 600mg / 100g) and high sugar (> 15g / 100g).
+  - **Wholesome & Clean Label Reassurances**: Positive, encouraging endorsement section (`### ✅ Clean Formulation & Safe Nutrition`) and high health scores for clean formulations without synthetic chemicals.
+  - **Multi-Panel OCR Extraction**: Ingests and merges text from both front PDP area and back/side nutrition panels.
+  - **Intelligent Offline Heuristic Fallback**: Full on-device regex ingredient & threshold parsing guaranteeing real label insights even without an active internet connection.
+  - **Rich Markdown Presentation**: Formatted headers, warning badges, and bold alerts rendered using `MarkdownContentView`.
+
+---
+
 ## [1.0.9] - 2026-09-10
 
 ### Added
