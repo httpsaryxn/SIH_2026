@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v1.0.9)'
+        description: 'Release version tag (e.g. v1.0.10)'
         required: true
-        default: 'v1.0.9'
+        default: 'v1.0.10'
   push:
     tags:
       - 'v*'
@@ -107,8 +107,9 @@ jobs:
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
           #### 🚀 Highlights in this Release:
-          - 📹 **Real Live Camera Viewfinders**: Live hardware/emulator camera streaming in multi-capture steps (Front Label, Curved Surface, Scale Reference) and audit intake with targeting guides and in-place tap-to-snap
-          - 🛡️ **Persistent Regulator Shell**: Replaced route-destructive bottom navigation with invariant DirectionalIndexedStack, 100% preserving form state, filters, and scroll positions across tab switches
-          - 🎭 **Centralized Motion System**: Standardized cubic bezier curves, durations, Cupertino/Material Shared Axis drill-in routes, directional tab sliding, and Pressable touch feedback
-          - 📱 **Consumer Layout & Rendering Fixes**: Eliminated unbounded height exceptions on scrollable tabs for smooth transitions across Home, My Scans, Complaints, and Profile
-          - ⚡ **Optimized arm64-v8a & Universal Builds**: High-performance slim 64-bit APK and full Universal APK"
+          - 🧠 **Dynamic AI Label Summary (Groq LLM)**: High-speed real label analysis with models (\`qwen/qwen3.8-27b\`, \`openai/gpt-oss-120b\`, \`llama-3.3-70b-versatile\`)
+          - ⚠️ **Harmful Ingredients & Threshold Flags**: Automated detection and warning flags for artificial food colors (Tartrazine INS 102, Sunset Yellow INS 110, Allura Red INS 129), chemical preservatives (BHA, BHT, benzoates), palm oil, MSG, and excessive sodium (>600mg) / high sugar (>15g)
+          - ✅ **Wholesome & Clean Label Reassurances**: Explicit positive endorsements and health scoring for clean formulations
+          - 📄 **Multi-Panel OCR Extraction**: Merges text from front PDP and back/side nutrition tables for real label analysis
+          - 📹 **Real Live Camera Viewfinders**: Hardware camera streaming in multi-capture steps with live guides and tap-to-snap shutter
+          - 🛡️ **Persistent Regulator Navigation Shell**: 100% state preservation across all regulator tabs"

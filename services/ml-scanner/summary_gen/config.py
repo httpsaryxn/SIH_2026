@@ -18,8 +18,9 @@ class Settings:
     GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
     GROQ_FALLBACK_MODELS: list[str] = [
         "qwen/qwen3.8-27b",
+        "openai/gpt-oss-120b",
+        "llama-3.3-70b-versatile",
         "groq/compound",
-        "groq/compound-mini",
     ]
     
     SUPABASE_URL: str = os.environ.get("SUPABASE_URL", "https://tyshfugxmwvhbmoydlnl.supabase.co")

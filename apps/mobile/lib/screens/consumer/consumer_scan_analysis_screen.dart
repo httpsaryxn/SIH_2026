@@ -11,6 +11,7 @@ import '../../core/services/consumer_data_service.dart';
 import '../../core/services/legal_metrology_service.dart';
 import '../../core/services/ml_scanner_client.dart';
 import '../../core/services/summary_gen_client.dart';
+import '../../core/widgets/markdown_content_view.dart';
 import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
@@ -68,6 +69,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   String? _lastBrand;
   MlScannerResult? _lastRemoteResult;
   LmAuditResult? _lastAudit;
+  String? _lastOcrText;
 
   /// Returns the list of captures for carousel display.
   List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
@@ -211,6 +213,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         }
         audit = await LegalMetrologyService.auditCapture(
           capture: widget.pendingCapture,
+          multiCapture: widget.multiCapture,
           productName: widget.prefilledProductName,
           netQuantity: widget.prefilledNetQty,
           mrp: widget.prefilledMrp,
@@ -245,34 +248,47 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
       if (remoteResult != null &&
           (remoteResult.product['manufacturer'] as String?)?.trim().isNotEmpty == true) {
         pBrand = (remoteResult.product['manufacturer'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['manufacturer'] as String?)?.trim().isNotEmpty == true) {
+        pBrand = (audit.detectedDeclarations['manufacturer'] as String).trim();
       } else if (widget.prefilledBrand != null &&
-          widget.prefilledBrand!.trim().isNotEmpty) {
+          widget.prefilledBrand!.trim().isNotEmpty &&
+          widget.prefilledBrand!.trim() != 'Packaged Foods Co.') {
         pBrand = widget.prefilledBrand!.trim();
       } else {
-        pBrand = 'Packaged Foods Co.';
+        pBrand = '';
       }
 
       final pCategory = (widget.prefilledCategory != null &&
-              widget.prefilledCategory!.trim().isNotEmpty)
+              widget.prefilledCategory!.trim().isNotEmpty &&
+              widget.prefilledCategory!.trim() != 'Snacks')
           ? widget.prefilledCategory!.trim()
-          : 'Snacks';
+          : (remoteResult?.product['category'] as String?) ??
+            (audit?.detectedDeclarations['category'] as String?) ??
+            '';
 
       final String pNetQty;
       if (remoteResult != null &&
           (remoteResult.product['net_quantity'] as String?)?.trim().isNotEmpty == true) {
         pNetQty = (remoteResult.product['net_quantity'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['net_quantity'] as String?)?.trim().isNotEmpty == true) {
+        pNetQty = (audit.detectedDeclarations['net_quantity'] as String).trim();
       } else if (widget.prefilledNetQty != null &&
-              widget.prefilledNetQty!.trim().isNotEmpty) {
+              widget.prefilledNetQty!.trim().isNotEmpty &&
+              widget.prefilledNetQty!.trim() != '200 g') {
         pNetQty = widget.prefilledNetQty!.trim();
       } else {
-        pNetQty = '200 g';
+        pNetQty = '';
       }
 
-      final double pMrp;
+      final double? pMrp;
       if (remoteResult != null && remoteResult.product['mrp'] is num) {
         pMrp = (remoteResult.product['mrp'] as num).toDouble();
+      } else if (audit != null && audit.detectedDeclarations['mrp'] is num) {
+        pMrp = (audit.detectedDeclarations['mrp'] as num).toDouble();
       } else {
-        pMrp = widget.prefilledMrp ?? 65.0;
+        pMrp = widget.prefilledMrp;
       }
 
       // Create live product & scan record in Supabase (with Storage upload)
@@ -318,6 +334,21 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         _lastRemoteResult = remoteResult;
         _lastAudit = audit;
 
+        String? ocrText;
+        if (audit?.rawOcrText != null && audit!.rawOcrText!.trim().isNotEmpty) {
+          ocrText = audit.rawOcrText;
+        } else {
+          try {
+            ocrText = await LegalMetrologyService.extractTextFromCaptures(
+              capture: widget.pendingCapture,
+              multiCapture: widget.multiCapture,
+            );
+          } catch (e) {
+            debugPrint('[ConsumerScanAnalysisScreen] Fast OCR extraction error: $e');
+          }
+        }
+        _lastOcrText = ocrText;
+
         // Automatically trigger AI Summary generation
         _fetchAiSummary(
           scan: createdScan,
@@ -325,6 +356,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
           brand: pBrand,
           remoteResult: remoteResult,
           audit: audit,
+          ocrText: ocrText,
         );
       }
     } catch (e) {
@@ -338,7 +370,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   }
 
   String _deriveProductNameFromFileName(String fileName) {
-    return 'Packaged Food Product';
+    return 'Scanned Product';
   }
 
   void _showDetailedSummary() {
@@ -992,6 +1024,25 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   Widget _buildExtractedProductCard() {
     final scan = _completedScan!;
     final isCompliant = scan.complianceStatus == 'compliant';
+    final hasBrand = scan.brand.trim().isNotEmpty && scan.brand != 'Packaged Foods Co.';
+    final hasNetQty = scan.netQuantity.trim().isNotEmpty && scan.netQuantity != '200 g';
+    final detectedMrp = scan.detectedDeclarations['mrp'];
+    final hasMrp = detectedMrp != null;
+    final mfg = scan.detectedDeclarations['manufacturer'] as String?;
+    final hasMfg = mfg != null && mfg.trim().isNotEmpty && mfg != 'Packaged Foods Co.' && mfg != 'Artisan Foods Ltd';
+    final fssai = (scan.detectedDeclarations['fssai_license_no'] ?? scan.detectedDeclarations['fssai']) as String?;
+    final hasFssai = fssai != null && fssai.trim().isNotEmpty;
+
+    final detailChips = <Widget>[
+      if (hasNetQty)
+        _buildDetailChip('Declared Net Qty', scan.netQuantity),
+      if (hasMrp)
+        _buildDetailChip('Declared MRP', '₹$detectedMrp'),
+      if (hasMfg)
+        _buildDetailChip('Manufacturer', mfg.trim()),
+      if (hasFssai)
+        _buildDetailChip('FSSAI Lic No', fssai.trim()),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1015,21 +1066,24 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      scan.productName,
+                      scan.productName.trim().isNotEmpty ? scan.productName : 'Scanned Product',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: AppColors.onSurface,
                       ),
                     ),
-                    Text(
-                      'Brand: ${scan.brand}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.onSurfaceVariant,
+                    if (hasBrand) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Brand: ${scan.brand}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1063,19 +1117,12 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
               ),
             ],
           ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              _buildDetailChip('Declared Net Qty', scan.netQuantity),
-              const SizedBox(width: AppSpacing.md),
-              _buildDetailChip(
-                'Declared MRP',
-                scan.detectedDeclarations['mrp'] != null
-                    ? '₹${scan.detectedDeclarations['mrp']}'
-                    : '₹65.00',
-              ),
-            ],
-          ),
+          if (detailChips.isNotEmpty) ...[
+            const Divider(height: 24),
+            Row(
+              children: detailChips,
+            ),
+          ],
         ],
       ),
     );
@@ -1087,6 +1134,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     required String brand,
     MlScannerResult? remoteResult,
     LmAuditResult? audit,
+    String? ocrText,
     bool forceRegenerate = false,
   }) async {
     if (!mounted) return;
@@ -1095,14 +1143,15 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
     });
 
     try {
+      final resolvedOcrText = ocrText ?? audit?.rawOcrText ?? _lastOcrText;
       final summary = await SummaryGenClient.summarizeConsumer(
         scanId: scan?.id,
-        productName: productName,
-        manufacturer: brand,
+        productName: productName.trim().isNotEmpty ? productName.trim() : 'Scanned Product',
+        manufacturer: brand.trim().isNotEmpty && brand.trim() != 'Packaged Foods Co.' ? brand.trim() : null,
         declarations:
             remoteResult?.product ?? audit?.detectedDeclarations,
         rules: remoteResult?.rules.toJson(),
-        ocrText: null,
+        ocrText: resolvedOcrText,
         forceRegenerate: forceRegenerate,
       );
 
@@ -1296,9 +1345,9 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            res.summaryText,
-            style: GoogleFonts.plusJakartaSans(
+          MarkdownContentView(
+            text: res.summaryText,
+            baseStyle: GoogleFonts.plusJakartaSans(
               fontSize: 13.5,
               height: 1.5,
               fontWeight: FontWeight.w500,
@@ -1397,6 +1446,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
                           brand: _lastBrand ?? 'General Brand',
                           remoteResult: _lastRemoteResult,
                           audit: _lastAudit,
+                          ocrText: _lastOcrText,
                           forceRegenerate: true,
                         ),
                 child: Padding(

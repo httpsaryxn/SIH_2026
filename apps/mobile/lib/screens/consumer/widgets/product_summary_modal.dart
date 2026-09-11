@@ -81,28 +81,22 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
 
     final dec = widget.scan.detectedDeclarations;
     final ingredients = (dec['ingredients'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        ['Whole Grains', 'Natural Extracts', 'Iodized Salt'];
+        ?.map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
-    final nutrition = (dec['nutrition_facts'] is Map)
+    final nutrition = (dec['nutrition_facts'] is Map && (dec['nutrition_facts'] as Map).isNotEmpty)
         ? Map<String, dynamic>.from(dec['nutrition_facts'] as Map)
-        : {
-            'Calories': '210 kcal',
-            'Carbohydrates': '42 g',
-            'Protein': '6.5 g',
-            'Total Fat': '2.1 g',
-            'Sugar': '1.2 g',
-          };
+        : null;
 
-    final mfgName = dec['manufacturer'] as String? ?? 'Artisan Foods Ltd';
-    final mfgAddress = dec['manufacturer_address'] as String? ??
-        'Plot 42, Food Park, Phase 1, Industrial Estate';
-    final mrp = dec['mrp'] != null ? '₹${dec['mrp']}' : '₹85.00 (Incl. of all taxes)';
-    final mfgDate = dec['mfg_date'] as String? ?? 'Jul 2026';
-    final bestBefore = dec['best_before'] as String? ?? '9 Months from packaging';
-    final consumerCare = dec['consumer_care_info'] as String? ??
-        'care@brand.in | Helpline: 1800-200-8899';
+    final mfgName = dec['manufacturer'] as String?;
+    final mfgAddress = dec['manufacturer_address'] as String?;
+    final rawMrp = dec['mrp'];
+    final mrp = rawMrp != null ? '₹$rawMrp' : null;
+    final mfgDate = dec['mfg_date'] as String?;
+    final bestBefore = dec['best_before'] as String?;
+    final consumerCare = dec['consumer_care_info'] as String?;
+    final fssaiNo = (dec['fssai_license_no'] ?? dec['fssai']) as String?;
 
     return Container(
       constraints: BoxConstraints(
@@ -169,23 +163,42 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
                             color: AppColors.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${widget.scan.brand} • ${widget.scan.netQuantity}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            color: AppColors.onSurfaceVariant,
+                        if (widget.scan.brand.trim().isNotEmpty &&
+                            widget.scan.brand != 'Packaged Foods Co.') ...[
+                          Text(
+                            widget.scan.netQuantity.trim().isNotEmpty &&
+                                    widget.scan.netQuantity != '200 g' &&
+                                    widget.scan.netQuantity != 'Not Detected'
+                                ? '${widget.scan.brand} • ${widget.scan.netQuantity}'
+                                : widget.scan.brand,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: AppColors.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'MRP: $mrp',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+                          const SizedBox(height: 2),
+                        ] else if (widget.scan.netQuantity.trim().isNotEmpty &&
+                            widget.scan.netQuantity != '200 g' &&
+                            widget.scan.netQuantity != 'Not Detected') ...[
+                          Text(
+                            widget.scan.netQuantity,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: AppColors.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                        ],
+                        if (mrp != null) ...[
+                          Text(
+                            'MRP: $mrp',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -284,107 +297,141 @@ class _ProductSummaryModalState extends State<ProductSummaryModal> {
               ],
               const SizedBox(height: AppSpacing.lg),
 
-              // 2. Ingredients Section
-              Text(
-                'Extracted Ingredients',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+              // 2. Ingredients Section (Only if genuinely extracted)
+              if (ingredients != null && ingredients.isNotEmpty) ...[
+                Text(
+                  'Extracted Ingredients',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: ingredients
-                    .map((ing) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow,
-                            borderRadius: AppSpacing.roundedSm,
-                            border: Border.all(color: AppColors.surfaceVariant),
-                          ),
-                          child: Text(
-                            ing,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.onSurface,
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: ingredients
+                      .map((ing) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerLow,
+                              borderRadius: AppSpacing.roundedSm,
+                              border: Border.all(color: AppColors.surfaceVariant),
                             ),
-                          ),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: AppSpacing.lg),
+                            child: Text(
+                              ing,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.onSurface,
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
 
-              // 3. Nutrition Facts Table
-              Text(
-                'Nutritional Information (per serving / 100g)',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+              // 3. Nutrition Facts Table (Only if genuinely extracted)
+              if (nutrition != null && nutrition.isNotEmpty) ...[
+                Text(
+                  'Nutritional Information (per serving / 100g)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: AppSpacing.roundedSm,
-                  border: Border.all(color: AppColors.surfaceVariant),
-                ),
-                child: Column(
-                  children: nutrition.entries.map((entry) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: AppColors.surfaceVariant, width: 0.5),
+                const SizedBox(height: AppSpacing.xs),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: AppSpacing.roundedSm,
+                    border: Border.all(color: AppColors.surfaceVariant),
+                  ),
+                  child: Column(
+                    children: nutrition.entries.map((entry) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: AppColors.surfaceVariant, width: 0.5),
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            entry.key,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              color: AppColors.onSurfaceVariant,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              entry.key,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                color: AppColors.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                          Text(
-                            entry.value.toString(),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.onSurface,
+                            Text(
+                              entry.value.toString(),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.onSurface,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.lg),
+              ],
 
-              // 4. Important Legal Metrology Declarations
-              Text(
-                'Key Packaged Commodity Declarations',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _buildDeclarationTile('Manufacturer / Packer', '$mfgName, $mfgAddress'),
-              _buildDeclarationTile('Net Quantity', widget.scan.netQuantity),
-              _buildDeclarationTile('Maximum Retail Price (MRP)', mrp),
-              _buildDeclarationTile('Manufacturing Date', mfgDate),
-              _buildDeclarationTile('Best Before / Expiry', bestBefore),
-              _buildDeclarationTile('Consumer Care Helpline', consumerCare),
-              const SizedBox(height: AppSpacing.xl),
+              // 4. Important Legal Metrology Declarations (Only genuinely extracted)
+              () {
+                final mfgLabel = [
+                  if (mfgName != null && mfgName.trim().isNotEmpty && mfgName != 'Artisan Foods Ltd' && mfgName != 'Packaged Foods Co.')
+                    mfgName.trim(),
+                  if (mfgAddress != null && mfgAddress.trim().isNotEmpty && mfgAddress != 'Plot 42, Food Park, Phase 1, Industrial Estate')
+                    mfgAddress.trim(),
+                ].join(', ');
+
+                final declarationTiles = <Widget>[
+                  if (mfgLabel.isNotEmpty)
+                    _buildDeclarationTile('Manufacturer / Packer', mfgLabel),
+                  if (widget.scan.netQuantity.trim().isNotEmpty &&
+                      widget.scan.netQuantity != '200 g' &&
+                      widget.scan.netQuantity != 'Not Detected')
+                    _buildDeclarationTile('Net Quantity', widget.scan.netQuantity.trim()),
+                  if (mrp != null)
+                    _buildDeclarationTile('Maximum Retail Price (MRP)', mrp),
+                  if (mfgDate != null && mfgDate.trim().isNotEmpty && mfgDate != 'Jul 2026')
+                    _buildDeclarationTile('Manufacturing Date', mfgDate.trim()),
+                  if (bestBefore != null && bestBefore.trim().isNotEmpty && bestBefore != '9 Months from packaging')
+                    _buildDeclarationTile('Best Before / Expiry', bestBefore.trim()),
+                  if (consumerCare != null && consumerCare.trim().isNotEmpty && consumerCare != 'care@brand.in | Helpline: 1800-200-8899')
+                    _buildDeclarationTile('Consumer Care Helpline', consumerCare.trim()),
+                  if (fssaiNo != null && fssaiNo.trim().isNotEmpty)
+                    _buildDeclarationTile('FSSAI License No.', fssaiNo.trim()),
+                ];
+
+                if (declarationTiles.isEmpty) return const SizedBox.shrink();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Key Packaged Commodity Declarations',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    ...declarationTiles,
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
+                );
+              }(),
 
               // Bottom Action Buttons
               Row(
