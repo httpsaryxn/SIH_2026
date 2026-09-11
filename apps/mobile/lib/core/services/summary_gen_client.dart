@@ -267,7 +267,12 @@ CRITICAL RESPONSIBILITIES:
         Include a clear, reassuring POSITIVE endorsement:
         "### ✅ Clean Formulation & Safe Nutrition"
         Explicitly praising the clean label, absence of artificial synthetic dyes, safe preservative profile, and balanced sodium/sugar levels.
-      - Also include a short 2-3 bullet point "Nutritional & Label Highlights" summarizing net contents, price/MRP, key wholesome ingredients, and FSSAI status.
+      - STRICT ANTI-HALLUCINATION / NO-PLACEHOLDER RULE:
+        Under NO circumstances fabricate, assume, or invent any ingredients, nutrition numbers, price, net contents, manufacturer, or declarations that are not clearly present in the provided OCR Text or Declared Attributes.
+        DO NOT output placeholder values (e.g. do not output "Standard pack", "Declared on label", "₹65", or "Artisan Foods").
+        If specific label declarations (like Net Quantity, MRP, Manufacturer, FSSAI) are confirmed present in the scan, you may list them under:
+        "### 📋 Extracted Label Information"
+        If a declaration or ingredient block is NOT present in the scan, DO NOT create or mention it.
    d) HEALTH SCORE (0 to 100):
       - 80-100: Clean label, wholesome, low in sodium/sugar, free of synthetic colors/harmful preservatives.
       - 55-79: Moderate processed food, acceptable limits but contains palm oil or moderate sugar/sodium.
@@ -280,7 +285,7 @@ CRITICAL RESPONSIBILITIES:
    - Set health_score to null.
 
 4. FOR GENERAL PRODUCTS:
-   - Provide summary of commodity type, net quantity, manufacturer, retail price, and statutory declarations.
+   - Provide summary of commodity type and any verified declarations directly present in the scan.
    - Set health_score to null.
 
 OUTPUT FORMAT:
@@ -295,11 +300,26 @@ Return strictly a valid JSON object matching this schema:
   "mandatory_disclaimer": "string or null"
 }''';
 
+    final filteredDeclarations = Map<String, dynamic>.from(declarations ?? {})
+      ..removeWhere((k, v) =>
+          v == null ||
+          (v is String &&
+              (v.trim().isEmpty ||
+                  v == 'Packaged Foods Co.' ||
+                  v == '200 g' ||
+                  v == 'Snacks')));
+
+    final mfrLine = (manufacturer != null &&
+            manufacturer.trim().isNotEmpty &&
+            manufacturer != 'Packaged Foods Co.')
+        ? 'Manufacturer: ${manufacturer.trim()}'
+        : '';
+
     final userContent = '''
 Product Name: $productName
-Manufacturer: ${manufacturer ?? 'Declared on packaging'}
-Declared Attributes:
-${jsonEncode(declarations ?? {})}
+$mfrLine
+Declared Attributes from Scanned Label:
+${jsonEncode(filteredDeclarations)}
 
 Legal Metrology Passed Rules: ${(rules?['passed'] as List?)?.length ?? 0}
 Legal Metrology Failed Rules: ${(rules?['failed'] as List?)?.length ?? 0}
@@ -430,15 +450,27 @@ ${ocrText ?? 'No OCR text available'}
 
     if (isPharma) {
       const disclaimer = 'Informational summary of declared label content only. Not medical advice.';
+      final sb = StringBuffer();
+      sb.writeln('**Declared Commodity**: $productName\n');
+      final mfr = manufacturer ?? declarations['manufacturer'];
+      if (mfr != null && mfr.toString().trim().isNotEmpty && mfr != 'Packaged Foods Co.') {
+        sb.writeln('• **Manufacturer**: ${mfr.toString().trim()}');
+      }
+      final netVol = declarations['net_quantity'];
+      if (netVol != null && netVol.toString().trim().isNotEmpty && netVol != '200 g') {
+        sb.writeln('• **Net Volume**: ${netVol.toString().trim()}');
+      }
+      final mrp = declarations['mrp'];
+      if (mrp != null && mrp.toString().trim().isNotEmpty) {
+        sb.writeln('• **Declared MRP**: ₹$mrp');
+      }
+      sb.writeln('• **Directions**: Verify batch number, expiry date, and dosage instructions on label before use.\n');
+      sb.writeln('*⚠️ $disclaimer*');
+
       return ConsumerSummaryResult(
         productType: 'medicinal',
         classificationReasoning: 'Classified based on medicinal keywords in commodity description and label.',
-        summaryText:
-            '**Declared Commodity**: $productName\n\n'
-            '• **Manufacturer**: ${manufacturer ?? declarations['manufacturer'] ?? "Declared on packaging"}\n'
-            '• **Net Volume**: ${declarations['net_quantity'] ?? "Standard pack"}\n'
-            '• **Directions**: Verify batch number, expiry date, and dosage instructions on label before use.\n\n'
-            '*⚠️ $disclaimer*',
+        summaryText: sb.toString().trim(),
         medicinalSafetySummary: 'Keep out of reach of children. Store in a cool, dry place away from direct sunlight.',
         mandatoryDisclaimer: disclaimer,
       );
@@ -548,14 +580,48 @@ ${ocrText ?? 'No OCR text available'}
         sb.writeln();
       }
 
-      sb.writeln('### 📋 Declared Label Highlights: $productName');
-      sb.writeln('• **Net Quantity**: ${declarations['net_quantity'] ?? "Declared on packaging"}');
-      sb.writeln('• **Retail Price**: ₹${declarations['mrp'] ?? "Declared on label"}');
-      sb.writeln('• **FSSAI License**: ${declarations['fssai'] ?? declarations['fssai_license_no'] ?? (ocr.contains("fssai") ? "Identified on label" : "Verified")}');
+      final extractedHighlights = <String>[];
+      final netQty = declarations['net_quantity'];
+      if (netQty != null &&
+          netQty.toString().trim().isNotEmpty &&
+          netQty != '200 g' &&
+          netQty != 'Not Detected') {
+        extractedHighlights.add('• **Net Quantity**: ${netQty.toString().trim()}');
+      }
+      final mrpVal = declarations['mrp'];
+      if (mrpVal != null &&
+          mrpVal.toString().trim().isNotEmpty &&
+          mrpVal != 65.0 &&
+          mrpVal != '65.0') {
+        extractedHighlights.add('• **Declared MRP**: ₹$mrpVal');
+      }
+      final fssaiVal = declarations['fssai'] ?? declarations['fssai_license_no'];
+      if (fssaiVal != null && fssaiVal.toString().trim().isNotEmpty) {
+        extractedHighlights.add('• **FSSAI License**: ${fssaiVal.toString().trim()}');
+      } else if (ocr.contains('fssai')) {
+        extractedHighlights.add('• **FSSAI**: Detected on packaging');
+      }
+      final mfrVal = manufacturer ?? declarations['manufacturer'];
+      if (mfrVal != null &&
+          mfrVal.toString().trim().isNotEmpty &&
+          mfrVal != 'Packaged Foods Co.' &&
+          mfrVal != 'Artisan Foods Ltd') {
+        extractedHighlights.add('• **Manufacturer**: ${mfrVal.toString().trim()}');
+      }
+
+      if (extractedHighlights.isNotEmpty) {
+        sb.writeln('### 📋 Extracted Label Information');
+        for (final item in extractedHighlights) {
+          sb.writeln(item);
+        }
+        sb.writeln();
+      }
+
       if (positivePoints.isNotEmpty) {
         for (final p in positivePoints) {
           sb.writeln(p);
         }
+        sb.writeln();
       }
 
       final rationale = harmfulFlags.isNotEmpty
@@ -571,14 +637,34 @@ ${ocrText ?? 'No OCR text available'}
       );
     }
 
+    final sb = StringBuffer();
+    sb.writeln('**Packaging Declarations**: $productName\n');
+    final netQty = declarations['net_quantity'];
+    if (netQty != null &&
+        netQty.toString().trim().isNotEmpty &&
+        netQty != '200 g' &&
+        netQty != 'Not Detected') {
+      sb.writeln('• **Net Quantity**: ${netQty.toString().trim()}');
+    }
+    final mfr = manufacturer ?? declarations['manufacturer'];
+    if (mfr != null &&
+        mfr.toString().trim().isNotEmpty &&
+        mfr != 'Packaged Foods Co.' &&
+        mfr != 'Artisan Foods Ltd') {
+      sb.writeln('• **Manufacturer**: ${mfr.toString().trim()}');
+    }
+    final mrpVal = declarations['mrp'];
+    if (mrpVal != null &&
+        mrpVal.toString().trim().isNotEmpty &&
+        mrpVal != 65.0 &&
+        mrpVal != '65.0') {
+      sb.writeln('• **Declared MRP**: ₹$mrpVal');
+    }
+
     return ConsumerSummaryResult(
       productType: 'general',
       classificationReasoning: 'General packaged commodity.',
-      summaryText:
-          '**Packaging Declarations**: $productName\n\n'
-          '• **Net Quantity**: ${declarations['net_quantity'] ?? "Declared"}\n'
-          '• **Manufacturer**: ${manufacturer ?? "Declared on label"}\n'
-          '• **Retail Price**: ₹${declarations['mrp'] ?? "Declared on label"}',
+      summaryText: sb.toString().trim(),
     );
   }
 }
