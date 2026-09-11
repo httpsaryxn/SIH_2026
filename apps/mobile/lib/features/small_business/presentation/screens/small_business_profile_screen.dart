@@ -7,7 +7,9 @@ import '../../../../core/services/auth_service.dart';
 import '../../../../screens/onboarding/role_selection_screen.dart';
 
 class SmallBusinessProfileScreen extends StatefulWidget {
-  const SmallBusinessProfileScreen({super.key});
+  final bool? isStandalone;
+
+  const SmallBusinessProfileScreen({super.key, this.isStandalone = true});
 
   @override
   State<SmallBusinessProfileScreen> createState() =>
@@ -15,6 +17,7 @@ class SmallBusinessProfileScreen extends StatefulWidget {
 }
 
 class _SmallBusinessProfileScreenState extends State<SmallBusinessProfileScreen> {
+  bool get _isStandalone => widget.isStandalone ?? true;
   bool _isLoading = true;
   bool _isSigningOut = false;
 
@@ -169,7 +172,7 @@ class _SmallBusinessProfileScreenState extends State<SmallBusinessProfileScreen>
   }
 
   PreferredSizeWidget _buildAppBar() {
-    final canPop = Navigator.of(context).canPop();
+    final canPop = _isStandalone && Navigator.of(context).canPop();
     return AppBar(
       backgroundColor: AppColors.surface,
       surfaceTintColor: Colors.transparent,
