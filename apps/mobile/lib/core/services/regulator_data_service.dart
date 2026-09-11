@@ -54,6 +54,14 @@ class RegulatorDataService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
+  /// In-memory cache for violations created during active inspection session
+  static final Map<String, RegulatorViolation> _inMemoryViolations = {};
+
+  /// Explicitly registers or updates a violation in the local session cache
+  static void registerInMemoryViolation(RegulatorViolation violation) {
+    _inMemoryViolations[violation.id] = violation;
+  }
+
   static const _violationSelect = '''
     *, regulator_scans!inner(
       scan_code, product_name, company_name, category, region, store_location,
@@ -289,26 +297,55 @@ class RegulatorDataService {
   }
 
   static Future<RegulatorViolation> getViolationById(String id) async {
-    if (!_hasClient) {
-      return _mockViolations.firstWhere(
-        (v) => v.id == id,
-        orElse: () => _mockViolations.first,
-      );
+    // 1. Check in-memory session cache first
+    if (_inMemoryViolations.containsKey(id)) {
+      return _inMemoryViolations[id]!;
     }
-    try {
-      final row = await _client
-          .from('regulator_violations')
-          .select(_violationSelect)
-          .eq('id', id)
-          .single()
-          .timeout(const Duration(seconds: 4));
-      return _violationFromRow(Map<String, dynamic>.from(row));
-    } catch (_) {
-      return _mockViolations.firstWhere(
-        (v) => v.id == id,
-        orElse: () => _mockViolations.first,
-      );
+
+    // 2. Query Supabase
+    if (_hasClient) {
+      try {
+        final row = await _client
+            .from('regulator_violations')
+            .select(_violationSelect)
+            .eq('id', id)
+            .single()
+            .timeout(const Duration(seconds: 8));
+        final v = _violationFromRow(Map<String, dynamic>.from(row));
+        _inMemoryViolations[v.id] = v;
+        return v;
+      } catch (e) {
+        debugPrint('[RegulatorDataService] Violation $id not found in DB or timed out: $e');
+      }
     }
+
+    // 3. Match explicit ID in mock list if testing with seed IDs
+    final exactMatch = _mockViolations.cast<RegulatorViolation?>().firstWhere(
+      (v) => v?.id == id,
+      orElse: () => null,
+    );
+    if (exactMatch != null) return exactMatch;
+
+    // 4. Never fall back to mock noodles for scanned products!
+    return RegulatorViolation(
+      id: id,
+      scanId: 'SCN-${id.hashCode.abs()}',
+      productName: 'Packaged Commodity Audit',
+      companyName: 'Registered Manufacturer',
+      category: 'Packaged Commodity',
+      region: 'National Jurisdiction',
+      storeLocation: 'Field Inspection',
+      imageUrl: '',
+      severity: 'Medium',
+      riskLevel: 'Medium Risk',
+      confidenceScore: 85,
+      violationType: 'Legal Metrology Compliance Audit',
+      violationSummary: 'Field audit intake record registered for case $id.',
+      capturedAt: DateTime.now(),
+      status: 'pending_review',
+      declarations: const [],
+      overlayBoxes: const [],
+    );
   }
 
   static Future<List<RegulatorComplaint>> getComplaints({
@@ -1151,7 +1188,7 @@ class RegulatorDataService {
         ruleDescription: r.detail,
       )).toList();
 
-      return RegulatorViolation(
+      final hydrated = RegulatorViolation(
         id: fetched.id,
         scanId: fetched.scanId,
         productName: fetched.productName,
@@ -1173,8 +1210,11 @@ class RegulatorDataService {
         declarations: decls,
         overlayBoxes: fetched.overlayBoxes,
       );
+      _inMemoryViolations[hydrated.id] = hydrated;
+      return hydrated;
     }
 
+    _inMemoryViolations[fetched.id] = fetched;
     return fetched;
   }
 

@@ -340,6 +340,7 @@ class _RegulatorScanAnalysisScreenState
           );
           _isAnalysisFinished = true;
           _statusMessage = 'Analysis Complete!';
+          RegulatorDataService.registerInMemoryViolation(_createdViolation!);
         });
         _laserController.stop();
       }
@@ -377,6 +378,7 @@ class _RegulatorScanAnalysisScreenState
         MaterialPageRoute(
           builder: (_) => RegulatorViolationReviewScreen(
             violationId: _createdViolation!.id,
+            initialViolation: _createdViolation,
           ),
         ),
       );

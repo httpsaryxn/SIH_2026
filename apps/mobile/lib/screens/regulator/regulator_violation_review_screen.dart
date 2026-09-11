@@ -14,10 +14,12 @@ import 'regulator_company_tracking_screen.dart';
 
 class RegulatorViolationReviewScreen extends StatefulWidget {
   final String violationId;
+  final RegulatorViolation? initialViolation;
 
   const RegulatorViolationReviewScreen({
     super.key,
     required this.violationId,
+    this.initialViolation,
   });
 
   @override
@@ -40,7 +42,12 @@ class _RegulatorViolationReviewScreenState
   @override
   void initState() {
     super.initState();
-    _fetchViolation();
+    if (widget.initialViolation != null) {
+      _violation = widget.initialViolation;
+      _isLoading = false;
+    } else {
+      _fetchViolation();
+    }
   }
 
   @override
@@ -235,6 +242,15 @@ class _RegulatorViolationReviewScreenState
   Widget _buildImageCarousel(RegulatorViolation violation) {
     final images = violation.allLabeledImages;
     final imageCount = images.length;
+    if (imageCount == 0) {
+      return Container(
+        height: 180,
+        color: const Color(0xFF0F172A),
+        child: const Center(
+          child: Icon(Icons.inventory_2_outlined, color: Colors.white38, size: 48),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -400,7 +416,9 @@ class _RegulatorViolationReviewScreenState
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                images[_carouselPage].key,
+                                images.isNotEmpty && _carouselPage < images.length
+                                    ? images[_carouselPage].key
+                                    : 'Evidence',
                                 style: AppTypography.labelSm.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,

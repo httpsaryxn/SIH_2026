@@ -51,5 +51,7 @@ flutter {
 
 dependencies {
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+    implementation("androidx.concurrent:concurrent-futures:1.2.0")
 }
+
 
