@@ -231,56 +231,58 @@ class _DirectionalIndexedStackState extends State<DirectionalIndexedStack>
             final progress = _animation.value;
             final isStillAnimating = _controller.isAnimating;
 
-            return Stack(
-              fit: StackFit.expand,
-              children: List.generate(widget.children.length, (i) {
-                final isCurrent = i == _currentIndex;
-                final isPrevious = i == _previousIndex;
+            return ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: List.generate(widget.children.length, (i) {
+                  final isCurrent = i == _currentIndex;
+                  final isPrevious = i == _previousIndex;
 
-                final childWithBounds = OverflowBox(
-                  minWidth: constraints.maxWidth,
-                  maxWidth: constraints.maxWidth,
-                  minHeight: constraints.maxHeight,
-                  maxHeight: constraints.maxHeight,
-                  child: widget.children[i],
-                );
+                  final childWithBounds = OverflowBox(
+                    minWidth: constraints.maxWidth,
+                    maxWidth: constraints.maxWidth,
+                    minHeight: constraints.maxHeight,
+                    maxHeight: constraints.maxHeight,
+                    child: widget.children[i],
+                  );
 
-                bool isVisible = isCurrent;
-                Offset offset = Offset.zero;
-                double opacity = 1.0;
+                  bool isVisible = isCurrent;
+                  Offset offset = Offset.zero;
+                  double opacity = 1.0;
 
-                if (isStillAnimating && _previousIndex != _currentIndex) {
-                  if (isPrevious) {
-                    isVisible = true;
-                    final outFraction = isForward ? -0.35 : 0.35;
-                    offset = Offset(outFraction * progress * screenWidth, 0.0);
-                    opacity = (1.0 - progress).clamp(0.0, 1.0);
-                  } else if (isCurrent) {
-                    isVisible = true;
-                    final inFraction = isForward ? 0.35 : -0.35;
-                    offset =
-                        Offset(inFraction * (1.0 - progress) * screenWidth, 0.0);
-                    opacity = progress.clamp(0.0, 1.0);
+                  if (isStillAnimating && _previousIndex != _currentIndex) {
+                    if (isPrevious) {
+                      isVisible = true;
+                      final outFraction = isForward ? -0.35 : 0.35;
+                      offset = Offset(outFraction * progress * screenWidth, 0.0);
+                      opacity = (1.0 - progress).clamp(0.0, 1.0);
+                    } else if (isCurrent) {
+                      isVisible = true;
+                      final inFraction = isForward ? 0.35 : -0.35;
+                      offset =
+                          Offset(inFraction * (1.0 - progress) * screenWidth, 0.0);
+                      opacity = progress.clamp(0.0, 1.0);
+                    }
                   }
-                }
 
-                return KeyedSubtree(
-                  key: ValueKey<int>(i),
-                  child: TickerMode(
-                    enabled: isVisible,
-                    child: Offstage(
-                      offstage: !isVisible,
-                      child: Transform.translate(
-                        offset: offset,
-                        child: Opacity(
-                          opacity: opacity,
-                          child: childWithBounds,
+                  return KeyedSubtree(
+                    key: ValueKey<int>(i),
+                    child: TickerMode(
+                      enabled: isVisible,
+                      child: Offstage(
+                        offstage: !isVisible,
+                        child: Transform.translate(
+                          offset: offset,
+                          child: Opacity(
+                            opacity: opacity,
+                            child: childWithBounds,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             );
           },
         );
