@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:mobile/features/small_business/data/models/small_business_label_
 import 'package:mobile/features/small_business/data/repositories/small_business_label_repository.dart';
 import 'package:mobile/features/small_business/data/services/file_download_service.dart';
 import 'package:mobile/features/small_business/data/services/gs1_ean13_encoder.dart';
+import 'package:mobile/features/small_business/data/services/nutrition_calculator.dart';
 import 'package:mobile/features/small_business/presentation/screens/create_label_declaration_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/final_details_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/ingredients_allergens_screen.dart';
@@ -411,18 +413,206 @@ void main() {
     final jsonString = await jsonFile.readAsString();
     expect(jsonString, contains('"product_name": "Roasted Makhana"'));
 
-    // Test PDF Generation
-    final pdfPath = await FileDownloadService.downloadPdfLabel(
+    // Test PDF Generation across dynamic selected packaging dimensions
+    // 1. Preset Dimension: Standard Pouch (100 × 150 mm)
+    final pdfPath150 = await FileDownloadService.downloadPdfLabel(
       model: model,
       dimension: 'Standard Pouch (100 × 150 mm)',
       shareOnMobile: false,
     );
+    expect(pdfPath150, isNotNull);
+    final pdfFile150 = File(pdfPath150!);
+    expect(await pdfFile150.exists(), isTrue);
+    expect(pdfPath150, contains('100x150mm'));
+    final pdfBytes150 = await pdfFile150.readAsBytes();
+    final pdfString150 = latin1.decode(pdfBytes150, allowInvalid: true);
+    expect(pdfString150, contains('%PDF'));
+    // 100 mm * 2.83464567 = 283.46 pt, 150 mm * 2.83464567 = 425.20 pt
+    expect(pdfString150, contains('/MediaBox [0 0 283.46 425.20]'));
+
+    // 2. Ultra-Compact Pouch (100 × 118 mm)
+    final pdfPath118 = await FileDownloadService.downloadPdfLabel(
+      model: model,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(pdfPath118, isNotNull);
+    final pdfFile118 = File(pdfPath118!);
+    expect(pdfPath118, contains('100x118mm'));
+    final pdfBytes118 = await pdfFile118.readAsBytes();
+    final pdfString118 = latin1.decode(pdfBytes118, allowInvalid: true);
+    // 100 mm * 2.83464567 = 283.46 pt, 118 mm * 2.83464567 = 334.49 pt
+    expect(pdfString118, contains('/MediaBox [0 0 283.46 334.49]'));
+
+    // 3. Custom Packaging Dimension (75 × 120 mm)
+    final pdfPathCustom = await FileDownloadService.downloadPdfLabel(
+      model: model,
+      dimension: 'Custom (75 × 120 mm)',
+      customWidthMm: 75.0,
+      customHeightMm: 120.0,
+      shareOnMobile: false,
+    );
+    expect(pdfPathCustom, isNotNull);
+    final pdfFileCustom = File(pdfPathCustom!);
+    expect(pdfPathCustom, contains('75x120mm'));
+    final pdfBytesCustom = await pdfFileCustom.readAsBytes();
+    final pdfStringCustom = latin1.decode(pdfBytesCustom, allowInvalid: true);
+    // 75 mm * 2.83464567 = 212.60 pt, 120 mm * 2.83464567 = 340.16 pt
+    expect(pdfStringCustom, contains('/MediaBox [0 0 212.60 340.16]'));
+
+    // 4. Test FileDownloadService.parseDimensions helper
+    final dim1 = FileDownloadService.parseDimensions('Standard Pouch (100 × 150 mm)');
+    expect(dim1.widthMm, 100.0);
+    expect(dim1.heightMm, 150.0);
+
+    final dim2 = FileDownloadService.parseDimensions('Bottle Wrap (70 x 180 mm)');
+    expect(dim2.widthMm, 70.0);
+    expect(dim2.heightMm, 180.0);
+
+    final dimFallback = FileDownloadService.parseDimensions('Invalid Dimension Format');
+    expect(dimFallback.widthMm, 100.0);
+    expect(dimFallback.heightMm, 118.0);
+  });
+
+  test('FileDownloadService renders brand logo in PDF and SVG when provided', () async {
+    const sampleLogoBase64 =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+    const modelWithLogo = SmallBusinessLabelModel(
+      brandName: 'Himalayan Organics',
+      productName: 'Raw Wildflower Honey',
+      productCategory: 'Sweeteners & Honey',
+      netQuantity: '250',
+      netQuantityUnit: 'g',
+      mrp: '350.00',
+      fssaiLicenseNumber: '11521018000999',
+      manufacturerName: 'Himalayan Organics Pvt Ltd',
+      manufacturerAddress: 'Dehradun, Uttarakhand 248001',
+      logoUrl: sampleLogoBase64,
+    );
+
+    final pdfPath = await FileDownloadService.downloadPdfLabel(
+      model: modelWithLogo,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    final svgPath = await FileDownloadService.downloadSvgLabel(
+      model: modelWithLogo,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+
+    // 1. PDF Export with Logo
     expect(pdfPath, isNotNull);
-    final pdfFile = File(pdfPath!);
-    expect(await pdfFile.exists(), isTrue);
-    final pdfBytes = await pdfFile.readAsBytes();
-    expect(pdfBytes.length, greaterThan(100));
-    expect(String.fromCharCodes(pdfBytes.take(8)), contains('%PDF'));
+    final pdfBytes = await File(pdfPath!).readAsBytes();
+    final pdfString = latin1.decode(pdfBytes, allowInvalid: true);
+    expect(pdfString, contains('/BrandLogo'));
+    expect(pdfString, contains('/BrandLogo Do'));
+
+    // 2. SVG Export with Logo
+    expect(svgPath, isNotNull);
+    final svgString = await File(svgPath!).readAsString();
+    expect(svgString, contains('<image '));
+    expect(svgString, contains('data:image/png;base64,'));
+  });
+
+  test('NutritionCalculator computes exact statutory % RDA and Calories Daily Values', () {
+    // Calories: 375 kcal / 2000 kcal = 18.75% -> 19%
+    expect(NutritionCalculator.calculateCaloriesRda(375), '19%');
+    // Calories: 200 kcal / 2000 kcal = 10%
+    expect(NutritionCalculator.calculateCaloriesRda(200), '10%');
+    // Calories: 0 kcal -> 0%
+    expect(NutritionCalculator.calculateCaloriesRda(0), '0%');
+
+    // Total Fat: 10g / 100g, 70g serving -> 7g. 7 / 67g (FSSAI RDA) = 10.45% -> 10%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Total Fat', value: '10', unit: 'g', servingSizeGrams: 70), '10%');
+
+    // Saturated Fat: 1g / 100g, 70g serving -> 0.7g. 0.7 / 22g = 3.18% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '— Saturated Fat', value: '1', unit: 'g', servingSizeGrams: 70), '3%');
+
+    // Trans Fat: 0g -> 0%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '— Trans Fat', value: '0', unit: 'g', servingSizeGrams: 70), '0%');
+
+    // Sodium: 222mg / 100g, 70g serving -> 155.4mg. 155.4 / 2000mg = 7.77% -> 8%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Sodium', value: '222', unit: 'mg', servingSizeGrams: 70), '8%');
+
+    // Protein: 5.6g / 100g, 70g serving -> 3.92g. 3.92 / 54g = 7.26% -> 7%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Protein', value: '5.6', unit: 'g', servingSizeGrams: 70), '7%');
+
+    // Carbohydrates: 230g / 100g, 70g serving -> 161g. 161 / 300g = 53.67% -> 54%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Carbohydrates', value: '230', unit: 'g', servingSizeGrams: 70), '54%');
+
+    // Added Sugars: 2g / 100g, 70g serving -> 1.4g. 1.4 / 50g = 2.8% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '• Added Sugars', value: '2', unit: 'g', servingSizeGrams: 70), '3%');
+
+    // Iron: 1.2mg / 100g, 70g serving -> 0.84mg. 0.84 / 19mg = 4.42% -> 4%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Iron', value: '1.2', unit: 'mg', servingSizeGrams: 70), '4%');
+
+    // Calcium: 40mg / 100g, 70g serving -> 28mg. 28 / 1000mg = 2.8% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Calcium', value: '40', unit: 'mg', servingSizeGrams: 70), '3%');
+  });
+
+  test('FileDownloadService renders calculated RDA percentages on the right-hand side in SVG and PDF', () async {
+    const modelWithNutrients = SmallBusinessLabelModel(
+      brandName: 'Shree Nutri Foods',
+      productName: 'Roasted Diet Makhana',
+      productCategory: 'Snacks & Namkeen',
+      netQuantity: '100',
+      netQuantityUnit: 'g',
+      servingSize: '70',
+      servingSizeUnit: 'g',
+      mrp: '150.00',
+      fssaiLicenseNumber: '11521018000789',
+      manufacturerName: 'Shree Nutri Foods LLP',
+      manufacturerAddress: 'Indore, MP 452001',
+      nutrients: [
+        SmallBusinessNutrientModel(label: 'Calories', value: '536', unit: 'kcal'),
+        SmallBusinessNutrientModel(label: 'Total Fat', value: '10', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Saturated Fat', value: '1', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Trans Fat', value: '0', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Sodium', value: '222', unit: 'mg'),
+        SmallBusinessNutrientModel(label: 'Carbohydrates', value: '230', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Added Sugars', value: '2', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Protein', value: '5.6', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Calcium', value: '40', unit: 'mg'),
+        SmallBusinessNutrientModel(label: 'Iron', value: '1.2', unit: 'mg'),
+      ],
+    );
+
+    // 1. PDF Export
+    final pdfPath = await FileDownloadService.downloadPdfLabel(
+      model: modelWithNutrients,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(pdfPath, isNotNull);
+    final pdfBytes = await File(pdfPath!).readAsBytes();
+    final pdfString = latin1.decode(pdfBytes, allowInvalid: true);
+    // Verify calories RDA (19%) and nutrient RDAs (10%, 8%, 7%, 54%, 3%, 0%) are printed in PDF stream
+    expect(pdfString, contains('19%'));
+    expect(pdfString, contains('10%'));
+    expect(pdfString, contains('8%'));
+    expect(pdfString, contains('7%'));
+    expect(pdfString, contains('54%'));
+    expect(pdfString, contains('3%'));
+    expect(pdfString, contains('0%'));
+
+    // 2. SVG Export
+    final svgPath = await FileDownloadService.downloadSvgLabel(
+      model: modelWithNutrients,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(svgPath, isNotNull);
+    final svgString = await File(svgPath!).readAsString();
+    // Verify right-hand text-anchor="end" tags contain calculated percentages
+    expect(svgString, contains('>19%</text>'));
+    expect(svgString, contains('>10%</text>'));
+    expect(svgString, contains('>8%</text>'));
+    expect(svgString, contains('>7%</text>'));
+    expect(svgString, contains('>54%</text>'));
+    expect(svgString, contains('>3%</text>'));
+    expect(svgString, contains('>0%</text>'));
   });
 
   testWidgets('Role Selection screen displays all 3 roles and title',

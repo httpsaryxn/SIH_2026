@@ -54,9 +54,9 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
   final GlobalKey _labelRepaintKey = GlobalKey();
 
   ExportFormat _selectedFormat = ExportFormat.png;
-  String _selectedDimension = 'Standard Pouch (100 × 150 mm)';
+  String _selectedDimension = 'Ultra-Compact Commercial Packaging (100 × 118 mm)';
   double _customWidthMm = 100.0;
-  double _customHeightMm = 150.0;
+  double _customHeightMm = 118.0;
   bool _isExporting = false;
   late SmallBusinessLabelModel _currentModel;
 
@@ -85,7 +85,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
 
     _selectedDimension = _currentModel.labelDimension.isNotEmpty
         ? _currentModel.labelDimension
-        : 'Standard Pouch (100 × 150 mm)';
+        : 'Ultra-Compact Commercial Packaging (100 × 118 mm)';
 
     _parseDimensionsFromLabel(_selectedDimension);
 
@@ -105,10 +105,10 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
   }
 
   void _parseDimensionsFromLabel(String dim) {
-    final match = RegExp(r'(\d+)\s*×\s*(\d+)').firstMatch(dim);
+    final match = RegExp(r'(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)').firstMatch(dim);
     if (match != null) {
       _customWidthMm = double.tryParse(match.group(1)!) ?? 100.0;
-      _customHeightMm = double.tryParse(match.group(2)!) ?? 150.0;
+      _customHeightMm = double.tryParse(match.group(2)!) ?? 118.0;
     }
   }
 
@@ -168,6 +168,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
             preRenderedBytes: pngBytes,
+            shareOnMobile: true,
           );
           break;
         case ExportFormat.svg:
@@ -176,6 +177,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
+            shareOnMobile: true,
           );
           break;
         case ExportFormat.pdf:
@@ -184,6 +186,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
+            shareOnMobile: true,
           );
           break;
         case ExportFormat.json:
@@ -467,12 +470,12 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                 onPressed: () {
                   FileDownloadService.shareLabel(
                     title: 'Packaging Label: $fileName',
-                    text: 'Exported packaging label artwork: $fileName',
+                    text: 'Print-ready packaging label artwork: $fileName',
                     filePath: savedFilePath,
                   );
                 },
-                icon: const Icon(Icons.share_rounded, size: 18),
-                label: const Text('Share / Open / Save to Device'),
+                icon: const Icon(Icons.print_rounded, size: 18),
+                label: const Text('Print / Share Artwork (AirPrint & Android Print)'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.brandDeepGreen,
                   side: const BorderSide(color: AppColors.brandDeepGreen),
@@ -627,6 +630,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                 setState(() {
                   _selectedDimension = dim;
                   _parseDimensionsFromLabel(dim);
+                  _currentModel = _currentModel.copyWith(labelDimension: dim);
                 });
               },
               onCustomDimensionsChanged: (w, h) {
@@ -634,6 +638,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                   _customWidthMm = w;
                   _customHeightMm = h;
                   _selectedDimension = 'Custom (${w.toInt()} × ${h.toInt()} mm)';
+                  _currentModel = _currentModel.copyWith(labelDimension: _selectedDimension);
                 });
               },
             ),

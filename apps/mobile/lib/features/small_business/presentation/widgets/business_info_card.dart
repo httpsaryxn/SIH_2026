@@ -27,86 +27,261 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
   final FocusNode _fssaiFocus = FocusNode();
   final FocusNode _marketedFocus = FocusNode();
 
+  Future<void> _launchFoscosUrl() async {
+    const fssaiUrl = 'https://foscos.fssai.gov.in/';
+    final uri = Uri.parse(fssaiUrl);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      } catch (e) {
+        debugPrint('Could not launch FoSCoS URL: $e');
+      }
+    }
+  }
+
   void _showFSSAIInfoDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('FSSAI License Information'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '📋 What is FSSAI?',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'FSSAI (Food Safety and Standards Authority of India) is the regulatory body for food safety in India. It issues licenses to food businesses operating in India.',
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                '🎯 When Do You Need It?',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'FSSAI license is required if your product is a food or food-related commodity. Non-food products (cosmetics, pharmaceuticals, etc.) may require different registrations.',
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                '🔢 License Format',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'FSSAI licenses are 14-digit numbers in the format: XX-XXXX-XXXX-XXXX',
-                style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                '🌐 How to Apply',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '1. Visit the official FSSAI website or FoSCoS portal\n2. Register your food business\n3. Complete the application with required documents\n4. Receive your license once approved',
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                '✓ Verify Your License',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Use the "Verify" button below to check if your license number is valid. You can also verify directly on the official FoSCoS portal.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Dialog Header
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.badge_outlined,
+                      size: 20,
+                      color: AppColors.brandDeepGreen,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'FSSAI License Information',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.onSurfaceVariant),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, thickness: 0.8, color: AppColors.outlineVariant),
+                const SizedBox(height: 14),
+
+                // Scrollable Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Section 1: About FSSAI
+                        const _FSSAIInfoSection(
+                          title: 'ABOUT FSSAI',
+                          body:
+                              'FSSAI (Food Safety and Standards Authority of India) is the regulatory body for food safety in India. It issues licenses to food businesses operating in India.',
+                        ),
+                        const SizedBox(height: 14),
+                        const Divider(height: 1, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                        const SizedBox(height: 14),
+
+                        // Section 2: When Do You Need It?
+                        const _FSSAIInfoSection(
+                          title: 'WHEN DO YOU NEED IT?',
+                          body:
+                              'FSSAI license is required if your product is a food or food-related commodity. Non-food products (cosmetics, pharmaceuticals, etc.) may require different registrations.',
+                        ),
+                        const SizedBox(height: 14),
+                        const Divider(height: 1, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                        const SizedBox(height: 14),
+
+                        // Section 3: License Format
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'LICENSE FORMAT',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: AppColors.brandDeepGreen,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'FSSAI licenses are 14-digit numbers in the format:',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: AppColors.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: const Text(
+                                'XX-XXXX-XXXX-XXXX',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const Divider(height: 1, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                        const SizedBox(height: 14),
+
+                        // Section 4: How to Apply
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'HOW TO APPLY',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: AppColors.brandDeepGreen,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _NumberedStepItem(
+                              step: '01',
+                              text: 'Visit the official FSSAI website or FoSCoS portal',
+                              actionWidget: InkWell(
+                                onTap: _launchFoscosUrl,
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Text(
+                                        'https://foscos.fssai.gov.in/',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.brandDeepGreen,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: AppColors.brandDeepGreen,
+                                        ),
+                                      ),
+                                      SizedBox(width: 4),
+                                      Icon(
+                                        Icons.open_in_new_rounded,
+                                        size: 13,
+                                        color: AppColors.brandDeepGreen,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const _NumberedStepItem(
+                              step: '02',
+                              text: 'Register your food business',
+                            ),
+                            const SizedBox(height: 8),
+                            const _NumberedStepItem(
+                              step: '03',
+                              text: 'Complete the application with required documents',
+                            ),
+                            const SizedBox(height: 8),
+                            const _NumberedStepItem(
+                              step: '04',
+                              text: 'Receive your license once approved',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const Divider(height: 1, thickness: 0.6, color: Color(0xFFE2E8F0)),
+                        const SizedBox(height: 14),
+
+                        // Section 5: Verify Your License
+                        const _FSSAIInfoSection(
+                          title: 'VERIFY YOUR LICENSE',
+                          body:
+                              'Use the "Verify" button below to check if your license number is valid. You can also verify directly on the official FoSCoS portal.',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, thickness: 0.8, color: AppColors.outlineVariant),
+                const SizedBox(height: 12),
+
+                // Bottom Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _launchFoscosUrl();
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                      label: const Text('Visit Official Portal (foscos.fssai.gov.in)', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.brandDeepGreen,
+                        side: const BorderSide(color: AppColors.brandDeepGreen),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brandDeepGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text('Close', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              const fssaiUrl = 'https://foscos.fssai.gov.in/';
-              if (await canLaunchUrl(Uri.parse(fssaiUrl))) {
-                await launchUrl(Uri.parse(fssaiUrl), mode: LaunchMode.externalApplication);
-              }
-              if (context.mounted) {
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Visit Official Portal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
@@ -251,16 +426,13 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                       height: 20,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.brandDeepGreen, width: 1.5),
+                        border: Border.all(color: AppColors.brandDeepGreen, width: 1.2),
                       ),
                       child: const Center(
-                        child: Text(
-                          'ⓘ',
-                          style: TextStyle(
-                            color: AppColors.brandDeepGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Icon(
+                          Icons.info_outline_rounded,
+                          size: 13,
+                          color: AppColors.brandDeepGreen,
                         ),
                       ),
                     ),
@@ -509,6 +681,100 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FSSAIInfoSection extends StatelessWidget {
+  const _FSSAIInfoSection({
+    required this.title,
+    required this.body,
+  });
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: AppColors.brandDeepGreen,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          body,
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: AppColors.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NumberedStepItem extends StatelessWidget {
+  const _NumberedStepItem({
+    required this.step,
+    required this.text,
+    this.actionWidget,
+  });
+
+  final String step;
+  final String text;
+  final Widget? actionWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: AppColors.brandDeepGreen.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            step,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brandDeepGreen,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.onSurfaceVariant,
+                  height: 1.35,
+                ),
+              ),
+              if (actionWidget != null) ...[
+                const SizedBox(height: 3),
+                actionWidget!,
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

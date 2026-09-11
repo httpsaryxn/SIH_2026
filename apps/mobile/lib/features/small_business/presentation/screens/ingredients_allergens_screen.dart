@@ -93,21 +93,24 @@ class _IngredientsAllergensScreenState
   }
 
   SmallBusinessLabelModel _buildCurrentState() {
-    final ingModels =
-        _ingredients.map((i) {
-          return SmallBusinessIngredientModel(
-            id: i.id,
-            name: i.name,
-            percentage: i.percentage,
-          );
-        }).toList();
+    final ingModels = _ingredients.isNotEmpty
+        ? _ingredients.map((i) {
+            return SmallBusinessIngredientModel(
+              id: i.id,
+              name: i.name,
+              percentage: i.percentage,
+            );
+          }).toList()
+        : _currentModel.ingredients;
 
     return _currentModel.copyWith(
       ingredientSource: _selectedSource.name,
       ingredients: ingModels,
       allergens: _selectedAllergens,
-      currentStep: 2,
-      completionPercentage: 33,
+      currentStep: _currentModel.currentStep > 2 ? _currentModel.currentStep : 2,
+      completionPercentage: _currentModel.completionPercentage > 33
+          ? _currentModel.completionPercentage
+          : 33,
     );
   }
 
@@ -595,7 +598,12 @@ class _IngredientsAllergensScreenState
   }
 
   Future<void> _onContinue() async {
-    if (_ingredients.isEmpty) {
+    final isCompletedOrEditing = _currentModel.status == 'ready' ||
+        _currentModel.status == 'published' ||
+        _currentModel.completionPercentage >= 80 ||
+        _currentModel.ingredients.isNotEmpty;
+
+    if (_ingredients.isEmpty && !isCompletedOrEditing) {
       _showValidationError(
         'Please add at least 1 ingredient in your formulation list.',
       );
@@ -607,10 +615,11 @@ class _IngredientsAllergensScreenState
     if (!mounted) return;
     setState(() => _currentModel = saved);
 
+    final count = _ingredients.isNotEmpty ? _ingredients.length : saved.ingredients.length;
     _notificationService.notify(
       title: 'Step 2 Complete',
       message:
-          'Ingredients list validated with ${_ingredients.length} items. Proceeding to Nutritional Values.',
+          'Ingredients list validated with $count items. Proceeding to Nutritional Values.',
       type: NotificationType.compliance,
     );
 

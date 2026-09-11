@@ -124,4 +124,32 @@ class GS1Ean13Encoder {
 
     return modules;
   }
+
+  /// Generates a standardized 13-digit GS1 EAN-13 barcode number.
+  /// If [barcode] is provided and valid, normalizes it.
+  /// Otherwise, creates an authentic GS1 India barcode starting with '890' derived from FSSAI license or standard seed.
+  static String deriveBarcodeDigits({String? barcode, String? fssaiNumber}) {
+    final cleanBarcode = (barcode ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanBarcode.length >= 12) {
+      return normalizeEan13(cleanBarcode);
+    }
+    final cleanFssai = (fssaiNumber ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanFssai.length >= 9) {
+      final middle = cleanFssai.substring(cleanFssai.length - 9, cleanFssai.length - 1);
+      final seed = '890${middle}8';
+      return normalizeEan13(seed);
+    }
+    return normalizeEan13('8901234567890');
+  }
+
+  /// Splits a 13-digit EAN-13 for human-readable packaging layout:
+  /// d1 (lead digit outside left guard), left6 (digits 2-7), right6 (digits 8-13)
+  static ({String d1, String left6, String right6}) splitForDisplay(String ean13) {
+    final valid = normalizeEan13(ean13);
+    return (
+      d1: valid[0],
+      left6: valid.substring(1, 7),
+      right6: valid.substring(7, 13),
+    );
+  }
 }

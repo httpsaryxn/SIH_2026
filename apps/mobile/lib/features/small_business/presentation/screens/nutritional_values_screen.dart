@@ -202,32 +202,39 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
   }
 
   SmallBusinessLabelModel _buildCurrentState() {
-    final nutrientModels =
-        _nutrients.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final n = entry.value;
-          return SmallBusinessNutrientModel(
-            label: n.label,
-            value: n.controller.text.trim(),
-            unit: n.unit,
-            isRequired: n.isRequired,
-            isSubNutrient: n.isSubNutrient,
-            orderIndex: idx + 1,
-          );
-        }).toList();
+    final nutrientModels = _nutrients.any((n) => n.controller.text.trim().isNotEmpty)
+        ? _nutrients.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final n = entry.value;
+            return SmallBusinessNutrientModel(
+              label: n.label,
+              value: n.controller.text.trim(),
+              unit: n.unit,
+              isRequired: n.isRequired,
+              isSubNutrient: n.isSubNutrient,
+              orderIndex: idx + 1,
+            );
+          }).toList()
+        : _currentModel.nutrients;
 
     return _currentModel.copyWith(
-      netQuantity: _netQuantityController.text.trim(),
+      netQuantity: _netQuantityController.text.trim().isNotEmpty
+          ? _netQuantityController.text.trim()
+          : (_currentModel.netQuantity.isNotEmpty ? _currentModel.netQuantity : '100'),
       netQuantityUnit: _netQuantityUnit,
-      servingSize: _servingSizeController.text.trim(),
+      servingSize: _servingSizeController.text.trim().isNotEmpty
+          ? _servingSizeController.text.trim()
+          : (_currentModel.servingSize.isNotEmpty ? _currentModel.servingSize : '30'),
       servingSizeUnit: _servingSizeUnit,
       displayMode: _displayMode.name,
       labelFormat: _labelFormat.name,
       targetAudience: _targetAudience,
       ageGroup: _ageGroup,
       nutrients: nutrientModels,
-      currentStep: 3,
-      completionPercentage: 50,
+      currentStep: _currentModel.currentStep > 3 ? _currentModel.currentStep : 3,
+      completionPercentage: _currentModel.completionPercentage > 50
+          ? _currentModel.completionPercentage
+          : 50,
     );
   }
 
@@ -444,27 +451,43 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
     final netQty = _netQuantityController.text.trim();
     final serving = _servingSizeController.text.trim();
 
+    final isCompletedOrEditing = _currentModel.status == 'ready' ||
+        _currentModel.status == 'published' ||
+        _currentModel.completionPercentage >= 80 ||
+        _nutrients.any((n) => n.controller.text.trim().isNotEmpty) ||
+        _currentModel.nutrients.isNotEmpty;
+
     if (netQty.isEmpty) {
-      _showValidationError('Please enter Net Quantity (Weight/Volume).');
-      return;
+      if (isCompletedOrEditing && _currentModel.netQuantity.isNotEmpty) {
+        _netQuantityController.text = _currentModel.netQuantity;
+      } else {
+        _showValidationError('Please enter Net Quantity (Weight/Volume).');
+        return;
+      }
     }
     if (serving.isEmpty) {
-      _showValidationError('Please enter Serving Size.');
-      return;
+      if (isCompletedOrEditing && _currentModel.servingSize.isNotEmpty) {
+        _servingSizeController.text = _currentModel.servingSize;
+      } else {
+        _showValidationError('Please enter Serving Size.');
+        return;
+      }
     }
 
-    // Check mandatory baseline nutrients
-    final calories = _getNutrientValue('Calories');
-    final fat = _getNutrientValue('Total Fat');
-    final carbs = _getNutrientValue('Carbohydrates');
-    final protein = _getNutrientValue('Protein');
-    final sodium = _getNutrientValue('Sodium');
+    // Check mandatory baseline nutrients only for new/incomplete drafts
+    if (!isCompletedOrEditing) {
+      final calories = _getNutrientValue('Calories');
+      final fat = _getNutrientValue('Total Fat');
+      final carbs = _getNutrientValue('Carbohydrates');
+      final protein = _getNutrientValue('Protein');
+      final sodium = _getNutrientValue('Sodium');
 
-    if (calories.isEmpty || fat.isEmpty || carbs.isEmpty || protein.isEmpty || sodium.isEmpty) {
-      _showValidationError(
-        'Please enter values for mandatory nutrients: Calories, Fat, Carbs, Protein, and Sodium.',
-      );
-      return;
+      if (calories.isEmpty || fat.isEmpty || carbs.isEmpty || protein.isEmpty || sodium.isEmpty) {
+        _showValidationError(
+          'Please enter values for mandatory nutrients: Calories, Fat, Carbs, Protein, and Sodium.',
+        );
+        return;
+      }
     }
 
     final updatedModel = _buildCurrentState();
@@ -515,11 +538,29 @@ class _NutritionalValuesScreenState extends State<NutritionalValuesScreen> {
   }
 
   String _getNutrientValue(String label) {
-    final item = _nutrients.firstWhere(
-      (n) => n.label.toLowerCase() == label.toLowerCase(),
-      orElse: () => NutrientRowData(label: '', unit: '', controller: TextEditingController()),
-    );
-    return item.controller.text.trim();
+    final l = label.toLowerCase();
+    for (final n in _nutrients) {
+      final nl = n.label.toLowerCase();
+      if (l == 'calories' && (nl.contains('calorie') || nl.contains('energy'))) {
+        return n.controller.text.trim();
+      }
+      if (l == 'carbohydrates' && (nl.contains('carb') || nl.contains('carbohydrate'))) {
+        return n.controller.text.trim();
+      }
+      if (l == 'total fat' && (nl.contains('fat') && !nl.contains('sat') && !nl.contains('trans'))) {
+        return n.controller.text.trim();
+      }
+      if (l == 'protein' && nl.contains('protein')) {
+        return n.controller.text.trim();
+      }
+      if (l == 'sodium' && (nl.contains('sodium') || nl.contains('salt'))) {
+        return n.controller.text.trim();
+      }
+      if (nl == l) {
+        return n.controller.text.trim();
+      }
+    }
+    return '';
   }
 
   void _showValidationError(String msg) {

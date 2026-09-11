@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class DatesBatchPricingCard extends StatelessWidget {
@@ -12,6 +13,7 @@ class DatesBatchPricingCard extends StatelessWidget {
     required this.onBestBeforeChanged,
     required this.onAutoCalculateUSP,
     required this.onGenerateBatchCode,
+    this.onSelectMfgDate,
   });
 
   final TextEditingController mrpController;
@@ -22,6 +24,7 @@ class DatesBatchPricingCard extends StatelessWidget {
   final ValueChanged<String> onBestBeforeChanged;
   final VoidCallback onAutoCalculateUSP;
   final VoidCallback onGenerateBatchCode;
+  final VoidCallback? onSelectMfgDate;
 
   static final List<String> bestBeforeOptions = [
     '6 Months from Packaging',
@@ -349,12 +352,16 @@ class DatesBatchPricingCard extends StatelessWidget {
                         color: AppColors.onSurface,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'AUG 2026',
+                        hintText: DateFormat('dd MMM yyyy').format(DateTime.now()).toUpperCase(),
                         hintStyle: const TextStyle(fontSize: 13, color: AppColors.outline),
-                        suffixIcon: const Icon(
-                          Icons.calendar_month_rounded,
-                          size: 18,
-                          color: AppColors.onSurfaceVariant,
+                        suffixIcon: IconButton(
+                          icon: const Icon(
+                            Icons.calendar_month_rounded,
+                            size: 20,
+                            color: AppColors.brandDeepGreen,
+                          ),
+                          tooltip: 'Select Packaging Date',
+                          onPressed: onSelectMfgDate ?? () => _defaultPickDate(context),
                         ),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
@@ -439,5 +446,45 @@ class DatesBatchPricingCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _defaultPickDate(BuildContext context) async {
+    final now = DateTime.now();
+    DateTime initial = now;
+    final txt = mfgDateController.text.trim();
+    if (txt.isNotEmpty) {
+      try {
+        initial = DateFormat('dd MMM yyyy').parse(txt);
+      } catch (_) {
+        try {
+          initial = DateFormat('MMM yyyy').parse(txt);
+        } catch (_) {}
+      }
+    }
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'SELECT PACKAGING / MFG DATE',
+      confirmText: 'SELECT',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.brandDeepGreen,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.onSurface,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      mfgDateController.text =
+          DateFormat('dd MMM yyyy').format(picked).toUpperCase();
+    }
   }
 }
