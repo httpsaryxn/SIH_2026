@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/gemini_config.dart';
 
 /// Response from the ML Scanner `/analyze` endpoint.
 class MlScannerResult {
@@ -424,9 +425,12 @@ class MlScannerClient {
       debugPrint('  → Barcode Number: $barcodeNumber');
     }
 
-    // API key via header
-    if (geminiApiKey != null && geminiApiKey.isNotEmpty) {
-      request.headers['X-Gemini-Api-Key'] = geminiApiKey;
+    // API key via header (automatic GeminiConfig fallback)
+    final effectiveKey = (geminiApiKey != null && geminiApiKey.isNotEmpty)
+        ? geminiApiKey
+        : GeminiConfig.apiKeySync;
+    if (effectiveKey.isNotEmpty) {
+      request.headers['X-Gemini-Api-Key'] = effectiveKey;
     }
 
     final stopwatch = Stopwatch()..start();

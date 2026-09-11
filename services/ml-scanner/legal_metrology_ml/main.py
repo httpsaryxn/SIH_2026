@@ -275,6 +275,122 @@ def _process_single_image(
     return package_data, calibration
 
 
+def _enrich_with_barcode_and_qr(
+    package_data: PackageData,
+    front_image: Optional[str] = None,
+    back_image: Optional[str] = None,
+    ruler_image: Optional[str] = None,
+    barcode_image: Optional[str] = None,
+    barcode_number: Optional[str] = None,
+) -> tuple[Optional[Any], list[Any]]:
+    """Scan all packaging evidence images for Barcodes and QR Codes, perform live
+    webscraping and registry lookup (Open Food Facts, GS1, UPCItemDB), and enrich package_data.
+    """
+    detected_barcodes = []
+    try:
+        from legal_metrology_ml.layer1_feature_extraction.barcode_scanner import BarcodeScanner
+        scanner = BarcodeScanner()
+        for img in (barcode_image, front_image, back_image, ruler_image):
+            if img and Path(img).is_file():
+                try:
+                    bcs = scanner.scan(img)
+                    if bcs:
+                        detected_barcodes.extend(bcs)
+                except Exception as e:
+                    logger.debug("Barcode scanning on %s: %s", img, e)
+    except Exception as e:
+        logger.warning("Barcode scanner initialization error: %s", e)
+
+    # Determine primary barcode value: manual override > scanned barcode > printed barcode in declarations
+    bc_val = (barcode_number or "").strip() or None
+    if not bc_val and detected_barcodes:
+        for b in detected_barcodes:
+            if b.type != "QRCODE" and b.code and len(b.code) in (8, 12, 13, 14):
+                bc_val = b.code
+                break
+    if not bc_val and package_data.barcode_value:
+        cand = str(package_data.barcode_value).strip()
+        if len(cand) in (8, 12, 13, 14) and cand.isdigit():
+            bc_val = cand
+
+    # QR Code detection & webscraping
+    for b in detected_barcodes:
+        if b.type == "QRCODE" or b.code.startswith("http://") or b.code.startswith("https://"):
+            package_data.has_barcode = True
+            if not package_data.barcode_value:
+                package_data.barcode_value = b.code
+                package_data.barcode_type = "QRCODE"
+            try:
+                import urllib.parse
+                u = urllib.parse.urlparse(b.code)
+                if u.scheme in ("http", "https") and u.netloc:
+                    logger.info("Detected QR Code URL on packaging: %s", b.code)
+                    package_data.data_provenance["qr_code_url"] = b.code
+                    try:
+                        import requests
+                        resp = requests.get(b.code, timeout=4, headers={"User-Agent": "LegalMetrologyApp/3.0 (verification)"})
+                        if resp.status_code == 200:
+                            package_data.data_provenance["qr_verified"] = "Reachable"
+                            import re
+                            m = re.search(r"<title>(.*?)</title>", resp.text, re.IGNORECASE)
+                            if m:
+                                package_data.data_provenance["qr_page_title"] = m.group(1).strip()
+                    except Exception as net_err:
+                        logger.debug("QR verification web query failed: %s", net_err)
+            except Exception as qr_err:
+                logger.debug("QR parsing failed: %s", qr_err)
+
+    barcode_gtin_info = None
+    barcode_rules_results = []
+    if bc_val:
+        from legal_metrology_ml.layer1_feature_extraction.gs1 import classify_gtin
+        from legal_metrology_ml.data_sources.product_lookup import lookup_product
+        from legal_metrology_ml.layer4_rulebook_engine.barcode_rules import evaluate_barcode_rules
+
+        barcode_gtin_info = classify_gtin(bc_val)
+        package_data.has_barcode = True
+        package_data.barcode_value = bc_val
+        package_data.barcode_type = barcode_gtin_info.fmt or ("EAN-13" if len(bc_val) == 13 else "BARCODE")
+        package_data.barcode_gtin_format = barcode_gtin_info.fmt
+        package_data.barcode_checksum_valid = barcode_gtin_info.checksum_valid
+        package_data.barcode_valid = barcode_gtin_info.is_valid
+        package_data.barcode_country = barcode_gtin_info.issuing_country
+        package_data.barcode_is_gs1_india = barcode_gtin_info.is_gs1_india
+        package_data.barcode_is_restricted = barcode_gtin_info.is_restricted
+
+        try:
+            barcode_record = lookup_product(bc_val)
+            package_data.product_data_sources = list(barcode_record.sources)
+            package_data.product_identified = barcode_record.found
+            package_data.barcode_registered_owner = (
+                barcode_record.brand or barcode_record.manufacturer_name
+            )
+            # Merge registry data into declarations missing from label image
+            for pkg_f, rec_f in [
+                ("commodity_name", "product_name"),
+                ("manufacturer_name", "manufacturer_name"),
+                ("manufacturer_address", "manufacturer_address"),
+                ("country_of_origin", "country_of_origin"),
+                ("net_quantity_value", "net_quantity_value"),
+                ("net_quantity_unit", "net_quantity_unit"),
+                ("mrp_value", "mrp_value"),
+                ("fssai_license_number", "fssai_license"),
+            ]:
+                if getattr(package_data, pkg_f, None) in (None, "", []):
+                    v = getattr(barcode_record, rec_f, None)
+                    if v not in (None, "", []):
+                        setattr(package_data, pkg_f, v)
+                        package_data.data_provenance[pkg_f] = "barcode_registry"
+            logger.info("Live webscrape / registry lookup for GTIN %s: found=%s sources=%s",
+                        bc_val, barcode_record.found, barcode_record.sources)
+        except Exception as e:
+            logger.warning("Product lookup / webscrape failed for %s: %s", bc_val, e)
+
+        barcode_rules_results = evaluate_barcode_rules(package_data, barcode_gtin_info)
+
+    return barcode_gtin_info, barcode_rules_results
+
+
 def run_pipeline(
     front_image: Optional[str] = None,
     back_image: Optional[str] = None,
@@ -346,11 +462,63 @@ def run_pipeline(
                 pkg_data, score, diff, recs = llm_engine.analyze_from_images(
                     front_image, back_image, package_height_mm=package_height_mm
                 )
+
+                # ── Step 2: QR & Barcode detection + Live Webscraping & Registry Lookup ──
+                barcode_gtin_info, barcode_results = _enrich_with_barcode_and_qr(
+                    package_data=pkg_data,
+                    front_image=front_image,
+                    back_image=back_image,
+                    ruler_image=ruler_image,
+                    barcode_image=barcode_image,
+                    barcode_number=barcode_number,
+                )
+
+                contributions = {"llm_vision_analysis": 1.0}
+                if pkg_data.has_barcode:
+                    contributions["barcode_registry_analysis"] = 1.0
+
+                # Merge barcode rule results into statutory rule diff
+                if barcode_results:
+                    for br in barcode_results:
+                        if not any(r.rule_id == br.rule_id for r in (diff.passed + diff.failed + diff.warnings)):
+                            if br.status == "PASS":
+                                diff.passed.append(br)
+                            elif br.status == "FAIL":
+                                diff.failed.append(br)
+                            elif br.status == "WARNING":
+                                diff.warnings.append(br)
+                            else:
+                                diff.inconclusive.append(br)
+                    diff.total_rules = len(diff.passed) + len(diff.failed) + len(diff.warnings) + len(diff.not_applicable) + len(diff.inconclusive)
+
+                    passed_w = sum(r.weight for r in diff.passed)
+                    failed_w = sum(r.weight for r in diff.failed)
+                    warn_w = sum(r.weight for r in diff.warnings)
+                    total_w = passed_w + failed_w + warn_w
+                    if total_w > 0:
+                        recalc_prob = passed_w / total_w
+                        from legal_metrology_ml.layer5_aggregation.scorer import ComplianceScorer
+                        from legal_metrology_ml.layer2_data_normalization.schema import ComplianceScore
+                        star_rating, star_label = ComplianceScorer()._get_star_rating(recalc_prob)
+                        score = ComplianceScore(
+                            final_score=round(recalc_prob, 3),
+                            ebm_score=round(recalc_prob, 3),
+                            rule_score=round(recalc_prob, 3),
+                            star_rating=star_rating,
+                            star_label=star_label,
+                            total_applicable_rules=len(diff.passed) + len(diff.failed) + len(diff.warnings),
+                            passed_rules=len(diff.passed),
+                            failed_rules=len(diff.failed),
+                            critical_failures=sum(1 for r in diff.failed if r.severity == "CRITICAL"),
+                            major_failures=sum(1 for r in diff.failed if r.severity == "MAJOR"),
+                            minor_failures=sum(1 for r in diff.failed if r.severity == "MINOR"),
+                        )
+
                 from legal_metrology_ml.layer3_ml_model.ebm_model import CompliancePrediction
                 ebm_prediction = CompliancePrediction(
                     compliance_probability=score.final_score,
                     predicted_compliant=(score.final_score >= 0.70),
-                    feature_contributions={"llm_vision_analysis": 1.0},
+                    feature_contributions=contributions,
                     top_risk_factors=[r.rule_name for r in diff.failed],
                 )
                 image_label = front_image
@@ -448,43 +616,15 @@ def run_pipeline(
     if not active_barcode and package_data.barcode_value:
         active_barcode = package_data.barcode_value
 
-    if active_barcode:
-        bc_val = str(active_barcode).strip()
-        barcode_gtin_info = classify_gtin(bc_val)
-        package_data.has_barcode = True
-        package_data.barcode_value = bc_val
-        package_data.barcode_type = barcode_gtin_info.fmt or ("EAN-13" if len(bc_val) == 13 else "BARCODE")
-        package_data.barcode_gtin_format = barcode_gtin_info.fmt
-        package_data.barcode_checksum_valid = barcode_gtin_info.checksum_valid
-        package_data.barcode_valid = barcode_gtin_info.is_valid
-        package_data.barcode_country = barcode_gtin_info.issuing_country
-        package_data.barcode_is_gs1_india = barcode_gtin_info.is_gs1_india
-        package_data.barcode_is_restricted = barcode_gtin_info.is_restricted
-        try:
-            barcode_record = lookup_product(bc_val)
-            package_data.product_data_sources = list(barcode_record.sources)
-            package_data.product_identified = barcode_record.found
-            package_data.barcode_registered_owner = (
-                barcode_record.brand or barcode_record.manufacturer_name
-            )
-            # Fill only fields the label OCR could not extract.
-            for pkg_f, rec_f in [
-                ("commodity_name", "product_name"),
-                ("manufacturer_name", "manufacturer_name"),
-                ("manufacturer_address", "manufacturer_address"),
-                ("country_of_origin", "country_of_origin"),
-                ("net_quantity_value", "net_quantity_value"),
-                ("net_quantity_unit", "net_quantity_unit"),
-            ]:
-                if getattr(package_data, pkg_f) in (None, "", []):
-                    v = getattr(barcode_record, rec_f, None)
-                    if v not in (None, "", []):
-                        setattr(package_data, pkg_f, v)
-                        package_data.data_provenance[pkg_f] = "barcode_registry"
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Registry lookup for attached barcode failed: %s", e)
-        logger.info("Barcode attached to image audit: %s (valid GTIN: %s, GS1 India: %s)",
-                    bc_val, barcode_gtin_info.is_valid, barcode_gtin_info.is_gs1_india)
+    # ── Barcode & QR code integration + Live Webscraping for image audit ────
+    barcode_gtin_info, extra_barcode_rules = _enrich_with_barcode_and_qr(
+        package_data=package_data,
+        front_image=front_image,
+        back_image=back_image,
+        ruler_image=ruler_image,
+        barcode_image=barcode_image,
+        barcode_number=barcode_number,
+    )
 
     # ── Layer 3: ML Assessment ──────────────────────────────────────────────
     logger.info("Layer 3: ML Assessment")
@@ -506,8 +646,7 @@ def run_pipeline(
     # ── Layer 4: Rulebook ───────────────────────────────────────────────────
     logger.info("Layer 4: Rulebook Evaluation")
     engine = RulebookEngine()
-    extra = evaluate_barcode_rules(package_data, barcode_gtin_info) if package_data.has_barcode else None
-    rulebook_diff = engine.evaluate(package_data, extra_results=extra)
+    rulebook_diff = engine.evaluate(package_data, extra_results=extra_barcode_rules)
 
     # ── Layer 5: Score & Report ─────────────────────────────────────────────
     logger.info("Layer 5: Aggregation")

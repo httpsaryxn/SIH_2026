@@ -4,6 +4,7 @@ import 'package:legal_metrology/legal_metrology.dart';
 import '../models/multi_capture_payload.dart';
 import '../models/pending_capture.dart';
 import 'ml_scanner_client.dart';
+import '../config/gemini_config.dart';
 
 /// Result of an on-device Legal Metrology audit, mapped into the vocabulary the
 /// app already uses (`compliance_status`, `compliance_issues`,
@@ -173,7 +174,7 @@ class LegalMetrologyService {
       frontImagePath: frontPath,
       backImagePath: backPath,
       rulerImagePath: rulerPath,
-      geminiApiKey: geminiApiKey,
+      geminiApiKey: geminiApiKey ?? GeminiConfig.apiKeySync,
     );
   }
 

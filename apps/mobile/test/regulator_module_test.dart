@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/services/regulator_data_service.dart';
+import 'package:mobile/core/models/regulator_violation.dart';
 import 'package:mobile/screens/regulator/regulator_home_screen.dart';
 import 'package:mobile/screens/regulator/regulator_audit_intake_screen.dart';
 import 'package:mobile/screens/regulator/regulator_violation_review_screen.dart';
@@ -180,6 +181,51 @@ void main() {
       expect(find.text('Confirm Violation'), findsOneWidget);
       expect(find.text('Mark False Positive'), findsOneWidget);
       expect(find.text('Escalate'), findsOneWidget);
+    });
+
+    testWidgets('Screen 3 - RegulatorViolationReviewScreen with initialViolation renders scanned product and NO mock data',
+        (tester) async {
+      final customViolation = RegulatorViolation(
+        id: 'AUD-PEPSI-12345',
+        scanId: 'SCN-PEPSI-99',
+        productName: 'Pepsi Zero Sugar 250ml Can',
+        companyName: 'PepsiCo India Holdings Pvt Ltd',
+        category: 'Carbonated Beverage',
+        region: 'North Zone',
+        storeLocation: 'Retail Store',
+        imageUrl: '',
+        severity: 'Critical',
+        riskLevel: 'Critical Risk',
+        confidenceScore: 98,
+        violationType: 'Rule 6 - Net Quantity Missing',
+        violationSummary: 'Net quantity declaration unverified under PCR 2011.',
+        capturedAt: DateTime.now(),
+        status: 'pending_review',
+        declarations: const [
+          RegulatorDeclaration(
+            fieldName: 'Net Quantity',
+            extractedValue: '250 ml',
+            confidencePercent: 98,
+            status: 'Pass',
+            ruleCitation: 'Rule 6(1)(e)',
+            ruleDescription: 'Standard units required',
+          ),
+        ],
+        overlayBoxes: const [],
+      );
+
+      await tester.pumpWidget(createTestApp(
+        RegulatorViolationReviewScreen(
+          violationId: customViolation.id,
+          initialViolation: customViolation,
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Pepsi Zero Sugar 250ml Can'), findsOneWidget);
+      expect(find.text('Company: PepsiCo India Holdings Pvt Ltd'), findsOneWidget);
+      expect(find.text('Instant Masala Noodles 70g Pack'), findsNothing);
+      expect(find.text('Nestle India Limited'), findsNothing);
     });
 
     testWidgets('Screen 4 - RegulatorComplaintInboxScreen renders tabs and complaints',

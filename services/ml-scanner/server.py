@@ -185,7 +185,7 @@ async def analyze(
     barcode_path: Optional[Path] = None
 
     try:
-        api_key = x_gemini_api_key or gemini_api_key
+        api_key = x_gemini_api_key or gemini_api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
         # Save uploaded files (supporting both original names and Flutter canonical names)
         front_file = front or front_label or image
