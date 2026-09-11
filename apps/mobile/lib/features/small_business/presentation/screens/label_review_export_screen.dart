@@ -118,15 +118,19 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     );
   }
 
-  Future<void> _onExport() async {
-    setState(() => _isExporting = true);
+  Future<void> _onExport([ExportFormat? formatOverride]) async {
+    final formatToExport = formatOverride ?? _selectedFormat;
+    setState(() {
+      _selectedFormat = formatToExport;
+      _isExporting = true;
+    });
 
     try {
       final modelToPublish = _currentModel.copyWith(
         status: 'ready',
         currentStep: 6,
         completionPercentage: 100,
-        exportFormat: _selectedFormat.name,
+        exportFormat: formatToExport.name,
         labelDimension: _selectedDimension,
       );
 
@@ -142,10 +146,16 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
 
       // 2. Direct Browser / OS File Download to Downloads folder
       String? savedFilePath;
-      switch (_selectedFormat) {
+      switch (formatToExport) {
         case ExportFormat.png:
           List<int>? pngBytes;
           try {
+            if (_labelRepaintKey.currentContext != null) {
+              await Scrollable.ensureVisible(
+                _labelRepaintKey.currentContext!,
+                duration: const Duration(milliseconds: 100),
+              );
+            }
             await WidgetsBinding.instance.endOfFrame;
             final boundary = _labelRepaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
             if (boundary != null) {
@@ -168,7 +178,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
             preRenderedBytes: pngBytes,
-            shareOnMobile: true,
+            shareOnMobile: false,
           );
           break;
         case ExportFormat.svg:
@@ -177,7 +187,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
-            shareOnMobile: true,
+            shareOnMobile: false,
           );
           break;
         case ExportFormat.pdf:
@@ -186,12 +196,13 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             dimension: _selectedDimension,
             widthMm: _customWidthMm,
             heightMm: _customHeightMm,
-            shareOnMobile: true,
+            shareOnMobile: false,
           );
           break;
         case ExportFormat.json:
           savedFilePath = await FileDownloadService.downloadJsonMetadata(
             model: modelToPublish,
+            shareOnMobile: false,
           );
           break;
       }
@@ -199,35 +210,69 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
       _notificationService.notify(
         title: 'Label Downloaded to Device',
         message:
-            'Downloaded "${modelToPublish.productName}" packaging artwork (${_selectedFormat.name.toUpperCase()}) directly to your device.',
+            'Downloaded "${modelToPublish.productName}" packaging artwork (${formatToExport.name.toUpperCase()}) directly to your device.',
         type: NotificationType.compliance,
       );
 
       if (!mounted) return;
-      setState(() => _isExporting = false);
 
       final displayFileName = savedFilePath != null
           ? savedFilePath.split(r'/').last.split(r'\').last
-          : '${modelToPublish.productName}_artwork.${_selectedFormat.name}';
+          : '${modelToPublish.productName}_artwork.${formatToExport.name}';
 
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Saved: $displayFileName'),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Downloaded ($displayFileName)',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
           backgroundColor: AppColors.brandDeepGreen,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 4),
+          action: savedFilePath != null
+              ? SnackBarAction(
+                  label: 'OPEN',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    FileDownloadService.shareLabel(
+                      title: displayFileName,
+                      text: 'Packaging label: $displayFileName',
+                      filePath: savedFilePath,
+                    );
+                  },
+                )
+              : null,
         ),
       );
 
-      _showExportSuccessDialog(savedFilePath);
+      _showExportSuccessDialog(savedFilePath, formatToExport);
     } catch (e) {
+      debugPrint('Export error: $e');
       if (!mounted) return;
-      setState(() => _isExporting = false);
-      
       _notificationService.notify(
         title: 'Download Error',
         message: 'Could not export file. Please try again.',
         type: NotificationType.warning,
       );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
     }
   }
 
@@ -415,10 +460,11 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
     );
   }
 
-  void _showExportSuccessDialog([String? savedFilePath]) {
+  void _showExportSuccessDialog([String? savedFilePath, ExportFormat? exportedFormat]) {
+    final format = exportedFormat ?? _selectedFormat;
     final fileName = savedFilePath != null
         ? savedFilePath.split(r'/').last.split(r'\').last
-        : '${_currentModel.productName}_artwork.${_selectedFormat.name}';
+        : '${_currentModel.productName}_artwork.${format.name}';
 
     showDialog(
       context: context,
@@ -441,7 +487,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your print-ready ${_selectedFormat.name.toUpperCase()} file "$fileName" has been generated and saved to your device.',
+              'Your print-ready ${format.name.toUpperCase()} file "$fileName" has been generated and saved to your device.',
               style: const TextStyle(fontSize: 13.5, color: AppColors.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 12),
@@ -457,7 +503,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Format: ${_selectedFormat.name.toUpperCase()} • Spec: $_selectedDimension',
+                      'Format: ${format.name.toUpperCase()} • Spec: $_selectedDimension',
                       style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                     ),
                   ),
@@ -488,7 +534,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Keep Editing'),
+            child: const Text('Download Another Format'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -623,6 +669,7 @@ class _LabelReviewExportScreenState extends State<LabelReviewExportScreen> {
             ExportOptionsCard(
               selectedFormat: _selectedFormat,
               onFormatChanged: (fmt) => setState(() => _selectedFormat = fmt),
+              onExportFormat: (fmt) => _onExport(fmt),
               selectedDimension: _selectedDimension,
               customWidthMm: _customWidthMm,
               customHeightMm: _customHeightMm,

@@ -6,27 +6,43 @@ Future<String?> triggerDownload({
   required String fileName,
   required String content,
   required String mimeType,
-  bool shareOnMobile = true,
+  bool shareOnMobile = false,
 }) async {
-  final href = content.startsWith('data:')
-      ? content
-      : 'data:$mimeType;charset=utf-8,${Uri.encodeComponent(content)}';
+  try {
+    final blob = html.Blob([content], mimeType);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
+      ..style.display = 'none';
 
-  final anchor = html.AnchorElement(href: href)
-    ..setAttribute('download', fileName)
-    ..style.display = 'none';
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    html.document.body?.children.remove(anchor);
+    Timer(const Duration(seconds: 10), () {
+      html.Url.revokeObjectUrl(url);
+    });
+    return fileName;
+  } catch (e) {
+    final href = content.startsWith('data:')
+        ? content
+        : 'data:$mimeType;charset=utf-8,${Uri.encodeComponent(content)}';
 
-  html.document.body?.children.add(anchor);
-  anchor.click();
-  html.document.body?.children.remove(anchor);
-  return fileName;
+    final anchor = html.AnchorElement(href: href)
+      ..setAttribute('download', fileName)
+      ..style.display = 'none';
+
+    html.document.body?.children.add(anchor);
+    anchor.click();
+    html.document.body?.children.remove(anchor);
+    return fileName;
+  }
 }
 
 Future<String?> triggerBytesDownload({
   required String fileName,
   required List<int> bytes,
   required String mimeType,
-  bool shareOnMobile = true,
+  bool shareOnMobile = false,
 }) async {
   final blob = html.Blob([bytes], mimeType);
   final url = html.Url.createObjectUrlFromBlob(blob);
@@ -37,7 +53,9 @@ Future<String?> triggerBytesDownload({
   html.document.body?.children.add(anchor);
   anchor.click();
   html.document.body?.children.remove(anchor);
-  html.Url.revokeObjectUrl(url);
+  Timer(const Duration(seconds: 10), () {
+    html.Url.revokeObjectUrl(url);
+  });
   return fileName;
 }
 

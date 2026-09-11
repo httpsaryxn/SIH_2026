@@ -5,25 +5,42 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// Resolves the most appropriate persistent Exports or Documents folder
+/// Resolves the most appropriate persistent and accessible Downloads folder on the device
 Future<String> _getDownloadDirectoryPath() async {
-  // 1. On Android: try public Downloads folder directly (/storage/emulated/0/Download)
-  // This is directly visible in the device's Files / Downloads app.
   if (Platform.isAndroid) {
+    // 1. Check if public /storage/emulated/0/Download is directly writable
     try {
       const publicDownloadPath = '/storage/emulated/0/Download';
-      final publicDownloadDir = Directory(publicDownloadPath);
-      if (await publicDownloadDir.exists()) {
+      final publicDir = Directory(publicDownloadPath);
+      if (await publicDir.exists()) {
+        final testFile = File('$publicDownloadPath/.labellens_write_test_${DateTime.now().millisecondsSinceEpoch}');
+        await testFile.writeAsString('test', flush: true);
+        await testFile.delete();
         return publicDownloadPath;
       }
     } catch (e) {
-      debugPrint('Android public Download directory check note: $e');
+      debugPrint('Android public Download directory not directly writable: $e');
     }
 
+    // 2. Use app external downloads directory (Always accessible & user visible in Android/data/.../files/Download)
+    try {
+      final extDirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+      if (extDirs != null && extDirs.isNotEmpty) {
+        final d = extDirs.first;
+        if (!await d.exists()) {
+          await d.create(recursive: true);
+        }
+        return d.path;
+      }
+    } catch (e) {
+      debugPrint('Android getExternalStorageDirectories(downloads) note: $e');
+    }
+
+    // 3. Fallback to external storage directory
     try {
       final extDir = await getExternalStorageDirectory();
       if (extDir != null) {
-        final exportsDir = Directory('${extDir.path}/Exports');
+        final exportsDir = Directory('${extDir.path}/Downloads');
         if (!await exportsDir.exists()) {
           await exportsDir.create(recursive: true);
         }
@@ -34,7 +51,7 @@ Future<String> _getDownloadDirectoryPath() async {
     }
   }
 
-  // 2. On desktop platforms (Windows, macOS, Linux): use system Downloads folder
+  // Desktop platforms (Windows, macOS, Linux): use system Downloads folder
   if (!Platform.isAndroid && !Platform.isIOS) {
     try {
       final downloadsDir = await getDownloadsDirectory();
@@ -44,10 +61,10 @@ Future<String> _getDownloadDirectoryPath() async {
     } catch (_) {}
   }
 
-  // 3. Fallback: application documents directory
+  // iOS / Fallback: application documents directory
   try {
     final appDocDir = await getApplicationDocumentsDirectory();
-    final exportsDir = Directory('${appDocDir.path}/Exports');
+    final exportsDir = Directory('${appDocDir.path}/Downloads');
     if (!await exportsDir.exists()) {
       await exportsDir.create(recursive: true);
     }
@@ -70,15 +87,15 @@ Future<String?> triggerDownload({
     debugPrint('File saved directly to: ${file.path}');
 
     if (shareOnMobile && (Platform.isAndroid || Platform.isIOS)) {
-      try {
-        await Share.shareXFiles(
+      unawaited(
+        Share.shareXFiles(
           [XFile(file.path, mimeType: mimeType, name: fileName)],
           text: 'Exported packaging label artwork: $fileName',
           subject: fileName,
-        );
-      } catch (e) {
-        debugPrint('Auto-share error: $e');
-      }
+        ).then<void>((_) {}, onError: (e) {
+          debugPrint('Auto-share error: $e');
+        }),
+      );
     }
 
     return file.path;
@@ -88,13 +105,13 @@ Future<String?> triggerDownload({
       final fallbackFile = File('${Directory.systemTemp.path}/$fileName');
       await fallbackFile.writeAsString(content, encoding: utf8, flush: true);
       if (shareOnMobile && (Platform.isAndroid || Platform.isIOS)) {
-        try {
-          await Share.shareXFiles(
+        unawaited(
+          Share.shareXFiles(
             [XFile(fallbackFile.path, mimeType: mimeType, name: fileName)],
             text: 'Exported packaging label artwork: $fileName',
             subject: fileName,
-          );
-        } catch (_) {}
+          ).then<void>((_) {}, onError: (_) {}),
+        );
       }
       return fallbackFile.path;
     } catch (e2) {
@@ -117,15 +134,15 @@ Future<String?> triggerBytesDownload({
     debugPrint('Bytes saved directly to: ${file.path}');
 
     if (shareOnMobile && (Platform.isAndroid || Platform.isIOS)) {
-      try {
-        await Share.shareXFiles(
+      unawaited(
+        Share.shareXFiles(
           [XFile(file.path, mimeType: mimeType, name: fileName)],
           text: 'Exported packaging label artwork: $fileName',
           subject: fileName,
-        );
-      } catch (e) {
-        debugPrint('Auto-share error: $e');
-      }
+        ).then<void>((_) {}, onError: (e) {
+          debugPrint('Auto-share error: $e');
+        }),
+      );
     }
 
     return file.path;
@@ -135,13 +152,13 @@ Future<String?> triggerBytesDownload({
       final fallbackFile = File('${Directory.systemTemp.path}/$fileName');
       await fallbackFile.writeAsBytes(bytes, flush: true);
       if (shareOnMobile && (Platform.isAndroid || Platform.isIOS)) {
-        try {
-          await Share.shareXFiles(
+        unawaited(
+          Share.shareXFiles(
             [XFile(fallbackFile.path, mimeType: mimeType, name: fileName)],
             text: 'Exported packaging label artwork: $fileName',
             subject: fileName,
-          );
-        } catch (_) {}
+          ).then<void>((_) {}, onError: (_) {}),
+        );
       }
       return fallbackFile.path;
     } catch (e2) {

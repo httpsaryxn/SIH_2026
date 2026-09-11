@@ -179,7 +179,8 @@ class FileDownloadService {
         : ((effectiveCustomH != null && effectiveCustomH > 0 && !dimension.contains('(')) ? effectiveCustomH : parsed.heightMm);
 
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
-    final fileName = '${cleanName}_label_artwork_${effectiveW.toInt()}x${effectiveH.toInt()}mm.svg';
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = '${cleanName}_label_artwork_${effectiveW.toInt()}x${effectiveH.toInt()}mm_$timestamp.svg';
 
     final fssaiData = await _loadFssaiImageData();
     final fssaiBase64 = fssaiData?['pngBase64'] as String?;
@@ -239,7 +240,8 @@ class FileDownloadService {
         : ((effectiveCustomH != null && effectiveCustomH > 0 && !dimension.contains('(')) ? effectiveCustomH : parsed.heightMm);
 
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
-    final fileName = '${cleanName}_label_highres_${effectiveW.toInt()}x${effectiveH.toInt()}mm.png';
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = '${cleanName}_label_highres_${effectiveW.toInt()}x${effectiveH.toInt()}mm_$timestamp.png';
 
     if (preRenderedBytes != null && preRenderedBytes.isNotEmpty) {
       return await downloadPngBytes(
@@ -293,7 +295,8 @@ class FileDownloadService {
         : ((effectiveCustomH != null && effectiveCustomH > 0 && !dimension.contains('(')) ? effectiveCustomH : parsed.heightMm);
 
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
-    final fileName = '${cleanName}_label_print_${effectiveW.toInt()}x${effectiveH.toInt()}mm_300dpi.pdf';
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = '${cleanName}_label_print_${effectiveW.toInt()}x${effectiveH.toInt()}mm_300dpi_$timestamp.pdf';
 
     final fssaiData = await _loadFssaiImageData();
     final brandLogoData = await _loadBrandLogoData(model.logoUrl);
@@ -318,10 +321,11 @@ class FileDownloadService {
   /// Generates and triggers direct download of Legal Metrology JSON metadata
   static Future<String?> downloadJsonMetadata({
     required SmallBusinessLabelModel model,
-    bool shareOnMobile = true,
+    bool shareOnMobile = false,
   }) async {
     final cleanName = _cleanFileName(model.productName.isNotEmpty ? model.productName : 'Product');
-    final fileName = '${cleanName}_compliance_metadata.json';
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = '${cleanName}_compliance_metadata_$timestamp.json';
 
     final barcodeDigits = GS1Ean13Encoder.deriveBarcodeDigits(
       fssaiNumber: model.fssaiLicenseNumber,
