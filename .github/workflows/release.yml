@@ -1,0 +1,117 @@
+name: Build & Release (APK + IPA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: 🚀 Build APKs & IPA and Release
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Determine Version
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Prepare Artifacts Directory
+        run: mkdir -p "$GITHUB_WORKSPACE/release-assets"
+
+      # ── 1. Build Universal Android APK ──
+      - name: Build Universal Android APK
+        run: flutter build apk --release
+
+      - name: Prepare Universal APK Artifact
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk"
+
+      # ── 2. Build Split Android APK (arm64-v8a slim) ──
+      - name: Build Split Android APKs (arm64-v8a)
+        run: flutter build apk --split-per-abi --release
+
+      - name: Prepare arm64-v8a APK Artifact
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk"
+
+      # ── 3. Build iOS Unsigned IPA ──
+      - name: Disable Apple Team Requirement
+        run: |
+          sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;//g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/g' ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Build iOS
+        run: flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -qq -r -9 "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.ipa" Payload
+        working-directory: apps/mobile/build/ios/iphoneos
+
+      # ── 4. Publish GitHub Release ──
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.vars.outputs.VERSION }}" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk#LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk#LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk" \
+            "$GITHUB_WORKSPACE/release-assets/LabelLens-${{ steps.vars.outputs.VERSION }}.ipa#LabelLens-${{ steps.vars.outputs.VERSION }}.ipa" \
+            --title "LabelLens ${{ steps.vars.outputs.VERSION }}" \
+            --notes "### LabelLens Mobile App Release ${{ steps.vars.outputs.VERSION }}
+
+          #### 📦 Available Downloads:
+
+          | File | Size | Description |
+          | :--- | :--- | :--- |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-arm64-v8a.apk\`** | **~41 MB** | ⚡ **Recommended** for modern Android devices (64-bit ARM phones) |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk\`** | **~105 MB** | 🌐 **Universal** — compatible with all Android devices, tablets & emulators |
+          | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
+
+          #### 🚀 Highlights in this Release (v2.0):
+          - 🏪 **Small Business Studio Hub & Inventory**: Functional 4-tab persistent bottom navbar (Home, Inventory, Notifications, Profile) with DirectionalIndexedStack slide transitions, unread alerts badge, and live inline search results
+          - 📦 **Label Inventory & Drill-in Management**: Real-time filtering by status (All, Ready, Needs Review, Drafts), category picker, and tap-to-drill-in to label creator and review
+          - 🔔 **Activity & Compliance Notifications Center**: Integrated real-time notifications with filter chips and live count badge
+          - 🔍 **Instant Inline Search Dropdown**: Product search directly beneath search bar with rich metadata preview and tap redirection
+          - 🧠 **Dynamic AI Label Summary (Groq LLM)**: Real-time packaging OCR analysis with fast model fallbacks (\`qwen/qwen3.8-27b\`, \`openai/gpt-oss-120b\`, \`llama-3.3-70b-versatile\`)
+          - ⚠️ **Harmful Ingredients & Threshold Flags**: Automated detection of artificial dyes (INS 102, 110, 129), chemical preservatives, palm oil, MSG, and excessive sodium/sugar warnings
+          - 📹 **Real Live Camera Viewfinders**: Hardware camera streaming in multi-capture steps with live guides and tap-to-snap shutter
+          - 🛡️ **Persistent Shells & Motion System**: 100% state preservation across regulator and small business tabs with standardized spring physics and Cupertino/Material transitions"

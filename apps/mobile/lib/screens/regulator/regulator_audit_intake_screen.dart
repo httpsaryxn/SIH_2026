@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,11 +8,18 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/pending_capture.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
+import '../../core/motion/motion.dart';
+import '../../core/services/live_camera_service.dart';
 import '../shared/multi_capture_screen.dart';
 import 'regulator_scan_analysis_screen.dart';
 
 class RegulatorAuditIntakeScreen extends StatefulWidget {
-  const RegulatorAuditIntakeScreen({super.key});
+  final bool? isStandalone;
+
+  const RegulatorAuditIntakeScreen({
+    super.key,
+    this.isStandalone = true,
+  });
 
   @override
   State<RegulatorAuditIntakeScreen> createState() =>
@@ -19,7 +27,7 @@ class RegulatorAuditIntakeScreen extends StatefulWidget {
 }
 
 class _RegulatorAuditIntakeScreenState
-    extends State<RegulatorAuditIntakeScreen> {
+    extends State<RegulatorAuditIntakeScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 0; // 0 = Photo Capture, 1 = URL / Batch Upload
   PendingCapture? _pendingCapture;
   MultiCapturePayload? _multiCapture;
@@ -30,9 +38,16 @@ class _RegulatorAuditIntakeScreenState
   String? _productNameError;
   String? _companyNameError;
 
+  CameraController? _cameraController;
+  bool _isCameraInitializing = false;
+
+  bool get _isCameraReady =>
+      _cameraController != null && _cameraController!.value.isInitialized;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _productNameController.addListener(() {
       if (_productNameError != null &&
           _productNameController.text.trim().isNotEmpty) {
@@ -45,10 +60,41 @@ class _RegulatorAuditIntakeScreenState
         setState(() => _companyNameError = null);
       }
     });
+
+    _initLiveCamera();
+  }
+
+  Future<void> _initLiveCamera() async {
+    if (_isCameraInitializing) return;
+    _isCameraInitializing = true;
+    final controller = await LiveCameraService.createController();
+    if (mounted) {
+      setState(() {
+        _cameraController = controller;
+        _isCameraInitializing = false;
+      });
+    } else {
+      await LiveCameraService.disposeController(controller);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _cameraController?.dispose();
+      _cameraController = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _initLiveCamera();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    LiveCameraService.disposeController(_cameraController);
     _urlController.dispose();
     _productNameController.dispose();
     _companyNameController.dispose();
@@ -113,8 +159,8 @@ class _RegulatorAuditIntakeScreenState
 
     // Navigate to the 3-step guided multi-capture flow
     final result = await Navigator.of(context).push<MultiCapturePayload?>(
-      MaterialPageRoute(
-        builder: (_) => MultiCaptureScreen(
+      DrillInPageRoute(
+        page: MultiCaptureScreen(
           sourceTag: 'regulator_field',
           flowLabel: 'Audit Evidence',
           productName: productName,
@@ -137,8 +183,8 @@ class _RegulatorAuditIntakeScreenState
       // Immediately navigate to the analysis/audit pipeline screen
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             multiCapture: result,
             pendingCapture: primary,
             prefilledProductName: productName,
@@ -172,8 +218,8 @@ class _RegulatorAuditIntakeScreenState
 
     if (_multiCapture != null && _multiCapture!.hasAnyCapture && mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             multiCapture: _multiCapture!,
             pendingCapture: _multiCapture!.primaryCapture!,
             prefilledProductName: _productNameController.text.trim(),
@@ -185,8 +231,8 @@ class _RegulatorAuditIntakeScreenState
     }
     if (_pendingCapture != null && mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RegulatorScanAnalysisScreen(
+        DrillInPageRoute(
+          page: RegulatorScanAnalysisScreen(
             pendingCapture: _pendingCapture!,
             prefilledProductName: _productNameController.text.trim(),
             prefilledCompanyName: _companyNameController.text.trim(),
@@ -200,60 +246,71 @@ class _RegulatorAuditIntakeScreenState
     await _handleCapture(source: ImageSource.camera);
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: const ScrollBehavior().copyWith(overscroll: false),
-          child: ClipRect(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.gutter,
-                vertical: AppSpacing.md,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Text(
-                    'Audit Intake',
-                    style: AppTypography.headlineLgMobile.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
-                    ),
+    final body = SafeArea(
+      bottom: !_isStandalone,
+      child: ScrollConfiguration(
+        behavior: const ScrollBehavior().copyWith(overscroll: false),
+        child: ClipRect(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.gutter,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Text(
+                  'Audit Intake',
+                  style: AppTypography.headlineLgMobile.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Capture or upload packaged food labels for automated PCR 2011 compliance checking.',
+                  style: AppTypography.bodySm.copyWith(
+                    color: AppColors.onSurfaceVariant,
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                ),
+                const SizedBox(height: AppSpacing.lg),
 
-                  // Intake Tabs
-                  _buildIntakeTabs(),
-                  const SizedBox(height: AppSpacing.lg),
+                // Intake Tabs
+                _buildIntakeTabs(),
+                const SizedBox(height: AppSpacing.lg),
 
-                  _buildAuditIdentityFields(),
-                  const SizedBox(height: AppSpacing.lg),
+                _buildAuditIdentityFields(),
+                const SizedBox(height: AppSpacing.lg),
 
-                  // Viewfinder / Upload Section
-                  if (_selectedTabIndex == 0)
-                    _buildCameraViewfinder()
-                  else
-                    _buildUrlUploadSection(),
+                // Viewfinder / Upload Section
+                if (_selectedTabIndex == 0)
+                  _buildCameraViewfinder()
+                else
+                  _buildUrlUploadSection(),
 
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              ),
+                const SizedBox(height: AppSpacing.xxl),
+              ],
             ),
           ),
         ),
       ),
+    );
+
+    if (!_isStandalone) {
+      return body;
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: body,
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.audit,
         onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
@@ -382,48 +439,104 @@ class _RegulatorAuditIntakeScreenState
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd - 2),
                   child: hasCapture
                       ? Image.file(_pendingCapture!.file, fit: BoxFit.cover)
-                      : Container(
-                          color: const Color(0xFF0F172A),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.qr_code_scanner_rounded,
-                                  size: 36,
-                                  color: AppColors.primaryFixedDim,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                'Scan Packaging Label',
-                                style: AppTypography.labelMd.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                                child: Text(
-                                  'Position the product label inside the frame and tap the shutter button.',
-                                  textAlign: TextAlign.center,
-                                  style: AppTypography.bodySm.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 12,
+                      : _isCameraReady
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRect(
+                                  child: OverflowBox(
+                                    alignment: Alignment.center,
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: _cameraController!.value.previewSize?.height ?? 380,
+                                        height: _cameraController!.value.previewSize?.width ?? 380,
+                                        child: CameraPreview(_cameraController!),
+                                      ),
+                                    ),
                                   ),
                                 ),
+                                // Live Camera Feed indicator badge
+                                Positioned(
+                                  top: AppSpacing.md,
+                                  left: AppSpacing.md,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF10B981),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Live Camera Feed',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Container(
+                              color: const Color(0xFF0F172A),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 70,
+                                    height: 70,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.qr_code_scanner_rounded,
+                                      size: 36,
+                                      color: AppColors.primaryFixedDim,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    'Scan Packaging Label',
+                                    style: AppTypography.labelMd.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                                    child: Text(
+                                      'Position the product label inside the frame and tap the shutter button.',
+                                      textAlign: TextAlign.center,
+                                      style: AppTypography.bodySm.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
                 ),
               ),
 

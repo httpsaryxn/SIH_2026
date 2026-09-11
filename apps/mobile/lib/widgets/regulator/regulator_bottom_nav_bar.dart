@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
-import '../../core/constants/app_typography.dart';
-import '../../screens/regulator/regulator_home_screen.dart';
-import '../../screens/regulator/regulator_audit_intake_screen.dart';
-import '../../screens/regulator/regulator_company_tracking_screen.dart';
-import '../../screens/regulator/regulator_complaint_inbox_screen.dart';
-import '../../screens/regulator/regulator_profile_screen.dart';
+import '../../screens/regulator/regulator_shell_screen.dart';
 
 enum RegulatorNavTab {
   home,
@@ -16,7 +13,42 @@ enum RegulatorNavTab {
   profile,
 }
 
-class RegulatorBottomNavBar extends StatelessWidget {
+extension RegulatorNavTabExtension on RegulatorNavTab {
+  /// The horizontal left-to-right spatial index in the bottom nav bar:
+  /// 0: Home, 1: Violations, 2: Audit (center), 3: Inbox, 4: Profile.
+  int get spatialIndex {
+    switch (this) {
+      case RegulatorNavTab.home:
+        return 0;
+      case RegulatorNavTab.violations:
+        return 1;
+      case RegulatorNavTab.audit:
+        return 2;
+      case RegulatorNavTab.inbox:
+        return 3;
+      case RegulatorNavTab.profile:
+        return 4;
+    }
+  }
+
+  static RegulatorNavTab fromSpatialIndex(int index) {
+    switch (index) {
+      case 0:
+        return RegulatorNavTab.home;
+      case 1:
+        return RegulatorNavTab.violations;
+      case 2:
+        return RegulatorNavTab.audit;
+      case 3:
+        return RegulatorNavTab.inbox;
+      case 4:
+      default:
+        return RegulatorNavTab.profile;
+    }
+  }
+}
+
+class RegulatorBottomNavBar extends StatefulWidget {
   final RegulatorNavTab currentTab;
   final ValueChanged<RegulatorNavTab>? onTabSelected;
 
@@ -26,7 +58,7 @@ class RegulatorBottomNavBar extends StatelessWidget {
     this.onTabSelected,
   });
 
-  /// Standard tab navigation handler that cleanly switches between the main regulator screens.
+  /// Standard tab navigation handler with smooth in-place shell switching or fallback push.
   static void navigateToTab(
     BuildContext context,
     RegulatorNavTab currentTab,
@@ -34,40 +66,87 @@ class RegulatorBottomNavBar extends StatelessWidget {
   ) {
     if (currentTab == targetTab) return;
 
-    Widget targetScreen;
-    switch (targetTab) {
-      case RegulatorNavTab.home:
-        targetScreen = const RegulatorHomeScreen();
-        break;
-      case RegulatorNavTab.audit:
-        targetScreen = const RegulatorAuditIntakeScreen();
-        break;
-      case RegulatorNavTab.violations:
-        targetScreen = const RegulatorCompanyTrackingScreen();
-        break;
-      case RegulatorNavTab.inbox:
-        targetScreen = const RegulatorComplaintInboxScreen();
-        break;
-      case RegulatorNavTab.profile:
-        targetScreen = const RegulatorProfileScreen();
-        break;
+    final shellState =
+        context.findAncestorStateOfType<RegulatorShellScreenState>();
+    if (shellState != null) {
+      shellState.switchTab(targetTab);
+      return;
     }
 
     Navigator.of(context).pushAndRemoveUntil(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
+      MaterialPageRoute(
+        builder: (_) => RegulatorShellScreen(initialTab: targetTab),
       ),
       (route) => false,
     );
   }
 
   @override
+  State<RegulatorBottomNavBar> createState() => _RegulatorBottomNavBarState();
+}
+
+class _RegulatorBottomNavBarState extends State<RegulatorBottomNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bounceController;
+  late final Animation<double> _bounceAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+
+    _bounceAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _bounceController.dispose();
+    super.dispose();
+  }
+
+  void _handleAuditTap() {
+    HapticFeedback.mediumImpact();
+    // Play quick tap bounce micro-interaction asynchronously
+    _bounceController.forward().then((_) {
+      if (mounted) {
+        _bounceController.reverse();
+      }
+    });
+
+    if (widget.onTabSelected != null) {
+      widget.onTabSelected!(RegulatorNavTab.audit);
+    } else {
+      RegulatorBottomNavBar.navigateToTab(
+        context,
+        widget.currentTab,
+        RegulatorNavTab.audit,
+      );
+    }
+  }
+
+  void _handleNavTap(RegulatorNavTab tab) {
+    HapticFeedback.selectionClick();
+    if (widget.onTabSelected != null) {
+      widget.onTabSelected!(tab);
+    } else {
+      RegulatorBottomNavBar.navigateToTab(
+        context,
+        widget.currentTab,
+        tab,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceContainerLowest.withValues(alpha: 0.98),
         border: Border(
           top: BorderSide(
             color: AppColors.surfaceVariant.withValues(alpha: 0.6),
@@ -76,7 +155,7 @@ class RegulatorBottomNavBar extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Color(0x0D000000),
             blurRadius: 10,
             offset: Offset(0, -3),
           ),
@@ -84,45 +163,104 @@ class RegulatorBottomNavBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xs,
-            vertical: 6,
+        child: SizedBox(
+          height: 68,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: 4,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.home,
+                    icon: Icons.home_rounded,
+                    label: 'Home',
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.violations,
+                    icon: Icons.gavel_rounded,
+                    label: 'Violations',
+                  ),
+                ),
+                // Center Elevated Green QR Scanner / Audit Action Button
+                Expanded(
+                  child: _buildCenterAuditButton(),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.inbox,
+                    icon: Icons.inbox_rounded,
+                    label: 'Inbox',
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    tab: RegulatorNavTab.profile,
+                    icon: Icons.person_rounded,
+                    label: 'Profile',
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(
-                context: context,
-                tab: RegulatorNavTab.home,
-                icon: Icons.home_rounded,
-                label: 'Home',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterAuditButton() {
+    final isAuditActive = widget.currentTab == RegulatorNavTab.audit;
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          key: const Key('regulator_audit_nav_button'),
+          customBorder: const CircleBorder(),
+          onTap: _handleAuditTap,
+          child: ScaleTransition(
+            scale: _bounceAnimation,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: isAuditActive
+                    ? Border.all(
+                        color: AppColors.surfaceContainerLowest,
+                        width: 2.5,
+                      )
+                    : null,
+                boxShadow: AppSpacing.primaryButtonShadow,
               ),
-              _buildNavItem(
-                context: context,
-                tab: RegulatorNavTab.audit,
-                icon: Icons.assignment_turned_in_rounded,
-                label: 'Audit',
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  // Accessible and test-discoverable label for find.widgetWithText(InkWell, 'Audit')
+                  Opacity(
+                    opacity: 0.0,
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: const Text(
+                        'Audit',
+                        style: TextStyle(fontSize: 1),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              _buildNavItem(
-                context: context,
-                tab: RegulatorNavTab.violations,
-                icon: Icons.gavel_rounded,
-                label: 'Violations',
-              ),
-              _buildNavItem(
-                context: context,
-                tab: RegulatorNavTab.inbox,
-                icon: Icons.inbox_rounded,
-                label: 'Inbox',
-              ),
-              _buildNavItem(
-                context: context,
-                tab: RegulatorNavTab.profile,
-                icon: Icons.person_rounded,
-                label: 'Profile',
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -130,31 +268,25 @@ class RegulatorBottomNavBar extends StatelessWidget {
   }
 
   Widget _buildNavItem({
-    required BuildContext context,
     required RegulatorNavTab tab,
     required IconData icon,
     required String label,
   }) {
-    final isActive = currentTab == tab;
+    final isActive = widget.currentTab == tab;
+    final color = isActive ? AppColors.primary : AppColors.secondary;
 
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            if (onTabSelected != null) {
-              onTabSelected!(tab);
-            } else {
-              navigateToTab(context, currentTab, tab);
-            }
-          },
-          borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _handleNavTap(tab),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: EdgeInsets.symmetric(
-                horizontal: isActive ? AppSpacing.sm : 2,
+                horizontal: isActive ? 12 : 6,
                 vertical: 4,
               ),
               decoration: BoxDecoration(
@@ -170,19 +302,15 @@ class RegulatorBottomNavBar extends StatelessWidget {
                   Icon(
                     icon,
                     size: 22,
-                    color: isActive
-                        ? AppColors.primary
-                        : AppColors.onSurfaceVariant,
+                    color: color,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     label,
-                    style: AppTypography.labelSm.copyWith(
-                      color: isActive
-                          ? AppColors.primary
-                          : AppColors.onSurfaceVariant,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      color: color,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

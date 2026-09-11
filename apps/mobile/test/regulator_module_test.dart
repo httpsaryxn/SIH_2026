@@ -293,5 +293,56 @@ void main() {
       // Header remains intact and displayed
       expect(find.text('Morning, Officer.'), findsOneWidget);
     });
+
+    testWidgets(
+        'Switching from Audit Intake to another tab and back preserves in-progress state',
+        (tester) async {
+      await tester.pumpWidget(createTestApp(const RegulatorHomeScreen()));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // 1. Switch to Audit tab
+      await tester.tap(find.widgetWithText(InkWell, 'Audit'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Audit Intake'), findsOneWidget);
+
+      // 2. Enter product name and registered company name into the form
+      await tester.enterText(
+        find.widgetWithText(TextField, 'e.g. Britannia Good Day Butter Cookies'),
+        'Test Organic Almond Milk 1L',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'e.g. Britannia Industries Ltd'),
+        'Test Pure Foods India Pvt Ltd',
+      );
+      await tester.pump();
+
+      expect(find.text('Test Organic Almond Milk 1L'), findsOneWidget);
+      expect(find.text('Test Pure Foods India Pvt Ltd'), findsOneWidget);
+
+      // 3. Switch away to Violations tab
+      await tester.tap(find.widgetWithText(InkWell, 'Violations'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Violations & Enforcement History'), findsOneWidget);
+
+      // 4. Switch away to Inbox tab
+      await tester.tap(find.widgetWithText(InkWell, 'Inbox'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Unified Intake Queue'), findsOneWidget);
+
+      // 5. Switch back to Audit tab
+      await tester.tap(find.widgetWithText(InkWell, 'Audit'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Audit Intake'), findsOneWidget);
+
+      // 6. Verify that in-progress form inputs are completely preserved!
+      expect(find.text('Test Organic Almond Milk 1L'), findsOneWidget);
+      expect(find.text('Test Pure Foods India Pvt Ltd'), findsOneWidget);
+    });
   });
 }
+

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_spacing.dart';
+import '../core/motion/motion.dart';
 
 enum ButtonVariant { primary, secondary, outline, ghost }
 
@@ -32,8 +33,6 @@ class CustomButton extends StatefulWidget {
 }
 
 class _CustomButtonState extends State<CustomButton> {
-  bool _isPressed = false;
-
   bool get _isEnabled => widget.onPressed != null && !widget.isLoading;
 
   Color _getBackgroundColor() {
@@ -134,25 +133,11 @@ class _CustomButtonState extends State<CustomButton> {
       buttonContent = SizedBox(width: double.infinity, child: buttonContent);
     }
 
-    return AnimatedScale(
-      scale: _isPressed && _isEnabled ? 0.97 : 1.0,
-      duration: const Duration(milliseconds: 100),
+    return Pressable(
+      onPressed: _isEnabled ? widget.onPressed : null,
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          borderRadius: effectiveRadius,
-          onTapDown: (_) {
-            if (_isEnabled) setState(() => _isPressed = true);
-          },
-          onTapUp: (_) {
-            if (_isEnabled) setState(() => _isPressed = false);
-          },
-          onTapCancel: () {
-            if (_isEnabled) setState(() => _isPressed = false);
-          },
-          onTap: _isEnabled ? widget.onPressed : null,
-          child: buttonContent,
-        ),
+        child: buttonContent,
       ),
     );
   }

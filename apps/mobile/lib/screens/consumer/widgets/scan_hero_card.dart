@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/motion/motion.dart';
 
 class ScanHeroCard extends StatelessWidget {
   final VoidCallback onScanPressed;
@@ -199,24 +200,27 @@ class ScanHeroCard extends StatelessWidget {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return ElevatedButton.icon(
+    return Pressable(
       onPressed: onScanPressed,
-      icon: const Icon(Icons.photo_camera_rounded, size: 20),
-      label: Text(
-        'Scan Label',
-        style: GoogleFonts.plusJakartaSans(
-          fontWeight: FontWeight.w700,
-          fontSize: 15,
+      child: ElevatedButton.icon(
+        onPressed: onScanPressed,
+        icon: const Icon(Icons.photo_camera_rounded, size: 20),
+        label: Text(
+          'Scan Label',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
         ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppSpacing.roundedDefault,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppSpacing.roundedDefault,
+          ),
+          elevation: 2,
         ),
-        elevation: 2,
       ),
     );
   }

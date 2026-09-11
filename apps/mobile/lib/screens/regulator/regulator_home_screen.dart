@@ -13,16 +13,34 @@ import '../../widgets/regulator/regulator_status_badge.dart';
 import '../../core/widgets/label_lens_brand.dart';
 import 'regulator_violation_review_screen.dart';
 import 'regulator_complaint_inbox_screen.dart';
+import 'regulator_shell_screen.dart';
+import '../../core/motion/motion.dart';
 
-class RegulatorHomeScreen extends StatefulWidget {
-  const RegulatorHomeScreen({super.key});
+/// Regulator Home Screen entry point.
+/// Embeds inside the persistent [RegulatorShellScreen].
+class RegulatorHomeScreen extends StatelessWidget {
+  final RegulatorNavTab initialTab;
+
+  const RegulatorHomeScreen({
+    super.key,
+    this.initialTab = RegulatorNavTab.home,
+  });
 
   @override
-  State<RegulatorHomeScreen> createState() => _RegulatorHomeScreenState();
+  Widget build(BuildContext context) {
+    return RegulatorShellScreen(initialTab: initialTab);
+  }
 }
 
-class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
-  final RegulatorNavTab _currentTab = RegulatorNavTab.home;
+/// The body view for the Home Overview tab inside [RegulatorShellScreen].
+class RegulatorHomeBody extends StatefulWidget {
+  const RegulatorHomeBody({super.key});
+
+  @override
+  State<RegulatorHomeBody> createState() => _RegulatorHomeBodyState();
+}
+
+class _RegulatorHomeBodyState extends State<RegulatorHomeBody> {
   String _selectedFilter = 'All Active';
   bool _isLoading = true;
 
@@ -128,23 +146,21 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              )
-            : ClipRect(
-                child: ScrollConfiguration(
-                  behavior: const ScrollBehavior().copyWith(overscroll: false),
-                  child: RefreshIndicator(
-                    onRefresh: _loadDashboardData,
-                    color: AppColors.primary,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: ClampingScrollPhysics(),
-                      ),
+    return SafeArea(
+      child: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
+          : ClipRect(
+              child: ScrollConfiguration(
+                behavior: const ScrollBehavior().copyWith(overscroll: false),
+                child: RefreshIndicator(
+                  onRefresh: _loadDashboardData,
+                  color: AppColors.primary,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.gutter,
                       vertical: AppSpacing.md,
@@ -173,12 +189,6 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
                 ),
               ),
             ),
-      ),
-      bottomNavigationBar: RegulatorBottomNavBar(
-        currentTab: _currentTab,
-        onTabSelected: (tab) =>
-            RegulatorBottomNavBar.navigateToTab(context, _currentTab, tab),
-      ),
     );
   }
 
@@ -290,8 +300,8 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
           icon: Icons.feedback_outlined,
           isFullWidth: true,
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const RegulatorComplaintInboxScreen(),
+            DrillInPageRoute(
+              page: const RegulatorComplaintInboxScreen(),
             ),
           ),
         ),
@@ -359,7 +369,10 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
                 const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, index) {
               final item = list[index];
-              return _buildQueueItem(item);
+              return SlideFadeEntrance(
+                index: index,
+                child: _buildQueueItem(item),
+              );
             },
           ),
       ],
@@ -367,18 +380,16 @@ class _RegulatorHomeScreenState extends State<RegulatorHomeScreen> {
   }
 
   Widget _buildQueueItem(RegulatorViolation item) {
-    return InkWell(
-      onTap: () {
+    return Pressable(
+      onPressed: () {
         Navigator.of(context)
             .push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    RegulatorViolationReviewScreen(violationId: item.id),
+              DrillInPageRoute(
+                page: RegulatorViolationReviewScreen(violationId: item.id),
               ),
             )
             .then((_) => _loadDashboardData());
       },
-      borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(

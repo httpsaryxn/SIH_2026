@@ -6,10 +6,16 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/user_role.dart';
 import '../../core/services/auth_service.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
+import '../../core/motion/motion.dart';
 import '../onboarding/role_selection_screen.dart';
 
 class RegulatorProfileScreen extends StatefulWidget {
-  const RegulatorProfileScreen({super.key});
+  final bool? isStandalone;
+
+  const RegulatorProfileScreen({
+    super.key,
+    this.isStandalone = true,
+  });
 
   @override
   State<RegulatorProfileScreen> createState() => _RegulatorProfileScreenState();
@@ -199,54 +205,71 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
     );
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
+    final content = _isLoading
+        ? const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          )
+        : SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.gutter,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Profile Header Banner Card
+                _buildProfileHeaderCard(),
+                const SizedBox(height: AppSpacing.md),
+
+                // Official Credential Information
+                _buildSectionHeader('Official Credentials'),
+                const SizedBox(height: AppSpacing.sm),
+                _buildCredentialsCard(),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Authority & Department Details
+                _buildSectionHeader('Department & Jurisdiction'),
+                const SizedBox(height: AppSpacing.sm),
+                _buildDepartmentCard(),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Session & Security Status
+                _buildSectionHeader('Security & System Status'),
+                const SizedBox(height: AppSpacing.sm),
+                _buildSecurityCard(),
+                const SizedBox(height: AppSpacing.xl),
+
+                // Prominent Logout Button
+                _buildLogoutButton(),
+                const SizedBox(height: AppSpacing.xxl),
+              ],
+            ),
+          );
+
+    final body = SafeArea(
+      bottom: !_isStandalone,
+      child: content,
+    );
+
+    if (!_isStandalone) {
+      return body;
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.gutter,
-                vertical: AppSpacing.md,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Profile Header Banner Card
-                  _buildProfileHeaderCard(),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Official Credential Information
-                  _buildSectionHeader('Official Credentials'),
-                  const SizedBox(height: AppSpacing.sm),
-                  _buildCredentialsCard(),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Authority & Department Details
-                  _buildSectionHeader('Department & Jurisdiction'),
-                  const SizedBox(height: AppSpacing.sm),
-                  _buildDepartmentCard(),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Session & Security Status
-                  _buildSectionHeader('Security & System Status'),
-                  const SizedBox(height: AppSpacing.sm),
-                  _buildSecurityCard(),
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Prominent Logout Button
-                  _buildLogoutButton(),
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              ),
-            ),
+      body: body,
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: _currentTab,
-        onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(context, _currentTab, tab),
+        onTabSelected: (tab) =>
+            RegulatorBottomNavBar.navigateToTab(context, _currentTab, tab),
       ),
     );
   }
@@ -474,39 +497,42 @@ class _RegulatorProfileScreenState extends State<RegulatorProfileScreen> {
   }
 
   Widget _buildLogoutButton() {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.errorContainer.withValues(alpha: 0.5),
-        foregroundColor: AppColors.error,
-        elevation: 0,
-        side: const BorderSide(color: AppColors.error, width: 1.2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      ),
+    return Pressable(
       onPressed: _isSigningOut ? null : _handleSignOut,
-      child: _isSigningOut
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error),
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Log Out',
-                  style: AppTypography.labelMd.copyWith(
-                    color: AppColors.error,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.errorContainer.withValues(alpha: 0.5),
+          foregroundColor: AppColors.error,
+          elevation: 0,
+          side: const BorderSide(color: AppColors.error, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusDefault),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        ),
+        onPressed: _isSigningOut ? null : _handleSignOut,
+        child: _isSigningOut
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Log Out',
+                    style: AppTypography.labelMd.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 }

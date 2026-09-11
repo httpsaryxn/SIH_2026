@@ -7,11 +7,17 @@ import '../../core/models/inbox_item.dart';
 import '../../core/services/regulator_data_service.dart';
 import '../../widgets/regulator/regulator_bottom_nav_bar.dart';
 import '../../widgets/regulator/regulator_status_badge.dart';
+import '../../core/motion/motion.dart';
 import 'regulator_complaint_detail_screen.dart';
 import 'regulator_label_review_screen.dart';
 
 class RegulatorComplaintInboxScreen extends StatefulWidget {
-  const RegulatorComplaintInboxScreen({super.key});
+  final bool? isStandalone;
+
+  const RegulatorComplaintInboxScreen({
+    super.key,
+    this.isStandalone = true,
+  });
 
   @override
   State<RegulatorComplaintInboxScreen> createState() =>
@@ -75,44 +81,45 @@ class _RegulatorComplaintInboxScreenState
     }
   }
 
+  bool get _isStandalone => widget.isStandalone ?? true;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: const ScrollBehavior().copyWith(overscroll: false),
-          child: ClipRect(
-            child: RefreshIndicator(
-              onRefresh: _loadInboxItems,
-              color: AppColors.primary,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: ClampingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.gutter,
-                  vertical: AppSpacing.md,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Text(
-                      'Unified Intake Queue',
-                      style: AppTypography.headlineSm.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
-                      ),
+    final body = SafeArea(
+      bottom: !_isStandalone,
+      child: ScrollConfiguration(
+        behavior: const ScrollBehavior().copyWith(overscroll: false),
+        child: ClipRect(
+          child: RefreshIndicator(
+            onRefresh: _loadInboxItems,
+            color: AppColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.gutter,
+                vertical: AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Text(
+                    'Unified Intake Queue',
+                    style: AppTypography.headlineSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Review incoming citizen complaints and business label verification requests in a single compliance queue.',
-                      style: AppTypography.bodySm.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Review incoming citizen complaints and business label verification requests in a single compliance queue.',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.onSurfaceVariant,
                     ),
-                    const SizedBox(height: AppSpacing.md),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
 
                   // 1. Source Type Filter Chips
                   _buildTypeFilterChips(),
@@ -167,7 +174,10 @@ class _RegulatorComplaintInboxScreenState
                           const SizedBox(height: AppSpacing.md),
                       itemBuilder: (context, index) {
                         final item = _items[index];
-                        return _buildUnifiedInboxCard(item);
+                        return SlideFadeEntrance(
+                          index: index,
+                          child: _buildUnifiedInboxCard(item),
+                        );
                       },
                     ),
                   const SizedBox(height: AppSpacing.xxl),
@@ -177,7 +187,15 @@ class _RegulatorComplaintInboxScreenState
           ),
         ),
       ),
-      ),
+    );
+
+    if (!_isStandalone) {
+      return body;
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: body,
       bottomNavigationBar: RegulatorBottomNavBar(
         currentTab: RegulatorNavTab.inbox,
         onTabSelected: (tab) => RegulatorBottomNavBar.navigateToTab(
@@ -285,25 +303,24 @@ class _RegulatorComplaintInboxScreenState
     final isComplaint = item.isComplaint;
     final timeAgo = _formatRelativeTime(item.submittedAt);
 
-    return InkWell(
-      onTap: () async {
+    return Pressable(
+      onPressed: () async {
         if (isComplaint) {
           final changed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => RegulatorComplaintDetailScreen(complaintId: item.id),
+            DrillInPageRoute(
+              page: RegulatorComplaintDetailScreen(complaintId: item.id),
             ),
           );
           if (changed == true) _loadInboxItems();
         } else {
           final changed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => RegulatorLabelReviewScreen(requestId: item.id),
+            DrillInPageRoute(
+              page: RegulatorLabelReviewScreen(requestId: item.id),
             ),
           );
           if (changed == true) _loadInboxItems();
         }
       },
-      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(

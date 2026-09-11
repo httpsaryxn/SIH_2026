@@ -165,6 +165,16 @@ class MlRuleResult {
       legalReference: json['legal_reference'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'rule_id': ruleId,
+        'rule_name': ruleName,
+        'status': status,
+        'severity': severity,
+        'detail': detail,
+        if (evidence != null) 'evidence': evidence,
+        if (legalReference != null) 'legal_reference': legalReference,
+      };
 }
 
 class MlScannerRules {
@@ -197,6 +207,14 @@ class MlScannerRules {
       inconclusive: parseRules(json['inconclusive']),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'passed': passed.map((r) => r.toJson()).toList(),
+        'failed': failed.map((r) => r.toJson()).toList(),
+        'warnings': warnings.map((r) => r.toJson()).toList(),
+        'not_applicable': notApplicable.map((r) => r.toJson()).toList(),
+        'inconclusive': inconclusive.map((r) => r.toJson()).toList(),
+      };
 
   int get totalRules =>
       passed.length +
@@ -237,20 +255,27 @@ class MlScannerClient {
   /// Ping a specific candidate URL's `/health` endpoint.
   static Future<bool> testConnection(String url) async {
     final cleanUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+    // Cloud URLs get a slightly longer timeout than local ones
+    final timeout = cleanUrl.startsWith('https://')
+        ? const Duration(seconds: 10)
+        : const Duration(seconds: 5);
     try {
       final res = await http
           .get(Uri.parse('$cleanUrl/health'))
-          .timeout(const Duration(seconds: 8));
+          .timeout(timeout);
       return res.statusCode == 200;
     } catch (_) {
       return false;
     }
   }
 
-  /// Check if the ML scanner service is reachable, auto-detecting between
-  /// stored URL, host LAN IP, physical device reverse proxy, and Android emulator loopback.
+  /// Check if the ML scanner service is reachable.
+  ///
+  /// Strategy: Try fast local URLs first (2s each, in parallel). If none
+  /// respond, fall back to the Render cloud URL with a 10-second timeout
+  /// (server is kept warm by an external cron job).
   static Future<bool> isAvailable() async {
-    // Try to read saved user preference first
+    // Load any previously saved preference
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(prefKey);
@@ -259,44 +284,81 @@ class MlScannerClient {
       }
     } catch (_) {}
 
-    final candidates = <String>[
-      _baseUrl,
-      'https://labellens-ml-scanner.onrender.com', // Cloud hosted on Render
-      'http://192.168.0.116:8000', // Workstation LAN IP (reachable by physical phone on same Wi-Fi)
+    const cloudUrl = 'https://labellens-ml-scanner.onrender.com';
+
+    // ── Phase 1: Race all local / fast URLs in parallel (2s cap) ──────────
+    final localCandidates = <String>{
+      if (!_baseUrl.startsWith('https://')) _baseUrl,
+      'http://192.168.0.116:8000',
       if (Platform.isAndroid) ...[
-        'http://127.0.0.1:8000', // Physical Android phone via `adb reverse tcp:8000 tcp:8000`
-        'http://10.0.2.2:8000',  // Android emulator loopback
+        'http://127.0.0.1:8000',
+        'http://10.0.2.2:8000',
       ],
       'http://127.0.0.1:8000',
       'http://localhost:8000',
-    ];
+    };
 
-    debugPrint('[MlScannerClient] Probing ML Scanner health across candidate URLs: $candidates');
+    debugPrint('[MlScannerClient] Phase 1 — racing ${localCandidates.length} local candidates (2s cap)');
 
-    for (final url in candidates.toSet()) {
+    if (localCandidates.isNotEmpty) {
       try {
-        final uri = Uri.parse('$url/health');
-        final timeout = url.startsWith('https://')
-            ? const Duration(seconds: 8)
-            : const Duration(seconds: 2);
-        final response = await http.get(uri).timeout(timeout);
-        if (response.statusCode == 200) {
-          debugPrint('[MlScannerClient] ✓ Connected to ML Scanner service at $url');
-          _baseUrl = url;
-          // Persist working URL
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(prefKey, url);
-          } catch (_) {}
+        final winner = await Future.any(
+          localCandidates.map((url) => _probeHealth(url, const Duration(seconds: 2))),
+        ).timeout(const Duration(seconds: 3));
+
+        if (winner != null) {
+          debugPrint('[MlScannerClient] ✓ Phase 1 winner: $winner');
+          await _acceptUrl(winner);
+          return true;
+        }
+      } catch (_) {
+        // All local candidates failed or timed out — expected when off-network
+      }
+    }
+
+    // ── Phase 2: Try the cloud URL (kept warm by external cron job) ────
+    debugPrint('[MlScannerClient] Phase 2 — trying cloud endpoint ($cloudUrl) with 10s timeout');
+
+    // Also try the saved URL if it was an HTTPS URL different from cloudUrl
+    final cloudCandidates = <String>{
+      if (_baseUrl.startsWith('https://')) _baseUrl,
+      cloudUrl,
+    };
+
+    for (final url in cloudCandidates) {
+      try {
+        final result = await _probeHealth(url, const Duration(seconds: 10));
+        if (result != null) {
+          debugPrint('[MlScannerClient] ✓ Phase 2 connected: $result');
+          await _acceptUrl(result);
           return true;
         }
       } catch (e) {
-        debugPrint('[MlScannerClient] ✗ Candidate $url unreachable: $e');
+        debugPrint('[MlScannerClient] ✗ Cloud candidate $url unreachable: $e');
       }
     }
 
     debugPrint('[MlScannerClient] Could not reach ML Scanner at any candidate URL.');
     return false;
+  }
+
+  /// Probe a single URL's `/health` endpoint. Returns the URL on success, null on failure.
+  static Future<String?> _probeHealth(String url, Duration timeout) async {
+    try {
+      final uri = Uri.parse('$url/health');
+      final response = await http.get(uri).timeout(timeout);
+      if (response.statusCode == 200) return url;
+    } catch (_) {}
+    return null;
+  }
+
+  /// Accept a working URL: set it as active and persist to SharedPreferences.
+  static Future<void> _acceptUrl(String url) async {
+    _baseUrl = url;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(prefKey, url);
+    } catch (_) {}
   }
 
   /// Analyze label images via the ML scanner service.

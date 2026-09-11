@@ -14,6 +14,11 @@ class ConsumerScanModel {
   final Map<String, dynamic> detectedDeclarations;
   final String? scanNotes;
   final DateTime scannedAt;
+  final String? productType;
+  final String? consumerSummaryText;
+  final int? healthScore;
+  final String? medicinalSafetySummary;
+  final DateTime? summaryGeneratedAt;
 
   ConsumerScanModel({
     required this.id,
@@ -30,6 +35,11 @@ class ConsumerScanModel {
     this.detectedDeclarations = const {},
     this.scanNotes,
     required this.scannedAt,
+    this.productType,
+    this.consumerSummaryText,
+    this.healthScore,
+    this.medicinalSafetySummary,
+    this.summaryGeneratedAt,
   });
 
   /// Returns a list of all available image URLs for carousel display.
@@ -72,6 +82,13 @@ class ConsumerScanModel {
       scannedAt: json['scanned_at'] != null
           ? DateTime.tryParse(json['scanned_at'] as String) ?? DateTime.now()
           : DateTime.now(),
+      productType: json['product_type'] as String?,
+      consumerSummaryText: json['consumer_summary_text'] as String?,
+      healthScore: json['health_score'] as int?,
+      medicinalSafetySummary: json['medicinal_safety_summary'] as String?,
+      summaryGeneratedAt: json['summary_generated_at'] != null
+          ? DateTime.tryParse(json['summary_generated_at'] as String)
+          : null,
     );
   }
 
@@ -91,6 +108,11 @@ class ConsumerScanModel {
       'detected_declarations': detectedDeclarations,
       'scan_notes': scanNotes,
       'scanned_at': scannedAt.toIso8601String(),
+      'product_type': productType,
+      'consumer_summary_text': consumerSummaryText,
+      'health_score': healthScore,
+      'medicinal_safety_summary': medicinalSafetySummary,
+      'summary_generated_at': summaryGeneratedAt?.toIso8601String(),
     };
   }
 

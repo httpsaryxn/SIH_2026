@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +8,7 @@ import '../../core/constants/app_spacing.dart';
 import '../../core/models/capture_role.dart';
 import '../../core/models/multi_capture_payload.dart';
 import '../../core/services/camera_capture_service.dart';
+import '../../core/services/live_camera_service.dart';
 
 /// A 3-step guided capture screen shared by both consumer and regulator flows.
 ///
@@ -40,7 +42,7 @@ class MultiCaptureScreen extends StatefulWidget {
 }
 
 class _MultiCaptureScreenState extends State<MultiCaptureScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final MultiCapturePayload _payload = MultiCapturePayload();
   final Map<CaptureRole, Uint8List?> _previewBytes = {};
   int _currentStepIndex = 0;
@@ -48,15 +50,21 @@ class _MultiCaptureScreenState extends State<MultiCaptureScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  CameraController? _cameraController;
+  bool _isCameraInitializing = false;
+
   List<CaptureRole> get _roles => CaptureRoleInfo.orderedRoles;
   CaptureRole get _currentRole => _roles[_currentStepIndex];
   CaptureRoleInfo get _currentRoleInfo => CaptureRoleInfo.forRole(_currentRole);
   bool get _isLastStep => _currentStepIndex == _roles.length - 1;
   bool get _currentHasCapture => _payload.getForRole(_currentRole) != null;
+  bool get _isCameraReady =>
+      _cameraController != null && _cameraController!.value.isInitialized;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -64,15 +72,65 @@ class _MultiCaptureScreenState extends State<MultiCaptureScreen>
     _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _initLiveCamera();
+  }
+
+  Future<void> _initLiveCamera() async {
+    if (_isCameraInitializing) return;
+    _isCameraInitializing = true;
+    final controller = await LiveCameraService.createController();
+    if (mounted) {
+      setState(() {
+        _cameraController = controller;
+        _isCameraInitializing = false;
+      });
+    } else {
+      await LiveCameraService.disposeController(controller);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _cameraController?.dispose();
+      _cameraController = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _initLiveCamera();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    LiveCameraService.disposeController(_cameraController);
     _pulseController.dispose();
     super.dispose();
   }
 
   Future<void> _captureForCurrentRole(ImageSource source) async {
+    // 1. Direct hardware/emulator live camera snap if controller is ready
+    if (source == ImageSource.camera && _isCameraReady) {
+      final capture = await LiveCameraService.snapPicture(
+        controller: _cameraController!,
+        sourceTag: '${widget.sourceTag}_${_currentRole.name}',
+      );
+      if (capture != null && mounted) {
+        final bytes = await capture.file.readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _payload.setForRole(_currentRole, capture.copyWith(rawBytes: bytes));
+          _previewBytes[_currentRole] = bytes;
+        });
+        return;
+      }
+    }
+
+    // 2. Fallback to system camera intent or gallery picker
+    if (!mounted) return;
     final capture = await CameraCaptureService.captureImage(
       context: context,
       sourceTag: '${widget.sourceTag}_${_currentRole.name}',
@@ -453,8 +511,86 @@ class _MultiCaptureScreenState extends State<MultiCaptureScreen>
                   fit: BoxFit.cover,
                 ),
               )
+            else if (_isCameraReady)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => _captureForCurrentRole(ImageSource.camera),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRect(
+                        child: OverflowBox(
+                          alignment: Alignment.center,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: _cameraController!.value.previewSize?.height ?? 260,
+                              height: _cameraController!.value.previewSize?.width ?? 260,
+                              child: CameraPreview(_cameraController!),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Subtle live viewfinder targeting guides
+                      Center(
+                        child: Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                          ),
+                        ),
+                      ),
+                      // Live banner indicator at bottom of feed
+                      Positioned(
+                        bottom: 8,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Live Camera Feed',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             else
-              // Empty viewfinder state
+              // Fallback / Initializing placeholder state
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -486,7 +622,9 @@ class _MultiCaptureScreenState extends State<MultiCaptureScreen>
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Tap below to capture ${_currentRoleInfo.label}',
+                    _isCameraInitializing
+                        ? 'Starting live camera feed...'
+                        : 'Tap below to capture ${_currentRoleInfo.label}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

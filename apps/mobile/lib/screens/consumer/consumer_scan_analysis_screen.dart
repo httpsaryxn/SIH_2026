@@ -10,6 +10,8 @@ import '../../core/models/pending_capture.dart';
 import '../../core/services/consumer_data_service.dart';
 import '../../core/services/legal_metrology_service.dart';
 import '../../core/services/ml_scanner_client.dart';
+import '../../core/services/summary_gen_client.dart';
+import '../../core/widgets/markdown_content_view.dart';
 import '../shared/multi_capture_screen.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/report_complaint_dialog.dart';
@@ -59,6 +61,15 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   bool _isAnalysisFinished = false;
   bool _hasError = false;
   String _errorMessage = '';
+
+  // AI Summary State (Groq LLaMA 3.3 via services/summary-gen)
+  ConsumerSummaryResult? _summaryResult;
+  bool _isGeneratingSummary = false;
+  String? _lastProductName;
+  String? _lastBrand;
+  MlScannerResult? _lastRemoteResult;
+  LmAuditResult? _lastAudit;
+  String? _lastOcrText;
 
   /// Returns the list of captures for carousel display.
   List<MapEntry<CaptureRole, PendingCapture>> get _capturedEntries {
@@ -202,6 +213,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         }
         audit = await LegalMetrologyService.auditCapture(
           capture: widget.pendingCapture,
+          multiCapture: widget.multiCapture,
           productName: widget.prefilledProductName,
           netQuantity: widget.prefilledNetQty,
           mrp: widget.prefilledMrp,
@@ -236,34 +248,47 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
       if (remoteResult != null &&
           (remoteResult.product['manufacturer'] as String?)?.trim().isNotEmpty == true) {
         pBrand = (remoteResult.product['manufacturer'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['manufacturer'] as String?)?.trim().isNotEmpty == true) {
+        pBrand = (audit.detectedDeclarations['manufacturer'] as String).trim();
       } else if (widget.prefilledBrand != null &&
-          widget.prefilledBrand!.trim().isNotEmpty) {
+          widget.prefilledBrand!.trim().isNotEmpty &&
+          widget.prefilledBrand!.trim() != 'Packaged Foods Co.') {
         pBrand = widget.prefilledBrand!.trim();
       } else {
-        pBrand = 'Packaged Foods Co.';
+        pBrand = '';
       }
 
       final pCategory = (widget.prefilledCategory != null &&
-              widget.prefilledCategory!.trim().isNotEmpty)
+              widget.prefilledCategory!.trim().isNotEmpty &&
+              widget.prefilledCategory!.trim() != 'Snacks')
           ? widget.prefilledCategory!.trim()
-          : 'Snacks';
+          : (remoteResult?.product['category'] as String?) ??
+            (audit?.detectedDeclarations['category'] as String?) ??
+            '';
 
       final String pNetQty;
       if (remoteResult != null &&
           (remoteResult.product['net_quantity'] as String?)?.trim().isNotEmpty == true) {
         pNetQty = (remoteResult.product['net_quantity'] as String).trim();
+      } else if (audit != null &&
+          (audit.detectedDeclarations['net_quantity'] as String?)?.trim().isNotEmpty == true) {
+        pNetQty = (audit.detectedDeclarations['net_quantity'] as String).trim();
       } else if (widget.prefilledNetQty != null &&
-              widget.prefilledNetQty!.trim().isNotEmpty) {
+              widget.prefilledNetQty!.trim().isNotEmpty &&
+              widget.prefilledNetQty!.trim() != '200 g') {
         pNetQty = widget.prefilledNetQty!.trim();
       } else {
-        pNetQty = '200 g';
+        pNetQty = '';
       }
 
-      final double pMrp;
+      final double? pMrp;
       if (remoteResult != null && remoteResult.product['mrp'] is num) {
         pMrp = (remoteResult.product['mrp'] as num).toDouble();
+      } else if (audit != null && audit.detectedDeclarations['mrp'] is num) {
+        pMrp = (audit.detectedDeclarations['mrp'] as num).toDouble();
       } else {
-        pMrp = widget.prefilledMrp ?? 65.0;
+        pMrp = widget.prefilledMrp;
       }
 
       // Create live product & scan record in Supabase (with Storage upload)
@@ -303,6 +328,36 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
         if (createdScan != null && widget.onScanCompleted != null) {
           widget.onScanCompleted!(createdScan);
         }
+
+        _lastProductName = pName;
+        _lastBrand = pBrand;
+        _lastRemoteResult = remoteResult;
+        _lastAudit = audit;
+
+        String? ocrText;
+        if (audit?.rawOcrText != null && audit!.rawOcrText!.trim().isNotEmpty) {
+          ocrText = audit.rawOcrText;
+        } else {
+          try {
+            ocrText = await LegalMetrologyService.extractTextFromCaptures(
+              capture: widget.pendingCapture,
+              multiCapture: widget.multiCapture,
+            );
+          } catch (e) {
+            debugPrint('[ConsumerScanAnalysisScreen] Fast OCR extraction error: $e');
+          }
+        }
+        _lastOcrText = ocrText;
+
+        // Automatically trigger AI Summary generation
+        _fetchAiSummary(
+          scan: createdScan,
+          productName: pName,
+          brand: pBrand,
+          remoteResult: remoteResult,
+          audit: audit,
+          ocrText: ocrText,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -315,7 +370,7 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   }
 
   String _deriveProductNameFromFileName(String fileName) {
-    return 'Packaged Food Product';
+    return 'Scanned Product';
   }
 
   void _showDetailedSummary() {
@@ -448,9 +503,11 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
             _buildStageChecklist(),
             const SizedBox(height: AppSpacing.lg),
 
-            // 4. Extracted Product Summary (Revealed when ready)
+            // 4. Extracted Product Summary & AI Insights (Revealed when ready)
             if (_isAnalysisFinished && _completedScan != null) ...[
               _buildExtractedProductCard(),
+              const SizedBox(height: AppSpacing.md),
+              _buildAiConsumerInsightsCard(),
               const SizedBox(height: AppSpacing.xl),
             ],
 
@@ -967,6 +1024,25 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
   Widget _buildExtractedProductCard() {
     final scan = _completedScan!;
     final isCompliant = scan.complianceStatus == 'compliant';
+    final hasBrand = scan.brand.trim().isNotEmpty && scan.brand != 'Packaged Foods Co.';
+    final hasNetQty = scan.netQuantity.trim().isNotEmpty && scan.netQuantity != '200 g';
+    final detectedMrp = scan.detectedDeclarations['mrp'];
+    final hasMrp = detectedMrp != null;
+    final mfg = scan.detectedDeclarations['manufacturer'] as String?;
+    final hasMfg = mfg != null && mfg.trim().isNotEmpty && mfg != 'Packaged Foods Co.' && mfg != 'Artisan Foods Ltd';
+    final fssai = (scan.detectedDeclarations['fssai_license_no'] ?? scan.detectedDeclarations['fssai']) as String?;
+    final hasFssai = fssai != null && fssai.trim().isNotEmpty;
+
+    final detailChips = <Widget>[
+      if (hasNetQty)
+        _buildDetailChip('Declared Net Qty', scan.netQuantity),
+      if (hasMrp)
+        _buildDetailChip('Declared MRP', '₹$detectedMrp'),
+      if (hasMfg)
+        _buildDetailChip('Manufacturer', mfg.trim()),
+      if (hasFssai)
+        _buildDetailChip('FSSAI Lic No', fssai.trim()),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -990,21 +1066,24 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      scan.productName,
+                      scan.productName.trim().isNotEmpty ? scan.productName : 'Scanned Product',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: AppColors.onSurface,
                       ),
                     ),
-                    Text(
-                      'Brand: ${scan.brand}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.onSurfaceVariant,
+                    if (hasBrand) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Brand: ${scan.brand}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1038,16 +1117,361 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
               ),
             ],
           ),
-          const Divider(height: 24),
+          if (detailChips.isNotEmpty) ...[
+            const Divider(height: 24),
+            Row(
+              children: detailChips,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchAiSummary({
+    ConsumerScanModel? scan,
+    required String productName,
+    required String brand,
+    MlScannerResult? remoteResult,
+    LmAuditResult? audit,
+    String? ocrText,
+    bool forceRegenerate = false,
+  }) async {
+    if (!mounted) return;
+    setState(() {
+      _isGeneratingSummary = true;
+    });
+
+    try {
+      final resolvedOcrText = ocrText ?? audit?.rawOcrText ?? _lastOcrText;
+      final summary = await SummaryGenClient.summarizeConsumer(
+        scanId: scan?.id,
+        productName: productName.trim().isNotEmpty ? productName.trim() : 'Scanned Product',
+        manufacturer: brand.trim().isNotEmpty && brand.trim() != 'Packaged Foods Co.' ? brand.trim() : null,
+        declarations:
+            remoteResult?.product ?? audit?.detectedDeclarations,
+        rules: remoteResult?.rules.toJson(),
+        ocrText: resolvedOcrText,
+        forceRegenerate: forceRegenerate,
+      );
+
+      if (mounted) {
+        setState(() {
+          _summaryResult = summary;
+          _isGeneratingSummary = false;
+          if (_completedScan != null) {
+            _completedScan = ConsumerScanModel(
+              id: _completedScan!.id,
+              consumerId: _completedScan!.consumerId,
+              productId: _completedScan!.productId,
+              productName: _completedScan!.productName,
+              brand: _completedScan!.brand,
+              netQuantity: _completedScan!.netQuantity,
+              imageUrl: _completedScan!.imageUrl,
+              frontLabelUrl: _completedScan!.frontLabelUrl,
+              curvedSurfaceUrl: _completedScan!.curvedSurfaceUrl,
+              scaleReferenceUrl: _completedScan!.scaleReferenceUrl,
+              complianceStatus: _completedScan!.complianceStatus,
+              detectedDeclarations: _completedScan!.detectedDeclarations,
+              scanNotes: _completedScan!.scanNotes,
+              scannedAt: _completedScan!.scannedAt,
+              productType: summary.productType,
+              consumerSummaryText: summary.summaryText,
+              healthScore: summary.healthScore,
+              medicinalSafetySummary: summary.medicinalSafetySummary,
+              summaryGeneratedAt: DateTime.now(),
+            );
+          }
+        });
+      } else if (mounted) {
+        setState(() {
+          _isGeneratingSummary = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[ConsumerScanAnalysisScreen] Error fetching AI summary: $e');
+      if (mounted) {
+        setState(() {
+          _isGeneratingSummary = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildAiConsumerInsightsCard() {
+    if (_isGeneratingSummary && _summaryResult == null) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+          boxShadow: AppSpacing.cardShadow,
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Generating AI Label Insights...',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Analyzing commodity classification, nutrition & safety with Groq LLM...',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_summaryResult == null) {
+      return const SizedBox.shrink();
+    }
+
+    final res = _summaryResult!;
+    final isFood = res.isFood;
+    final isMedicinal = res.isMedicinal;
+
+    final Color badgeColor;
+    final Color badgeBg;
+    final String typeLabel;
+    final IconData typeIcon;
+
+    if (isFood) {
+      badgeColor = const Color(0xFF059669);
+      badgeBg = const Color(0xFFD1FAE5);
+      typeLabel = 'FOOD & BEVERAGE';
+      typeIcon = Icons.restaurant_rounded;
+    } else if (isMedicinal) {
+      badgeColor = const Color(0xFF0D9488);
+      badgeBg = const Color(0xFFCCFBF1);
+      typeLabel = 'MEDICINAL / PHARMA';
+      typeIcon = Icons.medical_services_rounded;
+    } else {
+      badgeColor = const Color(0xFF4F46E5);
+      badgeBg = const Color(0xFFEEF2FF);
+      typeLabel = 'GENERAL COMMODITY';
+      typeIcon = Icons.inventory_2_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: AppColors.primaryContainer.withValues(alpha: 0.5),
+        ),
+        boxShadow: AppSpacing.cardHoverShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildDetailChip('Declared Net Qty', scan.netQuantity),
-              const SizedBox(width: AppSpacing.md),
-              _buildDetailChip(
-                'Declared MRP',
-                scan.detectedDeclarations['mrp'] != null
-                    ? '₹${scan.detectedDeclarations['mrp']}'
-                    : '₹65.00',
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'AI Label Insights',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(typeIcon, size: 12, color: badgeColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      typeLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: badgeColor,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          MarkdownContentView(
+            text: res.summaryText,
+            baseStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13.5,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: AppColors.onSurface,
+            ),
+          ),
+          if (isFood && res.healthScore != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            _buildHealthScoreSection(res.healthScore!, res.healthScoreRationale),
+          ],
+          if (isMedicinal) ...[
+            if (res.medicinalSafetySummary != null &&
+                res.medicinalSafetySummary!.trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: Color(0xFF16A34A),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        res.medicinalSafetySummary!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: const Color(0xFF166534),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      res.mandatoryDisclaimer ??
+                          'Informational summary of declared label content only. Not medical advice.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF92400E),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'AI analysis powered by Groq LLaMA 3.3',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+              InkWell(
+                onTap: _isGeneratingSummary
+                    ? null
+                    : () => _fetchAiSummary(
+                          scan: _completedScan,
+                          productName: _lastProductName ??
+                              widget.pendingCapture.fileName,
+                          brand: _lastBrand ?? 'General Brand',
+                          remoteResult: _lastRemoteResult,
+                          audit: _lastAudit,
+                          ocrText: _lastOcrText,
+                          forceRegenerate: true,
+                        ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.refresh_rounded,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Regenerate',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -1055,6 +1479,94 @@ class _ConsumerScanAnalysisScreenState extends State<ConsumerScanAnalysisScreen>
       ),
     );
   }
+
+  Widget _buildHealthScoreSection(int score, String? rationale) {
+    final Color scoreColor;
+    final String label;
+    if (score >= 70) {
+      scoreColor = const Color(0xFF10B981);
+      label = 'Nutritionally Balanced';
+    } else if (score >= 45) {
+      scoreColor = const Color(0xFFF59E0B);
+      label = 'Moderate Balance';
+    } else {
+      scoreColor = const Color(0xFFEF4444);
+      label = 'High Sugar / Salt / Fat';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: scoreColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.favorite_rounded, size: 16, color: scoreColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Health & Nutrition Score',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    '$score',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: scoreColor,
+                    ),
+                  ),
+                  Text(
+                    '/100',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: score / 100.0,
+              minHeight: 6,
+              backgroundColor: AppColors.outlineVariant.withValues(alpha: 0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            rationale != null && rationale.isNotEmpty ? rationale : label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              color: AppColors.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildDetailChip(String label, String value) {
     return Expanded(

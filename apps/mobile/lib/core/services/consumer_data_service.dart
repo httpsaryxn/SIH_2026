@@ -70,25 +70,29 @@ class ConsumerDataService {
   }) async {
     final uid = _userId;
 
-    final trimmedName = productName.trim();
-    final trimmedBrand = (brand != null && brand.trim().isNotEmpty)
+    final trimmedName = productName.trim().isNotEmpty
+        ? productName.trim()
+        : 'Scanned Product';
+    final trimmedBrand = (brand != null &&
+            brand.trim().isNotEmpty &&
+            brand.trim() != 'Packaged Foods Co.')
         ? brand.trim()
-        : 'Packaged Foods Co.';
-    final resolvedCategory = (category != null && category.trim().isNotEmpty)
+        : (audit?.detectedDeclarations['manufacturer'] as String?)?.trim() ?? '';
+    final resolvedCategory = (category != null &&
+            category.trim().isNotEmpty &&
+            category.trim() != 'Snacks')
         ? category.trim()
-        : 'Snacks';
-    final resolvedNetQty = (netQuantity != null && netQuantity.trim().isNotEmpty)
+        : '';
+    final resolvedNetQty = (netQuantity != null &&
+            netQuantity.trim().isNotEmpty &&
+            netQuantity.trim() != '200 g')
         ? netQuantity.trim()
-        : '200 g';
-    final resolvedMrp = mrp ?? 65.0;
+        : (audit?.detectedDeclarations['net_quantity'] as String?)?.trim() ?? '';
+    final resolvedMrp = mrp ?? (audit?.detectedDeclarations['mrp'] as num?)?.toDouble();
 
-    // Generate realistic extracted ingredients if none provided
-    final resolvedIngredients =
-        ingredients ?? _generateIngredientsFor(trimmedName, resolvedCategory);
-
-    // Generate realistic nutritional facts
-    final resolvedNutrition =
-        nutritionFacts ?? _generateNutritionFor(resolvedCategory);
+    // Only keep genuine extracted ingredients & nutrition if detected
+    final resolvedIngredients = ingredients;
+    final resolvedNutrition = nutritionFacts;
 
     // Perform Legal Metrology compliance evaluation.
     // Prefer the real on-device pipeline result (`audit`) when the caller ran
@@ -100,7 +104,7 @@ class ConsumerDataService {
           )
         : _evaluateCompliance(
             netQuantity: resolvedNetQty,
-            mrp: resolvedMrp,
+            mrp: resolvedMrp ?? 0.0,
             productName: trimmedName,
           );
 
@@ -117,7 +121,6 @@ class ConsumerDataService {
 
     final nowMs = DateTime.now().millisecondsSinceEpoch.toString();
     final barcode = '890${nowMs.substring(nowMs.length - 10)}';
-    final fssaiNo = '115${nowMs.substring(nowMs.length - 11)}';
     final tempScanId = 'scan_$nowMs';
 
     // 1. Upload images to Supabase Storage
@@ -168,11 +171,9 @@ class ConsumerDataService {
         'ingredients': resolvedIngredients,
         'nutrition_facts': resolvedNutrition,
         'manufacturer_name':
-            auditMfrName ?? manufacturerName ?? '$trimmedBrand India Pvt Ltd',
-        'manufacturer_address': auditMfrAddr ??
-            manufacturerAddress ??
-            'Plot 42, Food Processing Zone, Phase 1, Pune 411018',
-        'fssai_license_no': auditFssai ?? fssaiNo,
+            auditMfrName ?? manufacturerName ?? (trimmedBrand.isNotEmpty ? trimmedBrand : null),
+        'manufacturer_address': auditMfrAddr ?? manufacturerAddress,
+        'fssai_license_no': auditFssai,
         'image_url': resolvedImage,
         'compliance_status': compliance.status,
         'compliance_issues': compliance.issues,
@@ -200,15 +201,38 @@ class ConsumerDataService {
         'scale_reference_url': multiImageUrls?[CaptureRole.scaleReference],
         'compliance_status': newProduct.complianceStatus,
         'detected_declarations': {
-          'ingredients': newProduct.ingredients,
-          'nutrition_facts': newProduct.nutritionFacts,
-          'manufacturer': auditMfrName ?? newProduct.manufacturerName,
-          'manufacturer_address': auditMfrAddr ?? newProduct.manufacturerAddress,
-          'mrp': auditMrp ?? newProduct.mrp,
-          'fssai_license_no': auditFssai ?? newProduct.fssaiLicenseNo,
-          'mfg_date': auditMfgDate ?? newProduct.mfgDate,
-          'best_before': auditBestBefore ?? newProduct.bestBefore,
-          'consumer_care_info': auditCare ?? newProduct.consumerCareInfo,
+          if (resolvedIngredients != null && resolvedIngredients.isNotEmpty)
+            'ingredients': resolvedIngredients,
+          if (resolvedNutrition != null && resolvedNutrition.isNotEmpty)
+            'nutrition_facts': resolvedNutrition,
+          if (auditMfrName != null && auditMfrName.isNotEmpty)
+            'manufacturer': auditMfrName
+          else if (newProduct.manufacturerName != null && newProduct.manufacturerName!.isNotEmpty)
+            'manufacturer': newProduct.manufacturerName,
+          if (auditMfrAddr != null && auditMfrAddr.isNotEmpty)
+            'manufacturer_address': auditMfrAddr
+          else if (newProduct.manufacturerAddress != null && newProduct.manufacturerAddress!.isNotEmpty)
+            'manufacturer_address': newProduct.manufacturerAddress,
+          if (auditMrp != null)
+            'mrp': auditMrp
+          else if (newProduct.mrp != null && newProduct.mrp! > 0)
+            'mrp': newProduct.mrp,
+          if (auditFssai != null && auditFssai.isNotEmpty)
+            'fssai_license_no': auditFssai
+          else if (newProduct.fssaiLicenseNo != null && newProduct.fssaiLicenseNo!.isNotEmpty)
+            'fssai_license_no': newProduct.fssaiLicenseNo,
+          if (auditMfgDate != null && auditMfgDate.isNotEmpty)
+            'mfg_date': auditMfgDate
+          else if (newProduct.mfgDate != null && newProduct.mfgDate!.isNotEmpty)
+            'mfg_date': newProduct.mfgDate,
+          if (auditBestBefore != null && auditBestBefore.isNotEmpty)
+            'best_before': auditBestBefore
+          else if (newProduct.bestBefore != null && newProduct.bestBefore!.isNotEmpty)
+            'best_before': newProduct.bestBefore,
+          if (auditCare != null && auditCare.isNotEmpty)
+            'consumer_care_info': auditCare
+          else if (newProduct.consumerCareInfo != null && newProduct.consumerCareInfo!.isNotEmpty)
+            'consumer_care_info': newProduct.consumerCareInfo,
           if (audit != null) ...audit.detectedDeclarations,
         },
         'scan_notes': audit != null
@@ -257,8 +281,8 @@ class ConsumerDataService {
         category: resolvedCategory,
         netQuantity: resolvedNetQty,
         mrp: resolvedMrp,
-        ingredients: resolvedIngredients,
-        nutritionFacts: resolvedNutrition,
+        ingredients: resolvedIngredients ?? const [],
+        nutritionFacts: resolvedNutrition ?? const {},
         imageUrl: resolvedImage,
         complianceStatus: compliance.status,
         complianceIssues: compliance.issues,
@@ -274,10 +298,18 @@ class ConsumerDataService {
         imageUrl: resolvedImage,
         complianceStatus: compliance.status,
         detectedDeclarations: {
-          'ingredients': resolvedIngredients,
-          'nutrition_facts': resolvedNutrition,
-          'manufacturer': auditMfrName ?? fallbackProduct.manufacturerName,
-          'mrp': auditMrp ?? resolvedMrp,
+          if (resolvedIngredients != null && resolvedIngredients.isNotEmpty)
+            'ingredients': resolvedIngredients,
+          if (resolvedNutrition != null && resolvedNutrition.isNotEmpty)
+            'nutrition_facts': resolvedNutrition,
+          if (auditMfrName != null && auditMfrName.isNotEmpty)
+            'manufacturer': auditMfrName
+          else if (fallbackProduct.manufacturerName != null && fallbackProduct.manufacturerName!.isNotEmpty)
+            'manufacturer': fallbackProduct.manufacturerName,
+          if (auditMrp != null)
+            'mrp': auditMrp
+          else if (resolvedMrp != null && resolvedMrp > 0)
+            'mrp': resolvedMrp,
           if (audit != null) ...audit.detectedDeclarations,
         },
         scanNotes: audit != null
@@ -594,101 +626,6 @@ class ConsumerDataService {
     );
   }
 
-  static List<String> _generateIngredientsFor(String name, String category) {
-    final lower = name.toLowerCase();
-    if (lower.contains('bread') || lower.contains('sourdough')) {
-      return [
-        'Whole Wheat Flour',
-        'Water',
-        'Naturally Fermented Sourdough Culture',
-        'Sea Salt',
-        'Yeast'
-      ];
-    } else if (lower.contains('almond') || lower.contains('milk')) {
-      return [
-        'Filtered Water',
-        'Organic Almonds (8%)',
-        'Calcium Carbonate',
-        'Sea Salt',
-        'Sunflower Lecithin',
-        'Gellan Gum'
-      ];
-    } else if (lower.contains('chip') || lower.contains('snack') || category == 'Snacks') {
-      return [
-        'Corn / Potato Flour',
-        'Refined Edible Vegetable Oil',
-        'Seasoning Spices',
-        'Iodized Salt',
-        'Acidity Regulator (INS 330)'
-      ];
-    } else if (lower.contains('cookie') || lower.contains('biscuit') || category == 'Bakery') {
-      return [
-        'Refined Wheat Flour (Maida)',
-        'Sugar',
-        'Hydrogenated Vegetable Fats',
-        'Cocoa Solids',
-        'Milk Solids',
-        'Raising Agents (INS 500ii)'
-      ];
-    } else if (category == 'Beverages' || lower.contains('juice')) {
-      return [
-        'Water',
-        'Fruit Pulp / Concentrate (15%)',
-        'Sugar',
-        'Acidity Regulator (INS 296)',
-        'Antioxidant (INS 300)'
-      ];
-    }
-
-    return [
-      'Primary Agricultural Produce',
-      'Edible Vegetable Oil',
-      'Iodized Salt',
-      'Permitted Natural Flavors'
-    ];
-  }
-
-  static Map<String, dynamic> _generateNutritionFor(String category) {
-    switch (category) {
-      case 'Beverages':
-        return {
-          'Calories': '48 kcal',
-          'Carbohydrates': '11.5 g',
-          'Sugar': '10.8 g',
-          'Protein': '0.2 g',
-          'Total Fat': '0 g',
-          'Sodium': '15 mg',
-        };
-      case 'Dairy':
-        return {
-          'Calories': '62 kcal',
-          'Carbohydrates': '4.8 g',
-          'Protein': '3.2 g',
-          'Total Fat': '3.5 g',
-          'Calcium': '120 mg',
-          'Sodium': '45 mg',
-        };
-      case 'Bakery':
-        return {
-          'Calories': '360 kcal',
-          'Carbohydrates': '58 g',
-          'Protein': '7 g',
-          'Total Fat': '12 g',
-          'Sugar': '24 g',
-          'Sodium': '180 mg',
-        };
-      case 'Snacks':
-      default:
-        return {
-          'Calories': '520 kcal',
-          'Carbohydrates': '54 g',
-          'Protein': '6.8 g',
-          'Total Fat': '31 g',
-          'Sugar': '3.5 g',
-          'Sodium': '580 mg',
-        };
-    }
-  }
 
   static String _getPlaceholderImageFor(String category) {
     switch (category) {

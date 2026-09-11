@@ -7,12 +7,14 @@ import '../../core/constants/app_typography.dart';
 import '../../core/models/consumer_complaint_model.dart';
 import '../../core/models/consumer_saved_product.dart';
 import '../../core/models/consumer_scan_model.dart';
+import '../../core/models/multi_capture_payload.dart';
 import '../../core/models/product_model.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/camera_capture_service.dart';
 import '../../core/services/consumer_data_service.dart';
 import '../../core/widgets/label_lens_brand.dart';
 import '../onboarding/role_selection_screen.dart';
+import '../shared/multi_capture_screen.dart';
 import 'consumer_profile_screen.dart';
 import 'consumer_scan_analysis_screen.dart';
 import 'widgets/complaint_detail_modal.dart';
@@ -21,6 +23,7 @@ import 'widgets/notifications_sheet.dart';
 import 'widgets/product_comparison_modal.dart';
 import 'widgets/product_summary_modal.dart';
 import 'widgets/quick_feature_strip.dart';
+import '../../core/motion/motion.dart';
 import 'widgets/recent_scans_section.dart';
 import 'widgets/report_complaint_dialog.dart';
 import 'widgets/report_issue_hero_card.dart';
@@ -169,14 +172,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   child: const Icon(Icons.photo_camera_rounded, color: AppColors.primary),
                 ),
                 title: Text(
-                  'Take Photo with Camera',
+                  'Guided 3-Step Package Scan',
                   style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                   ),
                 ),
                 subtitle: Text(
-                  'Instant camera capture & real-time OCR analysis',
+                  'Front Label, Curved Surface & Scale Reference',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: AppColors.onSurfaceVariant,
@@ -185,16 +188,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final capture = await CameraCaptureService.captureImage(
-                    context: context,
-                    sourceTag: 'consumer_scan',
-                    imageSource: ImageSource.camera,
+                  final result = await Navigator.of(context).push<MultiCapturePayload?>(
+                    DrillInPageRoute(
+                      page: const MultiCaptureScreen(
+                        sourceTag: 'consumer_scan',
+                        flowLabel: 'Consumer Inspection',
+                      ),
+                    ),
                   );
-                  if (capture != null && mounted) {
+                  if (result != null && result.hasAnyCapture && mounted) {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ConsumerScanAnalysisScreen(
-                          pendingCapture: capture,
+                      DrillInPageRoute(
+                        page: ConsumerScanAnalysisScreen(
+                          multiCapture: result,
+                          pendingCapture: result.primaryCapture!,
                           onScanCompleted: (newScan) {
                             setState(() {
                               _recentScans.insert(0, newScan);
@@ -246,8 +253,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   );
                   if (capture != null && mounted) {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ConsumerScanAnalysisScreen(
+                      DrillInPageRoute(
+                        page: ConsumerScanAnalysisScreen(
                           pendingCapture: capture,
                           onScanCompleted: (newScan) {
                             setState(() {
@@ -554,7 +561,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           onRefresh: _loadAllConsumerData,
           color: AppColors.primary,
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             padding: EdgeInsets.symmetric(
               horizontal: _currentNavIndex == 4 ? AppSpacing.gutter : horizontalPadding,
               vertical: _currentNavIndex == 4 ? AppSpacing.md : AppSpacing.lg,
@@ -562,7 +571,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1200),
-                child: _buildCurrentTabContent(isDesktop),
+                child: DirectionalTabSwitcher(
+                  currentIndex: _currentNavIndex,
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_currentNavIndex),
+                    child: _buildCurrentTabContent(isDesktop),
+                  ),
+                ),
               ),
             ),
           ),
