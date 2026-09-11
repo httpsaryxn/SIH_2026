@@ -42,6 +42,7 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
   late final TextEditingController _heightController;
 
   static const List<String> dimensionsList = [
+    'Ultra-Compact Commercial Packaging (100 × 118 mm)',
     'Standard Pouch (100 × 150 mm)',
     'Wide Pouch / Namkeen Bag (150 × 200 mm)',
     'Large Stand-Up Zipper Pouch (180 × 260 mm)',
@@ -63,6 +64,17 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
   }
 
   @override
+  void didUpdateWidget(ExportOptionsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.customWidthMm != widget.customWidthMm) {
+      _widthController.text = widget.customWidthMm.toInt().toString();
+    }
+    if (oldWidget.customHeightMm != widget.customHeightMm) {
+      _heightController.text = widget.customHeightMm.toInt().toString();
+    }
+  }
+
+  @override
   void dispose() {
     _widthController.dispose();
     _heightController.dispose();
@@ -71,7 +83,7 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
 
   void _onDimensionsInputChanged() {
     final w = double.tryParse(_widthController.text.trim()) ?? 100.0;
-    final h = double.tryParse(_heightController.text.trim()) ?? 150.0;
+    final h = double.tryParse(_heightController.text.trim()) ?? 118.0;
     widget.onCustomDimensionsChanged?.call(w, h);
   }
 
@@ -291,13 +303,12 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
                     widget.onDimensionChanged(val);
                     if (!val.startsWith('Custom')) {
                       // Extract width and height numbers from string e.g. (100 × 150 mm)
-                      final match = RegExp(r'(\d+)\s*×\s*(\d+)').firstMatch(val);
+                      final match = RegExp(r'(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)').firstMatch(val);
                       if (match != null) {
                         final w = double.tryParse(match.group(1)!) ?? 100.0;
-                        final h = double.tryParse(match.group(2)!) ?? 150.0;
+                        final h = double.tryParse(match.group(2)!) ?? 118.0;
                         _widthController.text = w.toInt().toString();
                         _heightController.text = h.toInt().toString();
-                        widget.onCustomDimensionsChanged?.call(w, h);
                       }
                     }
                   }

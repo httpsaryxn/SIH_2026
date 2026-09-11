@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
 import '../../data/repositories/small_business_label_repository.dart';
@@ -70,10 +71,13 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
     _mrpController = TextEditingController(text: initialMrp);
     _uspController = TextEditingController(text: _currentModel.usp);
     _batchController = TextEditingController(text: _currentModel.batchNumber);
+    final todayFormatted =
+        DateFormat('dd MMM yyyy').format(DateTime.now()).toUpperCase();
+    final currentMfg = _currentModel.mfgDate.trim();
     _mfgDateController = TextEditingController(
-      text: _currentModel.mfgDate.isNotEmpty
-          ? _currentModel.mfgDate
-          : 'AUG 2026',
+      text: currentMfg.isNotEmpty && currentMfg != 'AUG 2026'
+          ? currentMfg
+          : todayFormatted,
     );
     _selectedBestBefore = _currentModel.bestBefore.isNotEmpty
         ? _currentModel.bestBefore
@@ -120,8 +124,10 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
       packagingType: _selectedPackagingType,
       isVegetarian: _isVegetarian,
       recyclingMark: _selectedRecyclingMark,
-      currentStep: 5,
-      completionPercentage: 83,
+      currentStep: _currentModel.currentStep > 5 ? _currentModel.currentStep : 5,
+      completionPercentage: _currentModel.completionPercentage > 83
+          ? _currentModel.completionPercentage
+          : 83,
     );
   }
 
@@ -280,6 +286,48 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _selectMfgDate() async {
+    final now = DateTime.now();
+    DateTime initial = now;
+    final txt = _mfgDateController.text.trim();
+    if (txt.isNotEmpty) {
+      try {
+        initial = DateFormat('dd MMM yyyy').parse(txt);
+      } catch (_) {
+        try {
+          initial = DateFormat('MMM yyyy').parse(txt);
+        } catch (_) {}
+      }
+    }
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'SELECT PACKAGING / MFG DATE',
+      confirmText: 'SELECT',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.brandDeepGreen,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.onSurface,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _mfgDateController.text =
+            DateFormat('dd MMM yyyy').format(picked).toUpperCase();
+      });
+    }
   }
 
   void _toggleStorageChip(String chip) {
@@ -526,6 +574,7 @@ class _FinalDetailsScreenState extends State<FinalDetailsScreen> {
                     setState(() => _selectedBestBefore = val),
                 onAutoCalculateUSP: _autoCalculateUSP,
                 onGenerateBatchCode: _generateBatchCode,
+                onSelectMfgDate: _selectMfgDate,
               ),
               const SizedBox(height: 16),
 

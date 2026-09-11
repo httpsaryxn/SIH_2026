@@ -11,6 +11,18 @@ import 'screens/splash/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+
+
+
+
+
+
+
+
+
+
+
+
   try {
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
