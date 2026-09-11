@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-09-11
+
+### Added
+- **Live Barcode & QR Code Webscraping Registry Enrichment**:
+  - Integrated `BarcodeScanner` across all intake images (front, back, ruler, barcode).
+  - Live query against Open Food Facts, UPCItemDB, and GS1 registry to enrich package metadata (product name, brand, net quantity, manufacturer).
+  - Verified QR code destination domains and extracted page headers for metrology compliance audits.
+- **Small Business Label Studio Enhancements**:
+  - Multi-format label artwork downloads (Vector SVG, Print-Ready 300 DPI PDF, and JSON compliance metadata).
+  - Nutrition % RDA daily value calculations and FoSCoS portal verification links.
+  - GS1 EAN-13 barcode generator and brand logo image inclusion in exported labels.
+  - Timestamped export filenames and Android Scoped Storage download manager fallback.
+
+### Fixed
+- **Eliminated Mock Data Handoff in Regulator Flow**:
+  - In-memory audit violation cache registration prevents `getViolationById()` from falling back to hardcoded mock products when reviewing newly captured packaging scans.
+  - Direct `initialViolation` handoff in `RegulatorViolationReviewScreen` ensuring 100% authentic data pipeline.
+- **Latency Optimization via Gemini Vision Header**:
+  - Automatic transmission of `X-Gemini-Api-Key` prevents slow multi-pass EasyOCR CPU fallbacks on backend scanners.
+- **Android Gradle 9.x Build Compatibility**:
+  - Resolved CameraX `CallbackToFutureAdapter` compilation error by upgrading `camera` and injecting `androidx.concurrent:concurrent-futures:1.2.0`.
+
+---
+
 ## [2.0.0] - 2026-09-11
 
 ### Added

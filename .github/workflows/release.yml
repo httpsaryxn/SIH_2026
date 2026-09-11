@@ -6,7 +6,7 @@ on:
       version:
         description: 'Release version tag (e.g. v2.0.0)'
         required: true
-        default: 'v2.0.0'
+        default: 'v2.0.1'
   push:
     tags:
       - 'v*'
@@ -106,12 +106,9 @@ jobs:
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk\`** | **~105 MB** | 🌐 **Universal** — compatible with all Android devices, tablets & emulators |
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
-          #### 🚀 Highlights in this Release (v2.0):
-          - 🏪 **Small Business Studio Hub & Inventory**: Functional 4-tab persistent bottom navbar (Home, Inventory, Notifications, Profile) with DirectionalIndexedStack slide transitions, unread alerts badge, and live inline search results
-          - 📦 **Label Inventory & Drill-in Management**: Real-time filtering by status (All, Ready, Needs Review, Drafts), category picker, and tap-to-drill-in to label creator and review
-          - 🔔 **Activity & Compliance Notifications Center**: Integrated real-time notifications with filter chips and live count badge
-          - 🔍 **Instant Inline Search Dropdown**: Product search directly beneath search bar with rich metadata preview and tap redirection
-          - 🧠 **Dynamic AI Label Summary (Groq LLM)**: Real-time packaging OCR analysis with fast model fallbacks (\`qwen/qwen3.8-27b\`, \`openai/gpt-oss-120b\`, \`llama-3.3-70b-versatile\`)
-          - ⚠️ **Harmful Ingredients & Threshold Flags**: Automated detection of artificial dyes (INS 102, 110, 129), chemical preservatives, palm oil, MSG, and excessive sodium/sugar warnings
-          - 📹 **Real Live Camera Viewfinders**: Hardware camera streaming in multi-capture steps with live guides and tap-to-snap shutter
-          - 🛡️ **Persistent Shells & Motion System**: 100% state preservation across regulator and small business tabs with standardized spring physics and Cupertino/Material transitions"
+          #### 🚀 Highlights in this Release (v2.0.1):
+          - 🔍 **Live Barcode & QR Code Webscraping**: Instant real-time barcode/QR registry lookup via Open Food Facts, UPCItemDB, and GS1 to enrich packaging metadata and verify manufacturer credentials.
+          - 🚫 **Zero Mock Data Handoff**: Strict in-memory registration and direct violation state handoff guaranteeing 100% authentic live audit reviews for Regulators.
+          - ⚡ **Sub-3s Scanning Latency**: Active Gemini Vision header transmission eliminating slow CPU EasyOCR fallbacks.
+          - 🎨 **Small Business Multi-Format Downloads**: Export compliant labels in Vector SVG, Print-Ready 300 DPI PDF, and JSON metadata with automatic % RDA calculation and FoSCoS portal verification.
+          - 📱 **CameraX & Gradle 9.x Compatibility**: Full support for modern Android builds with upgraded CameraX dependencies."
