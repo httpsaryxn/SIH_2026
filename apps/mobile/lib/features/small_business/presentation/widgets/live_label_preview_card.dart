@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/small_business_label_model.dart';
 import '../../data/services/gs1_ean13_encoder.dart';
+import '../../data/services/nutrition_calculator.dart';
 import 'claim_item_card.dart';
 import 'product_image_widget.dart';
 
@@ -17,7 +19,7 @@ class LiveLabelPreviewCard extends StatelessWidget {
     this.mrp = '₹ 20.00',
     this.unitSalePrice = '₹ 0.28 / g',
     this.batchNumber = 'HALDIRAMS-2026-I92',
-    this.mfgDate = 'AUG 2026',
+    this.mfgDate = '',
     this.bestBefore = '12 Months from Packaging',
     this.storageInstructions = 'Do not freeze. Store in an airtight container.',
     this.fssaiNumber = '74125896323145',
@@ -214,11 +216,18 @@ class LiveLabelPreviewCard extends StatelessWidget {
     final mrpDisplay = cleanMrp.isNotEmpty ? 'Rs. $cleanMrp' : 'Rs. 20.00';
     final uspDisplay = unitSalePrice.isNotEmpty ? unitSalePrice.replaceAll('₹', 'Rs. ') : 'Rs. 0.28 / g';
 
+    // Dynamic Packaging Date fallback
+    final effectiveMfg = mfgDate.isNotEmpty && mfgDate != 'AUG 2026'
+        ? mfgDate
+        : (labelModel?.mfgDate.isNotEmpty == true && labelModel!.mfgDate != 'AUG 2026'
+            ? labelModel!.mfgDate
+            : DateFormat('MMM yyyy').format(DateTime.now()).toUpperCase());
+
     // Serving Size & Calories calculation
     final sSize = labelModel?.servingSize.isNotEmpty == true ? labelModel!.servingSize : '70';
     final sUnit = labelModel?.servingSizeUnit.isNotEmpty == true ? labelModel!.servingSizeUnit : 'g';
     final energyNutrient = nutrientsList.cast<SmallBusinessNutrientModel?>().firstWhere(
-      (n) => n?.label.toLowerCase() == 'energy',
+      (n) => n?.label.toLowerCase() == 'energy' || n?.label.toLowerCase() == 'calories',
       orElse: () => null,
     );
     final energyVal = double.tryParse(energyNutrient?.value ?? '') ?? 536.0;
@@ -420,7 +429,9 @@ class LiveLabelPreviewCard extends StatelessWidget {
                     child: _buildNutritionFactsPanel(
                       nutrients: nutrientsList,
                       serveSize: '$sSize $sUnit',
+                      serveGrams: serveG,
                       calPerServe: calPerServe,
+                      energyPer100g: energyVal,
                       servingsPerPack: servingsPerPack,
                     ),
                   ),
@@ -573,7 +584,7 @@ class LiveLabelPreviewCard extends StatelessWidget {
                           ),
                           const Divider(height: 8, thickness: 0.7, color: Color(0xFFCBD5E1)),
                           Text(
-                            'Batch No: $batchNumber   •   Mfg Date: $mfgDate   •   Best Before: $bestBefore',
+                            'Batch No: $batchNumber   •   Mfg Date: $effectiveMfg   •   Best Before: $bestBefore',
                             style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
                           ),
                           const SizedBox(height: 1),
@@ -730,24 +741,28 @@ class LiveLabelPreviewCard extends StatelessWidget {
   Widget _buildNutritionFactsPanel({
     required List<SmallBusinessNutrientModel> nutrients,
     required String serveSize,
+    required double serveGrams,
     required String calPerServe,
+    required double energyPer100g,
     required int servingsPerPack,
   }) {
-    // Standard rows list
+    final calPercentStr = NutritionCalculator.calculateCaloriesRda(calPerServe);
+
+    // Standard rows list with calculated RDA based on serving size
     final defaultRows = [
-      {'name': 'Energy', 'val': '536 kcal', 'rda': '19%', 'level': 0},
-      {'name': 'Protein', 'val': '5.6 g', 'rda': '—', 'level': 0},
-      {'name': 'Carbohydrate', 'val': '230 g', 'rda': '—', 'level': 0},
-      {'name': 'Total Sugars', 'val': '2 g', 'rda': '—', 'level': 1},
-      {'name': 'Added Sugars', 'val': '2 g', 'rda': '3%', 'level': 2},
-      {'name': 'Total Fat', 'val': '10 g', 'rda': '10%', 'level': 0},
-      {'name': 'Saturated Fat', 'val': '1 g', 'rda': '3%', 'level': 1},
-      {'name': 'Trans Fat', 'val': '0 g', 'rda': '0%', 'level': 1},
-      {'name': 'Cholesterol', 'val': '0 mg', 'rda': '0%', 'level': 0},
-      {'name': 'Sodium', 'val': '222 mg', 'rda': '8%', 'level': 0},
-      {'name': 'Potassium', 'val': '140 mg', 'rda': '3%', 'level': 0},
-      {'name': 'Calcium', 'val': '40 mg', 'rda': '2%', 'level': 0},
-      {'name': 'Iron', 'val': '1.2 mg', 'rda': '4%', 'level': 0},
+      {'name': 'Energy', 'val': '536 kcal', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Energy', value: '536', unit: 'kcal', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Protein', 'val': '5.6 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Protein', value: '5.6', unit: 'g', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Carbohydrate', 'val': '230 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Carbohydrate', value: '230', unit: 'g', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Total Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Sugars', value: '2', unit: 'g', servingSizeGrams: serveGrams), 'level': 1},
+      {'name': 'Added Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Added Sugars', value: '2', unit: 'g', servingSizeGrams: serveGrams), 'level': 2},
+      {'name': 'Total Fat', 'val': '10 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Fat', value: '10', unit: 'g', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Saturated Fat', 'val': '1 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Saturated Fat', value: '1', unit: 'g', servingSizeGrams: serveGrams), 'level': 1},
+      {'name': 'Trans Fat', 'val': '0 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Trans Fat', value: '0', unit: 'g', servingSizeGrams: serveGrams), 'level': 1},
+      {'name': 'Cholesterol', 'val': '0 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Cholesterol', value: '0', unit: 'mg', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Sodium', 'val': '222 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Sodium', value: '222', unit: 'mg', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Potassium', 'val': '140 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Potassium', value: '140', unit: 'mg', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Calcium', 'val': '40 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Calcium', value: '40', unit: 'mg', servingSizeGrams: serveGrams), 'level': 0},
+      {'name': 'Iron', 'val': '1.2 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Iron', value: '1.2', unit: 'mg', servingSizeGrams: serveGrams), 'level': 0},
     ];
 
     final displayRows = <Map<String, dynamic>>[];
@@ -758,10 +773,16 @@ class LiveLabelPreviewCard extends StatelessWidget {
         final val = '${n.value} ${n.unit}';
         final isSub = n.isSubNutrient;
         final level = isSub ? 1 : 0;
+        final rdaVal = NutritionCalculator.calculateRdaPercentage(
+          label: label,
+          value: n.value,
+          unit: n.unit,
+          servingSizeGrams: serveGrams,
+        );
         displayRows.add({
           'name': label,
           'val': val,
-          'rda': '—',
+          'rda': rdaVal,
           'level': level,
         });
       }
@@ -857,9 +878,9 @@ class LiveLabelPreviewCard extends StatelessWidget {
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black),
                         children: [
                           TextSpan(text: 'Calories $calPerServe '),
-                          const TextSpan(
-                            text: '(Energy 536 kcal / 100 g)',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.normal, color: Color(0xFF555555)),
+                          TextSpan(
+                            text: '(Energy ${energyPer100g.round()} kcal / 100 g)',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.normal, color: Color(0xFF555555)),
                           ),
                         ],
                       ),
@@ -867,9 +888,9 @@ class LiveLabelPreviewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
-                  '19%',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black),
+                Text(
+                  calPercentStr,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black),
                 ),
               ],
             ),

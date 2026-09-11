@@ -10,6 +10,7 @@ import 'package:mobile/features/small_business/data/models/small_business_label_
 import 'package:mobile/features/small_business/data/repositories/small_business_label_repository.dart';
 import 'package:mobile/features/small_business/data/services/file_download_service.dart';
 import 'package:mobile/features/small_business/data/services/gs1_ean13_encoder.dart';
+import 'package:mobile/features/small_business/data/services/nutrition_calculator.dart';
 import 'package:mobile/features/small_business/presentation/screens/create_label_declaration_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/final_details_screen.dart';
 import 'package:mobile/features/small_business/presentation/screens/ingredients_allergens_screen.dart';
@@ -473,8 +474,7 @@ void main() {
     expect(dimFallback.heightMm, 118.0);
   });
 
-  testWidgets('FileDownloadService renders brand logo in PDF and SVG when provided',
-      (WidgetTester tester) async {
+  test('FileDownloadService renders brand logo in PDF and SVG when provided', () async {
     const sampleLogoBase64 =
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -491,12 +491,18 @@ void main() {
       logoUrl: sampleLogoBase64,
     );
 
-    // 1. PDF Export with Logo
     final pdfPath = await FileDownloadService.downloadPdfLabel(
       model: modelWithLogo,
       dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
       shareOnMobile: false,
     );
+    final svgPath = await FileDownloadService.downloadSvgLabel(
+      model: modelWithLogo,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+
+    // 1. PDF Export with Logo
     expect(pdfPath, isNotNull);
     final pdfBytes = await File(pdfPath!).readAsBytes();
     final pdfString = latin1.decode(pdfBytes, allowInvalid: true);
@@ -504,15 +510,109 @@ void main() {
     expect(pdfString, contains('/BrandLogo Do'));
 
     // 2. SVG Export with Logo
+    expect(svgPath, isNotNull);
+    final svgString = await File(svgPath!).readAsString();
+    expect(svgString, contains('<image '));
+    expect(svgString, contains('data:image/png;base64,'));
+  });
+
+  test('NutritionCalculator computes exact statutory % RDA and Calories Daily Values', () {
+    // Calories: 375 kcal / 2000 kcal = 18.75% -> 19%
+    expect(NutritionCalculator.calculateCaloriesRda(375), '19%');
+    // Calories: 200 kcal / 2000 kcal = 10%
+    expect(NutritionCalculator.calculateCaloriesRda(200), '10%');
+    // Calories: 0 kcal -> 0%
+    expect(NutritionCalculator.calculateCaloriesRda(0), '0%');
+
+    // Total Fat: 10g / 100g, 70g serving -> 7g. 7 / 67g (FSSAI RDA) = 10.45% -> 10%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Total Fat', value: '10', unit: 'g', servingSizeGrams: 70), '10%');
+
+    // Saturated Fat: 1g / 100g, 70g serving -> 0.7g. 0.7 / 22g = 3.18% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '— Saturated Fat', value: '1', unit: 'g', servingSizeGrams: 70), '3%');
+
+    // Trans Fat: 0g -> 0%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '— Trans Fat', value: '0', unit: 'g', servingSizeGrams: 70), '0%');
+
+    // Sodium: 222mg / 100g, 70g serving -> 155.4mg. 155.4 / 2000mg = 7.77% -> 8%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Sodium', value: '222', unit: 'mg', servingSizeGrams: 70), '8%');
+
+    // Protein: 5.6g / 100g, 70g serving -> 3.92g. 3.92 / 54g = 7.26% -> 7%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Protein', value: '5.6', unit: 'g', servingSizeGrams: 70), '7%');
+
+    // Carbohydrates: 230g / 100g, 70g serving -> 161g. 161 / 300g = 53.67% -> 54%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Carbohydrates', value: '230', unit: 'g', servingSizeGrams: 70), '54%');
+
+    // Added Sugars: 2g / 100g, 70g serving -> 1.4g. 1.4 / 50g = 2.8% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: '• Added Sugars', value: '2', unit: 'g', servingSizeGrams: 70), '3%');
+
+    // Iron: 1.2mg / 100g, 70g serving -> 0.84mg. 0.84 / 19mg = 4.42% -> 4%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Iron', value: '1.2', unit: 'mg', servingSizeGrams: 70), '4%');
+
+    // Calcium: 40mg / 100g, 70g serving -> 28mg. 28 / 1000mg = 2.8% -> 3%
+    expect(NutritionCalculator.calculateRdaPercentage(label: 'Calcium', value: '40', unit: 'mg', servingSizeGrams: 70), '3%');
+  });
+
+  test('FileDownloadService renders calculated RDA percentages on the right-hand side in SVG and PDF', () async {
+    const modelWithNutrients = SmallBusinessLabelModel(
+      brandName: 'Shree Nutri Foods',
+      productName: 'Roasted Diet Makhana',
+      productCategory: 'Snacks & Namkeen',
+      netQuantity: '100',
+      netQuantityUnit: 'g',
+      servingSize: '70',
+      servingSizeUnit: 'g',
+      mrp: '150.00',
+      fssaiLicenseNumber: '11521018000789',
+      manufacturerName: 'Shree Nutri Foods LLP',
+      manufacturerAddress: 'Indore, MP 452001',
+      nutrients: [
+        SmallBusinessNutrientModel(label: 'Calories', value: '536', unit: 'kcal'),
+        SmallBusinessNutrientModel(label: 'Total Fat', value: '10', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Saturated Fat', value: '1', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Trans Fat', value: '0', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Sodium', value: '222', unit: 'mg'),
+        SmallBusinessNutrientModel(label: 'Carbohydrates', value: '230', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Added Sugars', value: '2', unit: 'g', isSubNutrient: true),
+        SmallBusinessNutrientModel(label: 'Protein', value: '5.6', unit: 'g'),
+        SmallBusinessNutrientModel(label: 'Calcium', value: '40', unit: 'mg'),
+        SmallBusinessNutrientModel(label: 'Iron', value: '1.2', unit: 'mg'),
+      ],
+    );
+
+    // 1. PDF Export
+    final pdfPath = await FileDownloadService.downloadPdfLabel(
+      model: modelWithNutrients,
+      dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
+      shareOnMobile: false,
+    );
+    expect(pdfPath, isNotNull);
+    final pdfBytes = await File(pdfPath!).readAsBytes();
+    final pdfString = latin1.decode(pdfBytes, allowInvalid: true);
+    // Verify calories RDA (19%) and nutrient RDAs (10%, 8%, 7%, 54%, 3%, 0%) are printed in PDF stream
+    expect(pdfString, contains('19%'));
+    expect(pdfString, contains('10%'));
+    expect(pdfString, contains('8%'));
+    expect(pdfString, contains('7%'));
+    expect(pdfString, contains('54%'));
+    expect(pdfString, contains('3%'));
+    expect(pdfString, contains('0%'));
+
+    // 2. SVG Export
     final svgPath = await FileDownloadService.downloadSvgLabel(
-      model: modelWithLogo,
+      model: modelWithNutrients,
       dimension: 'Ultra-Compact Pouch (100 × 118 mm)',
       shareOnMobile: false,
     );
     expect(svgPath, isNotNull);
     final svgString = await File(svgPath!).readAsString();
-    expect(svgString, contains('<image '));
-    expect(svgString, contains('data:image/png;base64,'));
+    // Verify right-hand text-anchor="end" tags contain calculated percentages
+    expect(svgString, contains('>19%</text>'));
+    expect(svgString, contains('>10%</text>'));
+    expect(svgString, contains('>8%</text>'));
+    expect(svgString, contains('>7%</text>'));
+    expect(svgString, contains('>54%</text>'));
+    expect(svgString, contains('>3%</text>'));
+    expect(svgString, contains('>0%</text>'));
   });
 
   testWidgets('Role Selection screen displays all 3 roles and title',

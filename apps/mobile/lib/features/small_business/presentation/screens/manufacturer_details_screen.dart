@@ -99,8 +99,10 @@ class _ManufacturerDetailsScreenState extends State<ManufacturerDetailsScreen> {
       consumerCarePhone: _phoneController.text.trim(),
       consumerCareEmail: _emailController.text.trim(),
       consumerCareWebsite: _websiteController.text.trim(),
-      currentStep: 4,
-      completionPercentage: 67,
+      currentStep: _currentModel.currentStep > 4 ? _currentModel.currentStep : 4,
+      completionPercentage: _currentModel.completionPercentage > 67
+          ? _currentModel.completionPercentage
+          : 67,
     );
   }
 

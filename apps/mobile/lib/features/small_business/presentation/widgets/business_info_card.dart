@@ -27,6 +27,23 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
   final FocusNode _fssaiFocus = FocusNode();
   final FocusNode _marketedFocus = FocusNode();
 
+  Future<void> _launchFoscosUrl() async {
+    const fssaiUrl = 'https://foscos.fssai.gov.in/';
+    final uri = Uri.parse(fssaiUrl);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      } catch (e) {
+        debugPrint('Could not launch FoSCoS URL: $e');
+      }
+    }
+  }
+
   void _showFSSAIInfoDialog() {
     showDialog(
       context: context,
@@ -166,13 +183,7 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                               step: '01',
                               text: 'Visit the official FSSAI website or FoSCoS portal',
                               actionWidget: InkWell(
-                                onTap: () async {
-                                  const fssaiUrl = 'https://foscos.fssai.gov.in/';
-                                  final uri = Uri.parse(fssaiUrl);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                  }
-                                },
+                                onTap: _launchFoscosUrl,
                                 borderRadius: BorderRadius.circular(4),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -180,7 +191,7 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: const [
                                       Text(
-                                        'Official FoSCoS Portal',
+                                        'https://foscos.fssai.gov.in/',
                                         style: TextStyle(
                                           fontSize: 11.5,
                                           fontWeight: FontWeight.w700,
@@ -189,10 +200,10 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                                           decorationColor: AppColors.brandDeepGreen,
                                         ),
                                       ),
-                                      SizedBox(width: 3.5),
+                                      SizedBox(width: 4),
                                       Icon(
                                         Icons.open_in_new_rounded,
-                                        size: 12,
+                                        size: 13,
                                         color: AppColors.brandDeepGreen,
                                       ),
                                     ],
@@ -240,18 +251,14 @@ class _BusinessInfoCardState extends State<BusinessInfoCard> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: () async {
-                        const fssaiUrl = 'https://foscos.fssai.gov.in/';
-                        final uri = Uri.parse(fssaiUrl);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
+                      onPressed: () {
+                        _launchFoscosUrl();
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
                         }
                       },
                       icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                      label: const Text('Visit Official Portal', style: TextStyle(fontSize: 12)),
+                      label: const Text('Visit Official Portal (foscos.fssai.gov.in)', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.brandDeepGreen,
                         side: const BorderSide(color: AppColors.brandDeepGreen),

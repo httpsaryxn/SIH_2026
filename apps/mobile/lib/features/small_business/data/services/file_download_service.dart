@@ -6,10 +6,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import '../models/small_business_label_model.dart';
 import 'file_download_service_stub.dart'
     if (dart.library.html) 'file_download_service_web.dart' as platform_downloader;
 import 'gs1_ean13_encoder.dart';
+import 'nutrition_calculator.dart';
 
 class FileDownloadService {
   /// Extracts width (mm) and height (mm) from packaging dimension strings (e.g. "Standard Pouch (100 × 150 mm)")
@@ -416,7 +418,7 @@ class FileDownloadService {
     final website = _escapeXml(model.consumerCareWebsite != null && model.consumerCareWebsite!.isNotEmpty ? model.consumerCareWebsite! : 'www.business.in');
     final packagingType = _escapeXml(model.packagingType.isNotEmpty ? model.packagingType : 'Food Grade Metallized Pouch');
     final batch = _escapeXml(model.batchNumber.isNotEmpty ? model.batchNumber : 'BATCH-2026-I92');
-    final mfg = _escapeXml(model.mfgDate.isNotEmpty ? model.mfgDate : 'AUG 2026');
+    final mfg = _escapeXml(model.mfgDate.isNotEmpty && model.mfgDate != 'AUG 2026' ? model.mfgDate : DateFormat('MMM yyyy').format(DateTime.now()).toUpperCase());
     final bestBefore = _escapeXml(model.bestBefore.isNotEmpty ? model.bestBefore : '12 Months from Packaging');
     final storage = _escapeXml(model.storageInstructions.isNotEmpty ? model.storageInstructions : 'Store in a cool, dry & hygienic place.');
 
@@ -430,11 +432,12 @@ class FileDownloadService {
     final servingsPerPack = (serveG > 0) ? (netGrams / serveG).round().clamp(1, 99) : 1;
 
     final energyItem = model.nutrients.cast<SmallBusinessNutrientModel?>().firstWhere(
-      (n) => n?.label.toLowerCase() == 'energy',
+      (n) => n?.label.toLowerCase() == 'energy' || n?.label.toLowerCase() == 'calories',
       orElse: () => null,
     );
     final energyVal = double.tryParse(energyItem?.value ?? '') ?? 536.0;
     final calPerServe = ((energyVal * serveG) / 100.0).round().toString();
+    final calPercentStr = NutritionCalculator.calculateCaloriesRda(calPerServe);
 
     // Ingredients with explicit percentage of content
     final ingredientsText = model.ingredients.isNotEmpty
@@ -479,28 +482,34 @@ class FileDownloadService {
 
     // Nutrients rows
     final defaultNutrients = [
-      {'name': 'Energy', 'val': '536 kcal', 'rda': '19%', 'level': 0},
-      {'name': 'Protein', 'val': '5.6 g', 'rda': '—', 'level': 0},
-      {'name': 'Carbohydrate', 'val': '230 g', 'rda': '—', 'level': 0},
-      {'name': 'Total Sugars', 'val': '2 g', 'rda': '—', 'level': 1},
-      {'name': 'Added Sugars', 'val': '2 g', 'rda': '3%', 'level': 2},
-      {'name': 'Total Fat', 'val': '10 g', 'rda': '10%', 'level': 0},
-      {'name': 'Saturated Fat', 'val': '1 g', 'rda': '3%', 'level': 1},
-      {'name': 'Trans Fat', 'val': '0 g', 'rda': '0%', 'level': 1},
-      {'name': 'Cholesterol', 'val': '0 mg', 'rda': '0%', 'level': 0},
-      {'name': 'Sodium', 'val': '222 mg', 'rda': '8%', 'level': 0},
-      {'name': 'Potassium', 'val': '140 mg', 'rda': '3%', 'level': 0},
-      {'name': 'Calcium', 'val': '40 mg', 'rda': '2%', 'level': 0},
-      {'name': 'Iron', 'val': '1.2 mg', 'rda': '4%', 'level': 0},
+      {'name': 'Energy', 'val': '536 kcal', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Energy', value: '536', unit: 'kcal', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Protein', 'val': '5.6 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Protein', value: '5.6', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Carbohydrate', 'val': '230 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Carbohydrate', value: '230', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Total Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Sugars', value: '2', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Added Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Added Sugars', value: '2', unit: 'g', servingSizeGrams: serveG), 'level': 2},
+      {'name': 'Total Fat', 'val': '10 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Fat', value: '10', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Saturated Fat', 'val': '1 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Saturated Fat', value: '1', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Trans Fat', 'val': '0 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Trans Fat', value: '0', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Cholesterol', 'val': '0 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Cholesterol', value: '0', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Sodium', 'val': '222 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Sodium', value: '222', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Potassium', 'val': '140 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Potassium', value: '140', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Calcium', 'val': '40 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Calcium', value: '40', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Iron', 'val': '1.2 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Iron', value: '1.2', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
     ];
 
     final displayNutrients = <Map<String, dynamic>>[];
     if (model.nutrients.isNotEmpty) {
       for (final n in model.nutrients) {
+        final rdaVal = NutritionCalculator.calculateRdaPercentage(
+          label: n.label,
+          value: n.value,
+          unit: n.unit,
+          servingSizeGrams: serveG,
+        );
         displayNutrients.add({
           'name': _escapeXml(n.label),
           'val': '${_escapeXml(n.value)} ${_escapeXml(n.unit)}',
-          'rda': '—',
+          'rda': rdaVal,
           'level': n.isSubNutrient ? 1 : 0,
         });
       }
@@ -602,7 +611,7 @@ class FileDownloadService {
 
   <!-- Calories Hero Callout -->
   <text x="16" y="104" font-family="Arial, sans-serif" font-size="12px" font-weight="900" fill="#000000">Calories $calPerServe <tspan font-size="8.5px" font-weight="normal" fill="#555555">(Energy $energyVal kcal / 100 g)</tspan></text>
-  <text x="444" y="104" font-family="Arial, sans-serif" font-size="11.5px" font-weight="900" fill="#000000" text-anchor="end">19%</text>
+  <text x="444" y="104" font-family="Arial, sans-serif" font-size="11.5px" font-weight="900" fill="#000000" text-anchor="end">$calPercentStr</text>
 
   <line x1="8" y1="109" x2="452" y2="109" stroke="#000000" stroke-width="1.2" />
 
@@ -718,7 +727,7 @@ ${fssaiBase64 != null ? '''    <image href="data:image/png;base64,$fssaiBase64" 
     final website = _sanitizePdfString(model.consumerCareWebsite != null && model.consumerCareWebsite!.isNotEmpty ? model.consumerCareWebsite! : 'www.business.in');
     final packagingType = _sanitizePdfString(model.packagingType.isNotEmpty ? model.packagingType : 'Food Grade Metallized Pouch');
     final batch = _sanitizePdfString(model.batchNumber.isNotEmpty ? model.batchNumber : 'BATCH-2026-I92');
-    final mfg = _sanitizePdfString(model.mfgDate.isNotEmpty ? model.mfgDate : 'AUG 2026');
+    final mfg = _sanitizePdfString(model.mfgDate.isNotEmpty && model.mfgDate != 'AUG 2026' ? model.mfgDate : DateFormat('MMM yyyy').format(DateTime.now()).toUpperCase());
     final bestBefore = _sanitizePdfString(model.bestBefore.isNotEmpty ? model.bestBefore : '12 Months from Packaging');
     final storage = _sanitizePdfString(model.storageInstructions.isNotEmpty ? model.storageInstructions : 'Store in a cool, dry & hygienic place.');
 
@@ -731,11 +740,12 @@ ${fssaiBase64 != null ? '''    <image href="data:image/png;base64,$fssaiBase64" 
     final servingsPerPack = (serveG > 0) ? (netGrams / serveG).round().clamp(1, 99) : 1;
 
     final energyItem = model.nutrients.cast<SmallBusinessNutrientModel?>().firstWhere(
-      (n) => n?.label.toLowerCase() == 'energy',
+      (n) => n?.label.toLowerCase() == 'energy' || n?.label.toLowerCase() == 'calories',
       orElse: () => null,
     );
     final energyVal = double.tryParse(energyItem?.value ?? '') ?? 536.0;
     final calPerServe = ((energyVal * serveG) / 100.0).round().toString();
+    final calPercentStr = NutritionCalculator.calculateCaloriesRda(calPerServe);
 
     // Ingredients with explicit percentage of content
     final ingredientsText = model.ingredients.isNotEmpty
@@ -763,28 +773,34 @@ ${fssaiBase64 != null ? '''    <image href="data:image/png;base64,$fssaiBase64" 
 
     // Nutrients List
     final defaultNutrients = [
-      {'name': 'Energy', 'val': '536 kcal', 'rda': '19%', 'level': 0},
-      {'name': 'Protein', 'val': '5.6 g', 'rda': '-', 'level': 0},
-      {'name': 'Carbohydrate', 'val': '230 g', 'rda': '-', 'level': 0},
-      {'name': 'Total Sugars', 'val': '2 g', 'rda': '-', 'level': 1},
-      {'name': 'Added Sugars', 'val': '2 g', 'rda': '3%', 'level': 2},
-      {'name': 'Total Fat', 'val': '10 g', 'rda': '10%', 'level': 0},
-      {'name': 'Saturated Fat', 'val': '1 g', 'rda': '3%', 'level': 1},
-      {'name': 'Trans Fat', 'val': '0 g', 'rda': '0%', 'level': 1},
-      {'name': 'Cholesterol', 'val': '0 mg', 'rda': '0%', 'level': 0},
-      {'name': 'Sodium', 'val': '222 mg', 'rda': '8%', 'level': 0},
-      {'name': 'Potassium', 'val': '140 mg', 'rda': '3%', 'level': 0},
-      {'name': 'Calcium', 'val': '40 mg', 'rda': '2%', 'level': 0},
-      {'name': 'Iron', 'val': '1.2 mg', 'rda': '4%', 'level': 0},
+      {'name': 'Energy', 'val': '536 kcal', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Energy', value: '536', unit: 'kcal', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Protein', 'val': '5.6 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Protein', value: '5.6', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Carbohydrate', 'val': '230 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Carbohydrate', value: '230', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Total Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Sugars', value: '2', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Added Sugars', 'val': '2 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Added Sugars', value: '2', unit: 'g', servingSizeGrams: serveG), 'level': 2},
+      {'name': 'Total Fat', 'val': '10 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Total Fat', value: '10', unit: 'g', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Saturated Fat', 'val': '1 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Saturated Fat', value: '1', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Trans Fat', 'val': '0 g', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Trans Fat', value: '0', unit: 'g', servingSizeGrams: serveG), 'level': 1},
+      {'name': 'Cholesterol', 'val': '0 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Cholesterol', value: '0', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Sodium', 'val': '222 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Sodium', value: '222', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Potassium', 'val': '140 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Potassium', value: '140', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Calcium', 'val': '40 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Calcium', value: '40', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
+      {'name': 'Iron', 'val': '1.2 mg', 'rda': NutritionCalculator.calculateRdaPercentage(label: 'Iron', value: '1.2', unit: 'mg', servingSizeGrams: serveG), 'level': 0},
     ];
 
     final displayNutrients = <Map<String, dynamic>>[];
     if (model.nutrients.isNotEmpty) {
       for (final n in model.nutrients) {
+        final rdaVal = NutritionCalculator.calculateRdaPercentage(
+          label: n.label,
+          value: n.value,
+          unit: n.unit,
+          servingSizeGrams: serveG,
+        );
         displayNutrients.add({
           'name': _sanitizePdfString(n.label),
           'val': '${_sanitizePdfString(n.value)} ${_sanitizePdfString(n.unit)}',
-          'rda': '-',
+          'rda': rdaVal,
           'level': n.isSubNutrient ? 1 : 0,
         });
       }
@@ -959,7 +975,8 @@ ${fssaiBase64 != null ? '''    <image href="data:image/png;base64,$fssaiBase64" 
 
     // Calories Hero Callout
     text('Calories $calPerServe (Energy $energyVal kcal / 100 g)', 14, 91, font: '/F1', size: 11.5, color: [0, 0, 0]);
-    text('19%', 424, 91, font: '/F1', size: 11.0, color: [0, 0, 0]);
+    final calRdaX = 444.0 - (calPercentStr.length * 6.5);
+    text(calPercentStr, calRdaX, 91, font: '/F1', size: 11.0, color: [0, 0, 0]);
 
     line(8, 105, 452, 105, lw: 1.0, strokeColor: [0, 0, 0]);
 
@@ -976,7 +993,8 @@ ${fssaiBase64 != null ? '''    <image href="data:image/png;base64,$fssaiBase64" 
 
       line(8, curNY - 2, 452, curNY - 2, lw: 0.5, strokeColor: [0.88, 0.91, 0.94]);
       text('$prefix$name $val', indentX, curNY, font: f, size: 7.2, color: isBold ? [0, 0, 0] : [0.2, 0.2, 0.2]);
-      text(rda, 430, curNY, font: f, size: 7.2, color: isBold ? [0, 0, 0] : [0.2, 0.2, 0.2]);
+      final rdaX = 444.0 - (rda.length * 4.2);
+      text(rda, rdaX, curNY, font: f, size: 7.2, color: isBold ? [0, 0, 0] : [0.2, 0.2, 0.2]);
       curNY += 9.5;
     }
 

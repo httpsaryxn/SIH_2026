@@ -83,8 +83,10 @@ class _CreateLabelDeclarationScreenState
       productCategory: _selectedCategory ?? '',
       typeFlavour: _typeFlavourController.text.trim(),
       logoUrl: _uploadedLogoDataUrl ?? _currentModel.logoUrl,
-      currentStep: 1,
-      completionPercentage: 17,
+      currentStep: _currentModel.currentStep > 1 ? _currentModel.currentStep : 1,
+      completionPercentage: _currentModel.completionPercentage > 17
+          ? _currentModel.completionPercentage
+          : 17,
     );
   }
 
