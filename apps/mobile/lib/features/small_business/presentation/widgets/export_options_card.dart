@@ -23,6 +23,7 @@ class ExportOptionsCard extends StatefulWidget {
     this.customWidthMm = 100,
     this.customHeightMm = 150,
     this.onCustomDimensionsChanged,
+    this.onExportFormat,
   });
 
   final ExportFormat selectedFormat;
@@ -32,6 +33,7 @@ class ExportOptionsCard extends StatefulWidget {
   final double customWidthMm;
   final double customHeightMm;
   final void Function(double width, double height)? onCustomDimensionsChanged;
+  final void Function(ExportFormat format)? onExportFormat;
 
   @override
   State<ExportOptionsCard> createState() => _ExportOptionsCardState();
@@ -223,12 +225,49 @@ class _ExportOptionsCardState extends State<ExportOptionsCard> {
                             ],
                           ),
                         ),
-                        if (isSelected)
+                        if (widget.onExportFormat != null) ...[
+                          const SizedBox(width: 8),
+                          FilledButton.tonal(
+                            onPressed: () {
+                              widget.onFormatChanged(fmt);
+                              widget.onExportFormat!(fmt);
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: isSelected
+                                  ? AppColors.brandDeepGreen
+                                  : AppColors.brandDeepGreen.withValues(alpha: 0.1),
+                              foregroundColor: isSelected
+                                  ? Colors.white
+                                  : AppColors.brandDeepGreen,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: const Size(0, 32),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.download_rounded, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Download',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (isSelected) ...[
                           const Icon(
                             Icons.check_circle_rounded,
                             size: 18,
                             color: AppColors.brandDeepGreen,
                           ),
+                        ],
                       ],
                     ),
                   ),
