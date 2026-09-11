@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v1.0.10)'
+        description: 'Release version tag (e.g. v2.0.0)'
         required: true
-        default: 'v1.0.10'
+        default: 'v2.0.0'
   push:
     tags:
       - 'v*'
@@ -106,10 +106,12 @@ jobs:
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}-universal.apk\`** | **~105 MB** | 🌐 **Universal** — compatible with all Android devices, tablets & emulators |
           | **\`LabelLens-${{ steps.vars.outputs.VERSION }}.ipa\`** | **~31 MB** | 🍎 **iOS Unsigned** (Install via AltStore / Sideloadly / TrollStore / Scarlet) |
 
-          #### 🚀 Highlights in this Release:
-          - 🧠 **Dynamic AI Label Summary (Groq LLM)**: High-speed real label analysis with models (\`qwen/qwen3.8-27b\`, \`openai/gpt-oss-120b\`, \`llama-3.3-70b-versatile\`)
-          - ⚠️ **Harmful Ingredients & Threshold Flags**: Automated detection and warning flags for artificial food colors (Tartrazine INS 102, Sunset Yellow INS 110, Allura Red INS 129), chemical preservatives (BHA, BHT, benzoates), palm oil, MSG, and excessive sodium (>600mg) / high sugar (>15g)
-          - ✅ **Wholesome & Clean Label Reassurances**: Explicit positive endorsements and health scoring for clean formulations
-          - 📄 **Multi-Panel OCR Extraction**: Merges text from front PDP and back/side nutrition tables for real label analysis
+          #### 🚀 Highlights in this Release (v2.0):
+          - 🏪 **Small Business Studio Hub & Inventory**: Functional 4-tab persistent bottom navbar (Home, Inventory, Notifications, Profile) with DirectionalIndexedStack slide transitions, unread alerts badge, and live inline search results
+          - 📦 **Label Inventory & Drill-in Management**: Real-time filtering by status (All, Ready, Needs Review, Drafts), category picker, and tap-to-drill-in to label creator and review
+          - 🔔 **Activity & Compliance Notifications Center**: Integrated real-time notifications with filter chips and live count badge
+          - 🔍 **Instant Inline Search Dropdown**: Product search directly beneath search bar with rich metadata preview and tap redirection
+          - 🧠 **Dynamic AI Label Summary (Groq LLM)**: Real-time packaging OCR analysis with fast model fallbacks (\`qwen/qwen3.8-27b\`, \`openai/gpt-oss-120b\`, \`llama-3.3-70b-versatile\`)
+          - ⚠️ **Harmful Ingredients & Threshold Flags**: Automated detection of artificial dyes (INS 102, 110, 129), chemical preservatives, palm oil, MSG, and excessive sodium/sugar warnings
           - 📹 **Real Live Camera Viewfinders**: Hardware camera streaming in multi-capture steps with live guides and tap-to-snap shutter
-          - 🛡️ **Persistent Regulator Navigation Shell**: 100% state preservation across all regulator tabs"
+          - 🛡️ **Persistent Shells & Motion System**: 100% state preservation across regulator and small business tabs with standardized spring physics and Cupertino/Material transitions"

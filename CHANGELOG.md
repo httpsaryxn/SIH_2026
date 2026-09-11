@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-09-11
+
+### Added
+- **Small Business Persistent Navigation Shell & Studio Hub**:
+  - Replaced placeholder navigation with a fully interactive 4-tab bottom navigation bar: **Home**, **Inventory**, **Notifications**, and **Profile**.
+  - Built with `Pressable` spring rebound physics, `HapticFeedback.selectionClick()`, smooth active indicator pill, and live dynamic unread alerts badge.
+  - Powered by spatial `DirectionalIndexedStack` featuring direction-aware sliding and fading (`AppDurations.medium`, `AppCurves.entrance`, with `ClipRect` boundary clipping) while preserving all form state, scroll positions, and query filters.
+- **Label Inventory Screen (`SmallBusinessInventoryScreen`)**:
+  - Centralized catalog displaying all labels drafted and published by the business owner.
+  - Category selector bottom sheet and status filter chips (**All**, **Ready**, **Needs Review**, **Drafts**) with live counter badges.
+  - Quick drill-in action: seamlessly opens `CreateLabelDeclarationScreen` for drafts or `LabelReviewExportScreen` for finalized labels.
+  - Real-time search by title, brand, category, batch number, and FSSAI license number.
+- **Activity & Compliance Notifications Center (`SmallBusinessNotificationsScreen`)**:
+  - Direct integration with `SmallBusinessNotificationService` providing real-time compliance updates, activity logs, and status alerts.
+  - Filter chips for **All**, **Alerts**, **Success**, and **Legal** notices with timestamp tracking and one-tap clear dialog.
+- **Instant Inline Search Results**:
+  - Typing in the Studio search box opens an inline search dropdown directly below the search bar.
+  - Displays product thumbnails, brand, batch number, status pill, and FSSAI number with direct navigation on click.
+- **Top Header Modernization**:
+  - Removed duplicate notification bell and profile avatar from the top header on the Studio Home screen, streamlining the user experience to the bottom navbar.
+
+---
+
 ## [1.0.10] - 2026-09-10
 
 ### Added
