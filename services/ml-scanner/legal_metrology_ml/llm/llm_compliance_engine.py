@@ -28,13 +28,10 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 MODELS_TO_TRY = [
-    "gemini-2.5-flash",       # Verified fast response
-    "gemini-3.1-flash-lite",  # High throughput flash-lite
-    "gemini-2.5-flash-lite",  # Efficient lightweight fallback
-    "gemini-flash-latest",    # Always-current flash
-    "gemini-3.5-flash-lite",  # Next-gen lite
-    "gemini-3.6-flash",       # Flash 3.6
-    "gemini-3.7-flash",       # Flash 3.7
+    "gemini-3.8-flash",       # Latest GA flagship flash model
+    "gemini-3.5-flash-lite",  # Cost-optimized high-efficiency
+    "gemini-3.1-flash-lite",  # GA — high throughput flash-lite
+    "gemini-2.5-flash",       # Legacy fallback (restricted, may stop Oct 2026)
 ]
 
 
