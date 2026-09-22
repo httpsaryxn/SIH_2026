@@ -28,14 +28,13 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 MODELS_TO_TRY = [
-    "gemini-3.8-flash",       # Latest GA flagship flash model
-    "gemini-3.5-flash-lite",  # Cost-optimized high-efficiency
-    "gemini-3.1-flash-lite",  # GA — high throughput flash-lite
-    "gemini-2.5-flash",       # Legacy fallback (restricted, may stop Oct 2026)
+    "gemini-3.1-flash-lite",  # Ultra-fast, high-throughput flash-lite (lowest latency)
+    "gemini-2.5-flash",       # Standard flash fallback
+    "gemini-3.8-flash",       # High capability flagship flash
 ]
 
 
-def _optimize_image_for_vision(path: str, max_size: int = 1600, quality: int = 85) -> Tuple[str, str]:
+def _optimize_image_for_vision(path: str, max_size: int = 1024, quality: int = 75) -> Tuple[str, str]:
     """Resize and compress phone camera images to prevent massive base64 payloads and timeouts."""
     try:
         from PIL import Image  # type: ignore[import-not-found]
@@ -54,7 +53,20 @@ def _optimize_image_for_vision(path: str, max_size: int = 1600, quality: int = 8
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
             return "image/jpeg", b64
     except Exception as e:
-        logger.warning("Image optimization failed for %s, using raw bytes: %s", path, e)
+        logger.warning("PIL optimization failed for %s: %s, attempting OpenCV resize...", path, e)
+        try:
+            import cv2
+            img_cv = cv2.imread(path)
+            if img_cv is not None:
+                h, w = img_cv.shape[:2]
+                if max(w, h) > max_size:
+                    ratio = max_size / float(max(w, h))
+                    img_cv = cv2.resize(img_cv, (int(w * ratio), int(h * ratio)), interpolation=cv2.INTER_AREA)
+                _, enc = cv2.imencode(".jpg", img_cv, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+                b64 = base64.b64encode(enc.tobytes()).decode("utf-8")
+                return "image/jpeg", b64
+        except Exception as cv_err:
+            logger.warning("OpenCV resize also failed: %s", cv_err)
         raw = Path(path).read_bytes()
         mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
         return mime, base64.b64encode(raw).decode("utf-8")
@@ -337,7 +349,8 @@ Respond ONLY with the JSON object. No markdown backticks.
         for model in MODELS_TO_TRY:
             url = GEMINI_API_URL.format(model=model, key=key)
             try:
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=18)
+                # 10s timeout is optimal for flash models with compressed 1024px images
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
@@ -348,14 +361,20 @@ Respond ONLY with the JSON object. No markdown backticks.
                         text = re.sub(r"^```\s*", "", text)
                         text = re.sub(r"\s*```$", "", text)
                         return json.loads(text)
+                elif resp.status_code == 503:
+                    last_error = f"HTTP 503 Service Unavailable (Google Gemini capacity limit / high traffic)"
+                    logger.warning("Model %s returned 503 (Gemini service unavailable/overloaded)", model)
                 else:
                     last_error = f"HTTP {resp.status_code}: {resp.text}"
                     logger.warning("Model %s failed: %s", model, last_error)
+            except requests.exceptions.Timeout:
+                last_error = f"Timeout calling {model} (read timeout=10s)"
+                logger.warning("Model %s timed out after 10s", model)
             except Exception as e:
                 last_error = str(e)
                 logger.warning("Error calling %s: %s", model, e)
 
-        raise RuntimeError(f"Gemini API request failed across all models: {last_error}")
+        raise RuntimeError(f"Gemini API request failed across candidate models: {last_error}")
 
     def _build_compliance_result(
         self,

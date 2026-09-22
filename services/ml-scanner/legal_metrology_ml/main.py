@@ -18,7 +18,11 @@ from .layer1_feature_extraction.segmentation import PackageSegmenter
 from .layer1_feature_extraction.font_estimator import FontEstimator
 
 from .layer2_data_normalization.normalizer import DataNormalizer
-from .layer2_data_normalization.schema import ComplianceReport
+from .layer2_data_normalization.schema import (
+    CompliancePrediction,
+    ComplianceReport,
+    ComplianceScore,
+)
 
 from .layer3_ml_model.feature_builder import FeatureBuilder
 from .layer3_ml_model.ebm_model import ComplianceEBM
@@ -32,7 +36,6 @@ from .layer5_aggregation.report_generator import ReportGenerator
 from .layer1_feature_extraction.gs1 import classify_gtin
 from .layer4_rulebook_engine.barcode_rules import evaluate_barcode_rules
 from .data_sources.product_lookup import lookup_product
-from .layer2_data_normalization.schema import CompliancePrediction
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +111,6 @@ def run_barcode_pipeline(
     # Build the score directly — the bar-code audit's honest figure is
     # "confirmed-compliant weight / (confirmed + unverified-mandatory weight)",
     # not the image-pipeline blend that ignores INCONCLUSIVE results.
-    from .layer2_data_normalization.schema import ComplianceScore
     star_rating, star_label = scorer._get_star_rating(rule_prob)
     unverified_mandatory = [r for r in diff.inconclusive if r.severity in ("CRITICAL", "MAJOR")]
     if unverified_mandatory and star_label and "Unverified" not in star_label:
@@ -497,8 +499,6 @@ def run_pipeline(
                     total_w = passed_w + failed_w + warn_w
                     if total_w > 0:
                         recalc_prob = passed_w / total_w
-                        from legal_metrology_ml.layer5_aggregation.scorer import ComplianceScorer
-                        from legal_metrology_ml.layer2_data_normalization.schema import ComplianceScore
                         star_rating, star_label = ComplianceScorer()._get_star_rating(recalc_prob)
                         score = ComplianceScore(
                             final_score=round(recalc_prob, 3),
@@ -514,7 +514,6 @@ def run_pipeline(
                             minor_failures=sum(1 for r in diff.failed if r.severity == "MINOR"),
                         )
 
-                from legal_metrology_ml.layer3_ml_model.ebm_model import CompliancePrediction
                 ebm_prediction = CompliancePrediction(
                     compliance_probability=score.final_score,
                     predicted_compliant=(score.final_score >= 0.70),

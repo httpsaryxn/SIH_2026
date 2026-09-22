@@ -287,6 +287,9 @@ class OCREngine:
                 logger.warning(
                     "Tesseract binary not found in standard paths. Set TESSERACT_CMD or install Tesseract OCR."
                 )
+                if easyocr is not None:
+                    logger.info("Falling back to EasyOCR backend because Tesseract binary is not installed.")
+                    self.engine = "easyocr"
         elif self.engine == "paddleocr":
             if paddleocr is None:
                 raise ImportError(
