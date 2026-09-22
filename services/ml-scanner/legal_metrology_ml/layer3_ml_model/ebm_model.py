@@ -67,7 +67,13 @@ class ComplianceEBM:
     def predict(self, X: pd.DataFrame) -> CompliancePrediction:
         """Predicts compliance and provides explanations for a single instance X (1-row DataFrame)."""
         if self.model is None:
-            raise RuntimeError("Model is not trained or loaded.")
+            logger.info("EBM model unavailable — returning neutral prediction (rule-only mode)")
+            return CompliancePrediction(
+                compliance_probability=0.5,
+                predicted_compliant=False,
+                feature_contributions={},
+                top_risk_factors=[],
+            )
             
         if not HAS_INTERPRET:
             raise ImportError("interpret package is not installed.")
@@ -110,9 +116,16 @@ class ComplianceEBM:
         logger.info(f"Model saved to {path}")
             
     def load(self, path: str) -> None:
-        with open(path, 'rb') as f:
-            self.model = pickle.load(f)
-        logger.info(f"Model loaded from {path}")
+        if not HAS_INTERPRET:
+            logger.warning("interpret package not installed — skipping EBM model load (will use rule-only scoring)")
+            return
+        try:
+            with open(path, 'rb') as f:
+                self.model = pickle.load(f)
+            logger.info(f"Model loaded from {path}")
+        except (ModuleNotFoundError, ImportError) as exc:
+            logger.warning(f"Could not deserialize EBM model ({exc}) — falling back to rule-only scoring")
+            self.model = None
         
     def explain_global(self) -> Dict[str, float]:
         """Returns global feature importances."""
