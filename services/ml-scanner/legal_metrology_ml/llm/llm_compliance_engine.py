@@ -38,7 +38,7 @@ MODELS_TO_TRY = [
 def _optimize_image_for_vision(path: str, max_size: int = 1600, quality: int = 85) -> Tuple[str, str]:
     """Resize and compress phone camera images to prevent massive base64 payloads and timeouts."""
     try:
-        from PIL import Image
+        from PIL import Image  # type: ignore[import-not-found]
         import io
         with Image.open(path) as img:
             if img.mode in ("RGBA", "P"):
