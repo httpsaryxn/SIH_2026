@@ -17,3 +17,5 @@ groq>=0.11.0
 reportlab>=4.2.0
 supabase>=2.4.0
 httpx>=0.27.0
+interpret>=0.6
+easyocr>=1.7
