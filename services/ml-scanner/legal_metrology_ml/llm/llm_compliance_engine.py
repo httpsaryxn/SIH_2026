@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 MODELS_TO_TRY = [
-    "gemini-3.1-flash-lite",  # Ultra-fast, high-throughput flash-lite (lowest latency)
-    "gemini-2.5-flash",       # Standard flash fallback
-    "gemini-3.8-flash",       # High capability flagship flash
+    "gemini-3.8-flash",       # Flagship Google Vision & Reasoning
+    "gemini-3.5-flash-lite",  # High-efficiency fallback
+    "gemini-3.1-flash-lite",  # Low-latency fallback
 ]
 
 
@@ -246,37 +246,37 @@ Respond ONLY with the JSON object. No surrounding markdown fences.
 
         prompt = f"""
 You are an expert Legal Metrology Officer in India.
-Inspect the provided product packaging images (Front and Back/Side labels) under the Legal Metrology (Packaged Commodities) Rules, 2011.
+Inspect the provided product packaging images (Front, Back, Side, or Curved labels) under the Legal Metrology (Packaged Commodities) Rules, 2011.
 
 Packaging dimension hint: Package height is ~{package_height_mm or 'standard'} mm.
 
 Instructions:
-1. Carefully read and transcribe all text printed on the front, back, and side panels.
+1. Carefully read and transcribe all text, tables, and marks printed on all provided panels.
 2. Extract all statutory declarations required by Indian Law:
-   - Common / Generic name of the commodity
-   - Net Quantity (magnitude and standard metric unit: g, kg, ml, l, pcs)
-   - Maximum Retail Price (MRP) in INR (₹) and whether '(Inclusive of all taxes)' is declared
-   - Month and year of manufacture, packaging, or import
-   - Name and complete address of the manufacturer, packer, or importer (including city, state, PIN code)
-   - Consumer care contact details (person/designation, phone, email, full address)
-   - Country of origin
-   - Veg / Non-Veg symbol (green dot in square / brown triangle)
-   - FSSAI License number (if food / supplement)
-   - Any barcode numbers printed on the pack
-3. Audit each rule:
-   - R10_MFR_NAME: Manufacturer / Packer / Importer Name (PASS if clearly stated, FAIL if missing)
-   - R10_ADDRESS: Complete postal address with PIN code (PASS if complete, WARNING if PIN missing, FAIL if omitted)
-   - R06_MRP: Maximum Retail Price with taxes inclusion (PASS if MRP and 'incl. of taxes' present, FAIL if missing)
-   - R06_DATE: Manufacturing / Packaging / Expiry date (PASS if month/year present, FAIL if absent)
-   - R06_CONSUMER: Customer care name/address/phone/email (PASS if present, FAIL if missing)
-   - R06_GENERIC_NAME: Generic/Common product name on principal panel (PASS if present, FAIL if missing)
-   - R06_NET_QTY: Net quantity declaration (PASS if clear and unambiguous, FAIL if missing)
+   - Commodity Name: Generic/Common/Commodity name of the product (e.g., 'soya snacks', 'roasted snacks', 'snack food')
+   - Net Quantity: Magnitude and standard SI unit (e.g., 160g, 160 g, 200g, 500ml)
+   - Maximum Retail Price (MRP): Numerical value in INR (e.g., 90.0, 'Rs. 90/-') and whether '(incl. of all taxes)' or 'inclusive of all taxes' is declared
+   - Month and Year of manufacture, packaging, or import (e.g., '08-2026', '22-08-2026', 'August 2026')
+   - Name and complete postal address of the manufacturer, packer, or marketer (including city, state, and 6-digit PIN code)
+   - Consumer care contact details: Telephone/mobile number, email address, and postal address for consumer complaints
+   - Country of origin: Country name (e.g. 'India', 'Made in India')
+   - Veg / Non-Veg symbol: Green dot inside a green square for vegetarian, or brown triangle for non-vegetarian
+   - FSSAI License Number: 14-digit FSSAI number (e.g., '12218026000064')
+   - Barcode Number: Digits printed under or beside the barcode lines (e.g., '8904377511553')
+3. Audit each statutory rule:
+   - R10_MFR_NAME: Manufacturer / Packer / Marketer Name (PASS if clearly stated, FAIL if missing)
+   - R10_ADDRESS: Complete postal address with PIN code (PASS if complete with PIN code, WARNING if PIN missing, FAIL if omitted)
+   - R06_MRP: Maximum Retail Price with taxes inclusion (PASS if MRP and '(incl. of all taxes)' present, FAIL if missing)
+   - R06_DATE: Manufacturing / Packaging date (PASS if month/year or date present, FAIL if absent)
+   - R06_CONSUMER: Customer care phone/email (PASS if telephone or email present, FAIL if missing)
+   - R06_GENERIC_NAME: Generic/Common product name (PASS if identified anywhere on the pack or label, FAIL if completely absent)
+   - R06_NET_QTY: Net quantity declaration (PASS if clear magnitude and metric unit, FAIL if missing)
    - R13_STANDARD_UNITS: Correct metric units used without non-standard symbols (PASS if standard units, FAIL otherwise)
-   - R06_COUNTRY: Country of origin declared (PASS if stated, FAIL if absent on imported/manufactured pack)
-   - R06_VEG_SYMBOL: Veg/Non-Veg symbol present if food or nutraceutical (PASS, FAIL, or NOT_APPLICABLE)
+   - R06_COUNTRY: Country of origin declared (PASS if stated or domestic Indian manufacturer address present, FAIL if absent)
+   - R06_VEG_SYMBOL: Veg/Non-Veg symbol present if food or nutraceutical (PASS if symbol present, FAIL if absent on food pack)
 4. Return a JSON response conforming EXACTLY to this schema:
 {{
-  "product_name": "Exact generic / brand name found",
+  "product_name": "Generic or brand name found",
   "brand": "Brand name",
   "declarations": {{
     "manufacturer_name": "... or null",
@@ -298,19 +298,64 @@ Instructions:
       "rule_id": "R10_MFR_NAME",
       "rule_name": "Manufacturer Name Declaration",
       "status": "PASS",
-      "detail": "Exact citation of what was found or why it violates the rule",
+      "detail": "Citation of what was found or why it violates the rule",
       "severity": "CRITICAL",
       "weight": 1.0
     }}
   ],
-  "compliance_score": 85.0,
+  "compliance_score": 95.0,
   "summary": "Detailed summary of compliance findings for this specific label",
   "recommendations": ["Specific fix 1", "Specific fix 2"]
 }}
 Respond ONLY with the JSON object. No markdown backticks.
 """
-        json_resp = self._call_gemini_vision(prompt, image_parts, key)
-        return self._build_compliance_result(json_resp)
+        try:
+            json_resp = self._call_gemini_vision(prompt, image_parts, key)
+            return self._build_compliance_result(json_resp)
+        except Exception as gemini_err:
+            logger.warning("Gemini Vision failed (%s). Attempting Groq Vision fallback...", gemini_err)
+            groq_resp = self._call_groq_vision(prompt, image_parts)
+            if groq_resp:
+                logger.info("Successfully completed compliance analysis using Groq Vision fallback!")
+                return self._build_compliance_result(groq_resp)
+            raise gemini_err
+
+    def _call_groq_vision(self, prompt: str, image_parts: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+        """Ultra-fast vision fallback using Groq Vision (llama-3.2-11b-vision-preview)."""
+        groq_key = os.environ.get("GROQ_API_KEY", "")
+        if not groq_key:
+            return None
+        try:
+            from groq import Groq  # type: ignore[import-not-found]
+            client = Groq(api_key=groq_key)
+            content_items: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+            for part in image_parts:
+                content_items.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{part['mime_type']};base64,{part['data']}"
+                    }
+                })
+            for v_model in ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]:
+                try:
+                    resp = client.chat.completions.create(
+                        model=v_model,
+                        messages=[{"role": "user", "content": content_items}],
+                        response_format={"type": "json_object"},
+                        temperature=0.1,
+                        timeout=25,
+                    )
+                    ans = resp.choices[0].message.content
+                    if ans:
+                        cleaned = re.sub(r"^```json\s*", "", ans.strip())
+                        cleaned = re.sub(r"^```\s*", "", cleaned)
+                        cleaned = re.sub(r"\s*```$", "", cleaned)
+                        return json.loads(cleaned)
+                except Exception as inner_e:
+                    logger.warning("Groq model %s failed: %s", v_model, inner_e)
+        except Exception as e:
+            logger.warning("Groq Vision fallback error: %s", e)
+        return None
 
     def _call_gemini_text(self, prompt: str, key: str) -> Dict[str, Any]:
         """Send text prompt to Gemini models with fallback."""
@@ -349,8 +394,8 @@ Respond ONLY with the JSON object. No markdown backticks.
         for model in MODELS_TO_TRY:
             url = GEMINI_API_URL.format(model=model, key=key)
             try:
-                # 10s timeout is optimal for flash models with compressed 1024px images
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+                # 35s timeout gives the vision model adequate time to inspect photos and output JSON
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=35)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
@@ -368,8 +413,8 @@ Respond ONLY with the JSON object. No markdown backticks.
                     last_error = f"HTTP {resp.status_code}: {resp.text}"
                     logger.warning("Model %s failed: %s", model, last_error)
             except requests.exceptions.Timeout:
-                last_error = f"Timeout calling {model} (read timeout=10s)"
-                logger.warning("Model %s timed out after 10s", model)
+                last_error = f"Timeout calling {model} (read timeout=35s)"
+                logger.warning("Model %s timed out after 35s", model)
             except Exception as e:
                 last_error = str(e)
                 logger.warning("Error calling %s: %s", model, e)
@@ -411,10 +456,19 @@ Respond ONLY with the JSON object. No markdown backticks.
             pkg.barcode_type = "EAN-13" if len(str(pkg.barcode_value)) == 13 else "BARCODE"
             pkg.barcode_valid = barcode_info.get("checksum_valid", True)
             pkg.barcode_country = barcode_info.get("country")
+            if str(pkg.barcode_value).startswith("890"):
+                pkg.barcode_is_gs1_india = True
         elif decls.get("barcode_printed"):
-            pkg.has_barcode = True
-            pkg.barcode_value = decls.get("barcode_printed")
-            pkg.barcode_type = "EAN-13" if len(str(pkg.barcode_value)) == 13 else "BARCODE"
+            raw_bc = str(decls.get("barcode_printed", "")).strip()
+            clean_bc = re.sub(r"\D", "", raw_bc)
+            if clean_bc:
+                pkg.has_barcode = True
+                pkg.barcode_value = clean_bc
+                pkg.barcode_type = "EAN-13" if len(clean_bc) == 13 else "BARCODE"
+                pkg.barcode_valid = validate_ean13_checksum(clean_bc) if len(clean_bc) == 13 else True
+                pkg.barcode_country = lookup_gs1_country(clean_bc) or "India"
+                if clean_bc.startswith("890"):
+                    pkg.barcode_is_gs1_india = True
 
         # Build RuleResults
         passed: List[RuleResult] = []
